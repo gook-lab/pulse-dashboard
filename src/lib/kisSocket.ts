@@ -129,6 +129,27 @@ export function useKrChartAll(code: string | null) {
   return { ...data, loading };
 }
 
+/** KR 당일 분봉(1일 탭). 실거래량이 담긴 유일한 소스 — 합성 분할은 막대가 전부 같아진다.
+ *  서버가 60초 캐시하므로 같은 주기로 갱신한다. code=null이면 비활성. */
+export function useKrIntraday(code: string | null) {
+  const [candles, setCandles] = useState<Candle[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!code) { setCandles([]); return; }
+    let alive = true;
+    setLoading(true);
+    const load = () => fetch(`/api/kr/intraday?code=${code}`)
+      .then((r) => r.json())
+      .then((rows: Candle[]) => { if (alive) setCandles(Array.isArray(rows) ? rows : []); })
+      .catch(() => { if (alive) setCandles([]); })
+      .finally(() => { if (alive) setLoading(false); });
+    load();
+    const id = window.setInterval(() => { if (!document.hidden) load(); }, 60_000);
+    return () => { alive = false; clearInterval(id); };
+  }, [code]);
+  return { candles, loading };
+}
+
 /** KIS 소켓 연결 여부(불리언). */
 export function useKisConnected() {
   const [c, setC] = useState(false);

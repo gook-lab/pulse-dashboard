@@ -4,62 +4,13 @@ import { useStore } from '../../store/useStore';
 import { signColor, fmt, type ColorMode } from '../../lib/colors';
 import type { Candle, Level, TradeTick } from '../../data/types';
 import { Loading, EmptyState, Badge, MarketChip, PriceChart, ReasonList, Segmented, SkeletonRows } from '@/components/common';
-import { useKisRealtime, useKrChartAll } from '@/lib/kisSocket';
+import { useKisRealtime, useKrChartAll, useKrIntraday } from '@/lib/kisSocket';
+import { densify, synthIntraday, fromIntraday, fmtM, type Densified } from '@/lib/chartSeries';
 import OrderTicket from './OrderTicket';
 import PriceAlertModal from './PriceAlertModal';
 import s from './StockDetail.module.css';
 
-const fmtD = (d: string) => (d?.length === 8 ? `${d.slice(4, 6)}/${d.slice(6, 8)}` : d ?? '');
-const fmtM = (d: string) => (d?.length === 8 ? `${d.slice(0, 4)}.${d.slice(4, 6)}` : d ?? '');
-const fmtT = (i: number, n: number) => {
-  const min = Math.round((i / Math.max(1, n - 1)) * 390); // 09:00~15:30 = 390분
-  return `${String(9 + Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
-};
-
-// 일봉 OHLC를 앵커로 장중 서브포인트 k개를 합성 → Toss식 촘촘한 라인/캔들(결정적 시드).
-// o/h/l/c(시·고·저·종)는 실제값을 반드시 포함하고, 사이만 채운다.
-function densify(daily: Candle[], k: number, labelFn: (d: string) => string = fmtD) {
-  const closes: number[] = [], vols: number[] = [], labels: string[] = [];
-  const cds: { o: number; h: number; l: number; c: number }[] = [];
-  let prev = daily[0]?.o ?? 0;
-  for (const d of daily) {
-    const rng = (d.h - d.l) || Math.abs(d.c) * 0.006 || 1;
-    const seed0 = [...d.date].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
-    const sub: number[] = [];
-    for (let i = 0; i < k; i++) {
-      const t = k === 1 ? 1 : i / (k - 1);
-      let c = d.o + (d.c - d.o) * t;
-      const rnd = ((seed0 + i * 2654435761) >>> 0) % 1000;
-      c += (rnd / 1000 - 0.5) * rng * 0.55;
-      c = Math.max(d.l, Math.min(d.h, c));
-      if (i === 0) c = d.o;
-      if (i === k - 1) c = d.c;
-      sub.push(c);
-    }
-    // 내부 지점에 실제 일중 고/저가 심기(끝점 o/c는 보존)
-    if (k > 2) {
-      let hiI = 1, loI = 1;
-      for (let i = 1; i < k - 1; i++) { if (sub[i] > sub[hiI]) hiI = i; if (sub[i] < sub[loI]) loI = i; }
-      sub[hiI] = d.h; sub[loI] = d.l;
-    }
-    for (let i = 0; i < k; i++) {
-      const o = i === 0 ? prev : sub[i - 1];
-      const c = sub[i];
-      cds.push({ o, c, h: Math.max(o, c), l: Math.min(o, c) });
-      closes.push(c); vols.push(Math.round(d.v / k)); labels.push(labelFn(d.date));
-    }
-    prev = d.c;
-  }
-  return { closes, cds, vols, labels };
-}
-
-type Densified = ReturnType<typeof densify>;
-// 1일 탭: 마지막 일봉을 09:00~15:30 장중 라인(n봉)으로 합성.
-function synthIntraday(day: Candle | undefined, n: number): Densified {
-  if (!day) return { closes: [], cds: [], vols: [], labels: [] };
-  const d = densify([day], n);
-  return { ...d, labels: d.closes.map((_, i) => fmtT(i, d.closes.length)) };
-}
+// 차트 시리즈 변환(합성 서브포인트·분봉·거래량 규칙)은 src/lib/chartSeries.ts 로 분리 — 단위 테스트로 잠금.
 
 export default function StockDetail() {
   const watchlist = useStore((st) => st.watchlist);
@@ -75,6 +26,7 @@ export default function StockDetail() {
   const isKR = /^\d{6}$/.test(selectedCode);
   const rt = useKisRealtime(isKR ? selectedCode : null);
   const chartAll = useKrChartAll(isKR ? selectedCode : null); // 일/주/월봉(1일~5년 탭)
+  const intraday = useKrIntraday(isKR ? selectedCode : null); // 1일 탭 실분봉(실거래량 유일 소스)
   const lastClose = chartAll.daily[chartAll.daily.length - 1]?.c;
   const [liveTrades, setLiveTrades] = useState<TradeTick[]>([]);
   useEffect(() => { setLiveTrades([]); }, [selectedCode]);
@@ -159,10 +111,11 @@ export default function StockDetail() {
     };
 
     if (daily.length) {
-      // ⚠️ 서브포인트는 시각화용 합성(o/h/l/c는 실제). 실전 분봉 열리면 실데이터로 교체.
+      // ⚠️ 1주~5년의 서브포인트는 시각화용 합성(o/h/l/c는 실제, 거래량은 캔들당 1건만 실재).
       const dPer = (nDays: number, k: number) => cap(densify(daily.slice(-nDays), k));
       const mPer = (nM: number, k: number) => cap(densify(monthly.slice(-nM), k, fmtM));
-      const d1 = cap(synthIntraday(daily[daily.length - 1], 78));   // 1일: 장중
+      // 1일: 실분봉이 있으면 실데이터(라인·캔들·거래량 전부 실측), 없으면 합성 라인 + 거래량 미표시.
+      const d1 = cap(intraday.candles.length ? fromIntraday(intraday.candles) : synthIntraday(daily[daily.length - 1], 78));
       const wk = dPer(5, 9), mo = dPer(22, 4), q = dPer(Math.min(66, daily.length), 2);
       const yr = monthly.length ? mPer(12, 8) : dPer(daily.length, 2);         // 1년: 월봉 12
       const yr5 = monthly.length ? mPer(monthly.length, 2) : { closes: [], cds: [], vols: [], labels: [] }; // 5년: 전체 월봉
@@ -187,7 +140,7 @@ export default function StockDetail() {
       candles: undefined, volumes: undefined, labels: undefined,
       defaultPeriod: '1일' as const,
     };
-  }, [detail, chartAll.daily, chartAll.monthly, isKR, live, lastClose]);
+  }, [detail, chartAll.daily, chartAll.monthly, intraday.candles, isKR, live, lastClose]);
 
   return (
     <div className={s.grid}>
