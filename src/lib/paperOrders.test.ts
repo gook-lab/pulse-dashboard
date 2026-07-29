@@ -253,6 +253,29 @@ describe('종이 주문 로직', () => {
   });
 
   describe('marketOrderPrice', () => {
+    // Regression: ISSUE-004 — 상한가 종목은 매도호가가 가격 0으로 온다. 0가격 레벨을 채택해 체결금액 ₩0이 되던 버그.
+    // Found by /qa on 2026-07-29
+    it('상한가(매도호가 전부 0)면 0을 건너뛰고 최근 체결가로 폴백', () => {
+      const orderbook = {
+        asks: [{ price: 0, qty: 0 }, { price: 0, qty: 0 }],
+        bids: [{ price: 422, qty: 124360 }],
+      };
+      expect(marketOrderPrice('buy', orderbook, 421, 422)).toBe(421);
+    });
+
+    it('상한가에서 체결가도 없으면 현재가로 폴백', () => {
+      const orderbook = { asks: [{ price: 0, qty: 0 }], bids: [] };
+      expect(marketOrderPrice('buy', orderbook, 0, 422)).toBe(422);
+    });
+
+    it('중간에 0가격 레벨이 섞여도 첫 유효 호가를 채택', () => {
+      const orderbook = {
+        asks: [{ price: 0, qty: 0 }, { price: 70100, qty: 10 }],
+        bids: [],
+      };
+      expect(marketOrderPrice('buy', orderbook, 0, 0)).toBe(70100);
+    });
+
     it('매수: 최우선 매도호가 사용', () => {
       const orderbook = {
         asks: [{ price: 70100, qty: 100 }, { price: 70200, qty: 200 }],

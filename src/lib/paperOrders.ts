@@ -134,17 +134,12 @@ export function marketOrderPrice(
   lastTradePrice: number,
   currentPrice: number
 ): number {
-  if (side === 'buy') {
-    // 매수: 최우선 매도호가 → 최근 체결가 → 현재가
-    if (orderbook.asks.length > 0) return orderbook.asks[0].price;
-    if (lastTradePrice > 0) return lastTradePrice;
-    return currentPrice;
-  } else {
-    // 매도: 최우선 매수호가 → 최근 체결가 → 현재가
-    if (orderbook.bids.length > 0) return orderbook.bids[0].price;
-    if (lastTradePrice > 0) return lastTradePrice;
-    return currentPrice;
-  }
+  // 상·하한가에서는 반대 호가가 잔량 0·가격 0으로 온다 — 유효(>0) 최우선 호가만 채택하고 아니면 폴백.
+  const levels = side === 'buy' ? orderbook.asks : orderbook.bids;
+  const best = levels.find((l) => l.price > 0);
+  if (best) return best.price;
+  if (lastTradePrice > 0) return lastTradePrice;
+  return currentPrice;
 }
 
 /**
