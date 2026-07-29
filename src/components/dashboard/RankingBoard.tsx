@@ -80,8 +80,8 @@ export default function RankingBoard() {
     };
   }, [kind, refreshRanking]);
 
-  const handleRowClick = (code: string) => {
-    selectStock(code);
+  const handleRowClick = (item: RankingItem) => {
+    selectStock(item.code, { name: item.name, market: 'KR', changePct: item.changePct });
   };
 
   // 초기 로드 또는 에러
@@ -114,7 +114,7 @@ export default function RankingBoard() {
       <div className="card-h">
         <h3 className="text-title">실시간 랭킹</h3>
         <span className="tag" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16C784', boxShadow: '0 0 4px #16C784', opacity: 0.7 }} />
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand)', boxShadow: '0 0 4px var(--brand)', opacity: 0.7 }} />
           15초 갱신
         </span>
       </div>
@@ -136,7 +136,7 @@ export default function RankingBoard() {
             item={item}
             colorMode={colorMode}
             kind={kind}
-            onClick={() => handleRowClick(item.code)}
+            onClick={() => handleRowClick(item)}
           />
         ))}
       </div>
