@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Bell } from 'lucide-react';
 import { motion, useAnimationControls } from 'framer-motion';
 import { useStore } from '../../store/useStore';
 import { signColor, fmt, HOLD, STATUS_LIVE } from '../../lib/colors';
@@ -102,6 +103,7 @@ export default function Watchlist() {
 
 function WlRow({ w, mode }: { w: WatchItem; mode: ColorMode }) {
   const selectStock = useStore((st) => st.selectStock);
+  const alerts = useStore((st) => st.alerts);
   const trade = useKisTrade(w.market === 'KR' ? w.code : null);
   const connected = useKisConnected();
   const unavailable = w.unavailable && !trade;
@@ -109,6 +111,7 @@ function WlRow({ w, mode }: { w: WatchItem; mode: ColorMode }) {
   const changePct = trade ? trade.changePct : w.changePct;
   const live = !!trade && connected; // 연결이 끊기면 마지막 체결이 남아 있어도 도트를 끈다
   const sig = sigMeta(w.aiSignal, mode);
+  const hasAlerts = alerts.some((a) => a.code === w.code);
 
   const flash = useAnimationControls();
   const prev = useRef(price);
@@ -130,6 +133,7 @@ function WlRow({ w, mode }: { w: WatchItem; mode: ColorMode }) {
         <MarketChip market={w.market} />
         {w.name}
         {live && <span title="실시간 체결" style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_LIVE, marginLeft: 6, display: 'inline-block' }} />}
+        {hasAlerts && <span title="활성 알림"><Bell size={14} style={{ marginLeft: 6, display: 'inline-block', color: 'var(--text-brand)' }} /></span>}
       </span>
       {unavailable
         ? <>

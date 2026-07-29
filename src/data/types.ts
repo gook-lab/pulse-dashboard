@@ -343,3 +343,26 @@ export interface MarketApi {
   /** 포트폴리오 수익률 이력. days: 조회 일수(22/66/250/전체). */
   getPortfolioHistory(days: number): Promise<PortfolioHistoryResult>;
 }
+
+/* ── 가격 알림 (S4/C1) ─────────────────────────────────────────────────────── */
+
+export interface PriceAlert {
+  id: string;
+  code: string;
+  name: string;
+  market: 'KR' | 'US';
+  kind: 'target-above' | 'target-below' | 'move-pct' | 'high52';
+  value: number;
+  baseline?: number;  // 52주 신고가일 때만 설정 (생성 시점 기준)
+  createdAt: number;
+}
+
+export interface AppNotification {
+  id: string;
+  kind: 'price' | 'apt' | 'sys';
+  title: string;
+  desc: string;
+  code?: string;  // price 알림일 때만 (종목 코드)
+  at: number;
+  read: boolean;
+}

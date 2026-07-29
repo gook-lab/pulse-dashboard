@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   IndexQuote, HeatmapNode, FearGreed, CryptoFG, MacroItem, WatchItem, NewsItem, AiOpinion, StockDetail,
   Portfolio, Report, SeoulRent, Market, ScreenQuery, ScreenResult, ComplexesResult, PaperOrder, RankingItem,
+  PriceAlert, AppNotification,
 } from '../data/types';
 
 export interface DetailHint { code: string; name: string; market?: Market; cur?: string; dec?: number; changePct?: number }
@@ -17,6 +18,10 @@ export type Tab = 'dashboard' | 'detail' | 'news' | 'portfolio' | 'research' | '
 
 // ── 페이퍼 주문 ──────────────────────────────────────────────────────────────
 const PAPER_ORDERS_KEY = 'pulse.paper-orders';
+
+// ── 가격 알림 ──────────────────────────────────────────────────────────────
+const ALERTS_KEY = 'pulse.alerts';
+const NOTIFICATIONS_KEY = 'pulse.notifications';
 
 // ── 부동산 스크리너 ─────────────────────────────────────────────────────────────
 /** 워치리스트 + "지난 갱신 대비" 스냅샷 localStorage 영속. */
@@ -63,6 +68,9 @@ interface State {
   newsRefreshing: boolean;
   // ── 페이퍼 주문 ──
   paperOrders: PaperOrder[];
+  // ── 가격 알림 ──
+  alerts: PriceAlert[];
+  notifications: AppNotification[];
   // ── 부동산 스크리너 ──
   screenerQuery: ScreenQuery;
   /** 단지 마스터. 배치 사이 불변 — 탭 첫 진입에 1회만 요청. */
@@ -101,6 +109,12 @@ interface State {
   loadDetail: (code: string) => Promise<void>;
   // ── 페이퍼 주문 ──
   placePaperOrder: (order: PaperOrder) => void;
+  // ── 가격 알림 ──
+  addAlert: (alert: Omit<PriceAlert, 'id' | 'createdAt'>) => void;
+  removeAlert: (id: string) => void;
+  pushNotification: (n: Omit<AppNotification, 'id' | 'at'>) => void;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
   // ── 부동산 스크리너 ──
   loadRealestate: () => Promise<void>;
   setScreenerQuery: (patch: Partial<ScreenQuery>) => void;
@@ -135,6 +149,8 @@ export const useStore = create<State>((set) => ({
   detail: null,
   detailLoading: false,
   paperOrders: readJson<PaperOrder[]>(PAPER_ORDERS_KEY, []),
+  alerts: readJson<PriceAlert[]>(ALERTS_KEY, []),
+  notifications: readJson<AppNotification[]>(NOTIFICATIONS_KEY, []),
   screenerQuery: DEFAULT_QUERY,
   aptComplexes: null,
   aptScreen: null,
@@ -225,6 +241,76 @@ export const useStore = create<State>((set) => ({
         }
       }
       return { paperOrders };
+    });
+  },
+
+  // ── 가격 알림 ──────────────────────────────────────────────────────────
+  addAlert: (alert) => {
+    set((s) => {
+      // 상한 50 — 초과 시 거부
+      if (s.alerts.length >= 50) {
+        toast.warning({ message: '알림은 최대 50개까지만 저장할 수 있습니다.' });
+        return {};
+      }
+      const id = `alert-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const newAlert: PriceAlert = { ...alert, id, createdAt: Date.now() };
+      const alerts = [...s.alerts, newAlert];
+      try {
+        localStorage.setItem(ALERTS_KEY, JSON.stringify(alerts));
+      } catch {
+        toast.error({ message: '알림 저장 실패.' });
+        return {};
+      }
+      return { alerts };
+    });
+  },
+
+  removeAlert: (id) => {
+    set((s) => {
+      const alerts = s.alerts.filter((a) => a.id !== id);
+      try {
+        localStorage.setItem(ALERTS_KEY, JSON.stringify(alerts));
+      } catch {
+        toast.error({ message: '알림 삭제 실패.' });
+        return {};
+      }
+      return { alerts };
+    });
+  },
+
+  pushNotification: (n) => {
+    set((s) => {
+      const notifications = [...s.notifications, { ...n, id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, at: Date.now() }];
+      // 상한 50 — 초과 시 오래된 것 제거
+      if (notifications.length > 50) {
+        notifications.shift();
+      }
+      try {
+        localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
+      } catch {
+        // 영속 실패는 무시 — 사용자가 스크롤한 상태일 수 있음
+      }
+      return { notifications };
+    });
+  },
+
+  markNotificationRead: (id) => {
+    set((s) => {
+      const notifications = s.notifications.map((n) => (n.id === id ? { ...n, read: true } : n));
+      try {
+        localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
+      } catch { /* ignore */ }
+      return { notifications };
+    });
+  },
+
+  markAllNotificationsRead: () => {
+    set((s) => {
+      const notifications = s.notifications.map((n) => ({ ...n, read: true }));
+      try {
+        localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
+      } catch { /* ignore */ }
+      return { notifications };
     });
   },
 

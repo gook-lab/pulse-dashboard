@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { Bell } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { signColor, fmt, type ColorMode } from '../../lib/colors';
 import type { Candle, Level, TradeTick } from '../../data/types';
 import { Loading, EmptyState, Badge, MarketChip, PriceChart, ReasonList, Segmented, SkeletonRows } from '@/components/common';
 import { useKisRealtime, useKrChartAll } from '@/lib/kisSocket';
 import OrderTicket from './OrderTicket';
+import PriceAlertModal from './PriceAlertModal';
 import s from './StockDetail.module.css';
 
 const fmtD = (d: string) => (d?.length === 8 ? `${d.slice(4, 6)}/${d.slice(6, 8)}` : d ?? '');
@@ -75,6 +77,11 @@ export default function StockDetail() {
   const lastClose = chartAll.daily[chartAll.daily.length - 1]?.c;
   const [liveTrades, setLiveTrades] = useState<TradeTick[]>([]);
   useEffect(() => { setLiveTrades([]); }, [selectedCode]);
+
+  // 모달
+  const [alertModalOpen, setAlertModalOpen] = useState(false);
+  const alerts = useStore((st) => st.alerts);
+  const codeAlerts = detail ? alerts.filter((a) => a.code === detail.code) : [];
 
   // 좌측 리스트: 관심 / 코스피·코스닥 시총 TOP 100 (다음 금융, 실시장 데이터)
   const [listTab, setListTab] = useState<'watch' | 'kospi' | 'kosdaq'>('watch');
@@ -303,6 +310,26 @@ export default function StockDetail() {
       <aside className={s.right}>
         {detail && !loading && (
           <>
+            {/* 가격 알림 모달 + 헤더 */}
+            <div className="flex items-center justify-between mb-4 px-2">
+              <div />
+              <button
+                onClick={() => setAlertModalOpen(true)}
+                className={`p-2 rounded-lg transition-colors ${codeAlerts.length > 0 ? 'bg-brand/20 text-brand' : 'text-sub hover:bg-panel2'}`}
+                title="가격 알림"
+              >
+                <Bell size={20} />
+              </button>
+            </div>
+            <PriceAlertModal
+              open={alertModalOpen}
+              onOpenChange={setAlertModalOpen}
+              code={detail.code}
+              name={detail.name}
+              market={detail.market}
+              high52={high52}
+            />
+
             <OrderTicket
               code={detail.code}
               name={detail.name}

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { useStore } from './store/useStore';
 import { useKisState } from './lib/kisSocket';
+import { useAlertEngine } from './lib/useAlertEngine';
 import toast from './lib/toast';
 import AppBar from './components/AppBar';
 import TickerTape from './components/TickerTape';
@@ -41,6 +42,7 @@ export default function App() {
   const load = useStore((s) => s.load);
   const refreshIndices = useStore((s) => s.refreshIndices);
   useConnectionToast();
+  useAlertEngine();
 
   useEffect(() => { load(); }, [load]);
   // 티커·주요지수 30초 폴링(백그라운드 탭은 스킵)
