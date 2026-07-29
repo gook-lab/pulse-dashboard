@@ -281,6 +281,22 @@ export default function PriceChart({
     setStart(clampStart(((e.clientX - b.left) / Math.max(1, b.width)) * N - cnt / 2));
   };
 
+  // 구간 고·저 마커. 그려진 것과 같은 소스를 쓴다(캔들 모드면 꼬리 고/저, 라인 모드면 종가).
+  // 스크럽 중에는 크로스헤어·툴팁과 겹치므로 숨긴다.
+  const hiLo = (() => {
+    if (n === 0) return null;
+    const useCandle = kind === 'candle' && cds.length > 0;
+    let hiI = -1, loI = -1, hiV = -Infinity, loV = Infinity;
+    for (let i = 0; i < n; i++) {
+      const h = useCandle ? cds[i]?.h : data[i];
+      const l = useCandle ? cds[i]?.l : data[i];
+      if (h != null && Number.isFinite(h) && h > hiV) { hiV = h; hiI = i; }
+      if (l != null && Number.isFinite(l) && l < loV) { loV = l; loI = i; }
+    }
+    if (hiI < 0 || loI < 0 || hiV === loV) return null; // 평탄 구간이면 표시할 게 없다
+    return { hiI, hiV, loI, loV };
+  })();
+
   const label = (i: number) => labels?.[period]?.[i] ?? String(i + 1);
   const money = (v: number) => cur + (v ?? 0).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
   const tickIdx = [0, Math.round((n - 1) / 3), Math.round(((n - 1) * 2) / 3), n - 1];
@@ -362,6 +378,27 @@ export default function PriceChart({
               );
             })
           )}
+          {/* 구간 고·저 — 고가는 상단에 붙으므로 라벨을 점 아래로, 저가는 점 위로 둔다(잘림 방지). */}
+          {hiLo && !scrubbing && (
+            <>
+              {([
+                { i: hiLo.hiI, v: hiLo.hiV, tag: '최고', dy: 13 },
+                { i: hiLo.loI, v: hiLo.loV, tag: '최저', dy: -6 },
+              ] as const).map(({ i, v, tag, dy }) => {
+                const atRight = X(i) > w * 0.72;
+                return (
+                  <g key={tag} opacity={0.85}>
+                    <circle cx={X(i)} cy={Y(v)} r={2.4} fill="var(--text-sub)" />
+                    <text x={atRight ? X(i) - 5 : X(i) + 5} y={Y(v) + dy}
+                      textAnchor={atRight ? 'end' : 'start'}
+                      className="font-mono" fontSize={10} fill="var(--text-sub)">
+                      {tag} {money(v)}
+                    </text>
+                  </g>
+                );
+              })}
+            </>
+          )}
           {idx != null && (
             <>
               <line x1={X(idx)} y1={pad.t - 6} x2={X(idx)} y2={height - pad.b + 4} stroke="#4a5568" strokeWidth={1} strokeDasharray="3 3" />
@@ -373,7 +410,8 @@ export default function PriceChart({
           )}
         </svg>
 
-        {!!vols.length && (
+        {/* 실거래량이 하나도 없으면 패널 자체를 숨긴다 — 빈 박스에 "평균 0"은 고장처럼 보인다. */}
+        {validVols.length > 0 && (
           <>
             <div className="mt-3 flex items-center justify-between px-0.5">
               <span className="text-[10.5px] font-semibold text-mut">거래량</span>
