@@ -4,6 +4,7 @@ import IndexCards from './IndexCards';
 import Heatmap from './Heatmap';
 import SeoulRentMap from './SeoulRentMap';
 import Watchlist from './Watchlist';
+import RankingBoard from './RankingBoard';
 import FearGreedGauge from './FearGreedGauge';
 import MacroList from './MacroList';
 import AiOpinion from './AiOpinion';
@@ -32,6 +33,7 @@ export default function Dashboard() {
           {loaded ? <IndexCards /> : <CardSkeleton title="주요 지수" variant="cards" tiles={7} />}
           {loaded ? <Heatmap /> : <CardSkeleton title="마켓 맵" variant="block" height={620} />}
           {loaded ? <Watchlist /> : <CardSkeleton title="관심종목 실시간" rows={5} />}
+          {loaded ? <RankingBoard /> : <CardSkeleton title="실시간 랭킹" rows={10} />}
         </div>
         <div className={s.right}>
           {loaded ? <FearGreedGauge /> : <CardSkeleton title="Fear & Greed" variant="gauge" />}

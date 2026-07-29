@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type {
   IndexQuote, HeatmapNode, FearGreed, CryptoFG, MacroItem, WatchItem, NewsItem, AiOpinion, StockDetail,
-  Portfolio, Report, SeoulRent, Market, ScreenQuery, ScreenResult, ComplexesResult, PaperOrder,
+  Portfolio, Report, SeoulRent, Market, ScreenQuery, ScreenResult, ComplexesResult, PaperOrder, RankingItem,
 } from '../data/types';
 
 export interface DetailHint { code: string; name: string; market?: Market; cur?: string; dec?: number; changePct?: number }
@@ -96,6 +96,7 @@ interface State {
   refreshIndices: () => Promise<void>;
   reloadPortfolio: () => Promise<void>;
   refreshNews: () => Promise<void>;
+  refreshRanking: (kind: 'up' | 'down' | 'volume' | 'amount') => Promise<RankingItem[]>;
   selectStock: (code: string, hint?: Omit<DetailHint, 'code'>) => void;
   loadDetail: (code: string) => Promise<void>;
   // ── 페이퍼 주문 ──
@@ -189,6 +190,9 @@ export const useStore = create<State>((set) => ({
       if (j.items?.length) set({ news: j.items, newsFetchedAt: j.fetchedAt });
     } catch { /* keep current */ }
     finally { set({ newsRefreshing: false }); }
+  },
+  refreshRanking: async (kind) => {
+    return api.getRanking(kind);
   },
   selectStock: (code, hint) => {
     set({ selectedCode: code, tab: 'detail', detailHint: hint ? { code, ...hint } : null });

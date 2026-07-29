@@ -294,6 +294,17 @@ export interface PaperOrder {
   at: number; // timestamp
 }
 
+export interface RankingItem {
+  rank: number;
+  code: string;
+  name: string;
+  market: 'KR';
+  price: number;
+  changePct: number;
+  volume?: number;
+  amount?: number;
+}
+
 /** M0 백엔드가 구현할 계약. 목/실백엔드 공통. */
 export interface MarketApi {
   getIndices(): Promise<IndexQuote[]>;
@@ -314,4 +325,6 @@ export interface MarketApi {
   /** 시그널 순위만. 리스트는 상위 50개, 지도는 전체를 쓴다. */
   screenApartments(q: ScreenQuery): Promise<ScreenResult | NeedsCollect>;
   getAptComplex(aptSeq: string): Promise<AptComplexDetail | null>;
+  /** 국내주식 실시간 순위. kind: 'up'|'down'|'volume'|'amount', 10개 상한. */
+  getRanking(kind: 'up' | 'down' | 'volume' | 'amount'): Promise<RankingItem[]>;
 }

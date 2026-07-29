@@ -3,7 +3,7 @@
 import { mockComplexes, MOCK_GENERATED_AT, MOCK_DATA_MONTH } from './aptSeed';
 import type {
   MarketApi, IndexQuote, HeatmapNode, FearGreed, MacroItem, WatchItem, NewsItem, AiOpinion,
-  StockDetail, ChartPeriod, Level, TradeTick, Portfolio, Holding, Report,
+  StockDetail, ChartPeriod, Level, TradeTick, Portfolio, Holding, Report, RankingItem,
   ScreenQuery, ScreenResult, KindSignals,
 } from './types';
 
@@ -431,4 +431,5 @@ export const mockApi: MarketApi = {
   }),
   screenApartments: (q) => delay(mockScreen(q)),
   getAptComplex: (aptSeq) => delay(MOCK_COMPLEXES.find((c) => c.aptSeq === aptSeq) ?? null),
+  getRanking: (): Promise<RankingItem[]> => delay([], 120), // unavailable — 목 생성 금지
 };
