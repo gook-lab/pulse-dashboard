@@ -153,7 +153,7 @@ export default function NotificationCenter({
               {notifications.length === 0 ? (
                 <EmptyState title="알림이 없습니다" />
               ) : (
-                <AnimatePresence mode="popLayout">
+                <AnimatePresence>
                   {notifications.map((n) => (
                     <NotificationItem
                       key={n.id}
