@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { signColor, fmt, STATUS_LIVE, type ColorMode } from '../../lib/colors';
-import { Skeleton, SkeletonRows, ErrorState } from '@/components/common';
+import { Skeleton, SkeletonRows, ErrorState, Badge, EmptyState } from '@/components/common';
 import MarketChip from '@/components/common/MarketChip';
 import { useKisTrade } from '../../lib/kisSocket';
-import type { Holding } from '../../data/types';
+import type { Holding, PaperOrder } from '../../data/types';
 import s from './Portfolio.module.css';
 
 const DONUT_COLORS = ['#7c6cff', '#16c784', '#ea3943', '#e0a838', '#4c82fb', '#4bd0d0'];
@@ -14,6 +14,7 @@ export default function Portfolio() {
   const pf = useStore((st) => st.portfolio);
   const mode = useStore((st) => st.colorMode);
   const reloadPortfolio = useStore((st) => st.reloadPortfolio);
+  const paperOrders = useStore((st) => st.paperOrders);
 
   // 보유종목 평가액 30초 폴링 — 1회 로드로 끝나면 장중 내내 정적(소켓 감사 S4)
   useEffect(() => {
@@ -96,7 +97,49 @@ export default function Portfolio() {
           <div className="card-h"><span className="t">자산 배분</span></div>
           <Donut rows={donutRows} />
         </section>
+
+        <section className="card">
+          <div className="card-h"><span className="t">모의 주문 내역</span></div>
+          {paperOrders.length === 0 ? (
+            <EmptyState
+              title="아직 주문이 없습니다"
+              desc="종목 상세의 주문 티켓에서 모의 주문을 넣어보세요"
+            />
+          ) : (
+            <>
+              <div className={s.thead} style={{ fontSize: 12, paddingTop: 8, paddingBottom: 8 }}>
+                <span>시간</span>
+                <span className={s.rt}>구분</span>
+                <span className={s.rt}>종목</span>
+                <span className={s.rt}>수량</span>
+                <span className={s.rt}>가격</span>
+              </div>
+              <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                {[...paperOrders].reverse().map((order) => (
+                  <PaperOrderRow key={order.id} order={order} mode={mode} />
+                ))}
+              </div>
+            </>
+          )}
+        </section>
       </div>
+    </div>
+  );
+}
+
+function PaperOrderRow({ order, mode }: { order: PaperOrder; mode: ColorMode }) {
+  const time = new Date(order.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const sideColor = signColor(order.side === 'buy' ? 1 : -1, mode);
+
+  return (
+    <div className={s.trow} style={{ fontSize: 12, paddingTop: 8, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
+      <span className="mono" style={{ color: 'var(--text-sub)', fontSize: 11 }}>{time}</span>
+      <span className={s.rt}>
+        <Badge color={sideColor}>{order.side === 'buy' ? '매수' : '매도'}</Badge>
+      </span>
+      <span className={s.rt} style={{ color: 'var(--text)', fontWeight: 500 }}>{order.name}</span>
+      <span className={`${s.rt} mono`}>{order.qty}</span>
+      <span className={`${s.rt} mono`}>{fmt(order.price, 0)}</span>
     </div>
   );
 }

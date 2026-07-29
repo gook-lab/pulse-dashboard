@@ -4,6 +4,7 @@ import { signColor, fmt, type ColorMode } from '../../lib/colors';
 import type { Candle, Level, TradeTick } from '../../data/types';
 import { Loading, EmptyState, Badge, MarketChip, PriceChart, ReasonList, Segmented, SkeletonRows } from '@/components/common';
 import { useKisRealtime, useKrChartAll } from '@/lib/kisSocket';
+import OrderTicket from './OrderTicket';
 import s from './StockDetail.module.css';
 
 const fmtD = (d: string) => (d?.length === 8 ? `${d.slice(4, 6)}/${d.slice(6, 8)}` : d ?? '');
@@ -273,9 +274,9 @@ export default function StockDetail() {
                 {/* 소켓 불안정(KR 실시간 없음) 시 목 대신 "-" 표시 */}
                 {isKR
                   ? (krHasOb
-                      ? <Orderbook asks={rt.orderbook!.asks} bids={rt.orderbook!.bids} cur={detail.cur} dec={detail.dec} mode={mode} />
+                      ? <Orderbook asks={rt.orderbook!.asks} bids={rt.orderbook!.bids} cur={detail.cur} dec={detail.dec} mode={mode} onPickPrice={() => {}} />
                       : <DashOrderbook />)
-                  : <Orderbook asks={detail.asks} bids={detail.bids} cur={detail.cur} dec={detail.dec} mode={mode} />}
+                  : <Orderbook asks={detail.asks} bids={detail.bids} cur={detail.cur} dec={detail.dec} mode={mode} onPickPrice={() => {}} />}
               </section>
               <section className="card">
                 <div className="card-h"><span className="t">체결 내역</span><span className="tag">{isKR ? (krHasTrades ? '실시간' : '연결 대기') : '최근'}</span></div>
@@ -298,10 +299,19 @@ export default function StockDetail() {
         )}
       </main>
 
-      {/* 우: AI + 정보 */}
+      {/* 우: 주문 티켓 + AI + 정보 */}
       <aside className={s.right}>
         {detail && !loading && (
           <>
+            <OrderTicket
+              code={detail.code}
+              name={detail.name}
+              market={detail.market}
+              price={live || detail.price}
+              orderbook={isKR ? rt.orderbook || undefined : undefined}
+              lastTradePrice={lastClose || 0}
+              portfolio={useStore.getState().portfolio}
+            />
             <section className="card">
               <div className="card-h"><span className="t">AI 투자의견</span><span className="tag">M4 · AI</span></div>
               <div className={s.aiScore}><span className={`${s.aiNum} mono`}>{detail.ai.score}</span><span style={{ fontSize: 12, color: 'var(--text-mut)' }}>/ 100</span></div>
@@ -374,21 +384,25 @@ function DashOrderbook() {
   );
 }
 
-function Orderbook({ asks, bids, cur, dec, mode }: { asks: Level[]; bids: Level[]; cur: string; dec: number; mode: 'global' | 'korea' }) {
+function Orderbook({ asks, bids, cur, dec, mode, onPickPrice }: { asks: Level[]; bids: Level[]; cur: string; dec: number; mode: 'global' | 'korea'; onPickPrice?: (price: number) => void }) {
   const maxQty = Math.max(1, ...asks.map((l) => l.qty), ...bids.map((l) => l.qty));
   const up = signColor(1, mode), down = signColor(-1, mode);
   return (
     <div className={s.ob}>
-      {[...asks].reverse().map((l, i) => <ObRow key={'a' + i} level={l} max={maxQty} color={down} side="ask" cur={cur} dec={dec} />)}
-      {bids.map((l, i) => <ObRow key={'b' + i} level={l} max={maxQty} color={up} side="bid" cur={cur} dec={dec} />)}
+      {[...asks].reverse().map((l, i) => <ObRow key={'a' + i} level={l} max={maxQty} color={down} side="ask" cur={cur} dec={dec} onPickPrice={onPickPrice} />)}
+      {bids.map((l, i) => <ObRow key={'b' + i} level={l} max={maxQty} color={up} side="bid" cur={cur} dec={dec} onPickPrice={onPickPrice} />)}
     </div>
   );
 }
 
-function ObRow({ level, max, color, side, cur, dec }: { level: Level; max: number; color: string; side: 'ask' | 'bid'; cur: string; dec: number }) {
+function ObRow({ level, max, color, side, cur, dec, onPickPrice }: { level: Level; max: number; color: string; side: 'ask' | 'bid'; cur: string; dec: number; onPickPrice?: (price: number) => void }) {
   const w = `${Math.round((level.qty / max) * 100)}%`;
   return (
-    <div className={s.obRow}>
+    <div
+      className={s.obRow}
+      onClick={() => onPickPrice?.(level.price)}
+      style={{ cursor: onPickPrice ? 'pointer' : 'default' }}
+    >
       <div className={s.obBar} style={{ [side === 'ask' ? 'right' : 'left']: 0, width: w, background: color + '22' } as CSSProperties} />
       <span className={`${s.obPx} mono`} style={{ color }}>{cur}{fmt(level.price, dec)}</span>
       <span className={`${s.obQty} mono`}>{level.qty.toLocaleString()}</span>
