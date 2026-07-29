@@ -142,6 +142,9 @@ export default function StockDetail() {
     return {
       series: { '1일': scale(detail.chart['1D']), '1주': scale(detail.chart['1W']), '1개월': scale(detail.chart['1M']), '1년': scale(detail.chart['1Y']) },
       candles: undefined, volumes: undefined, labels: undefined,
+      // US 캔들 실소스가 아직 없어 detail.chart(목)를 스케일해 그린다 — "실시간" 배지는 거짓이므로
+      // 부동산 상세와 같은 목 배지 패턴을 쓴다(진짜로 오해하면 안 된다).
+      liveBadge: '목 데이터', liveBadgeTone: 'warn' as const,
       defaultPeriod: '1일' as const,
     };
   }, [detail, chartAll.daily, chartAll.monthly, intraday.candles, isKR, live, lastClose]);
@@ -238,6 +241,7 @@ export default function StockDetail() {
                 series={pc.series} candles={pc.candles} volumes={pc.volumes} labels={pc.labels}
                 defaultPeriod={pc.defaultPeriod} height={236}
                 dayChange={dayChg} dayChangePct={dayPct}
+                liveBadge={pc.liveBadge} liveBadgeTone={pc.liveBadgeTone}
               />
             )}
             <section className="card">

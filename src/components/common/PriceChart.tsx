@@ -51,6 +51,8 @@ interface Props {
   provisionalFrom?: number;
   /** 헤더 상태 배지 문구. 월별 실거래처럼 "실시간"이 거짓말이 되는 데이터가 덮어쓴다. */
   liveBadge?: string;
+  /** 배지 톤. 'warn' = 목/합성 데이터 — 초록(실시간) 배지를 그대로 쓰면 문구만 바꿔도 진짜처럼 보인다. */
+  liveBadgeTone?: 'live' | 'warn';
 }
 
 const MIN_POINTS = 14;
@@ -60,7 +62,7 @@ export default function PriceChart({
   name, code, cur = '₩', dec = 0,
   series, volumes, candles, labels, compareSeries,
   mode = 'korea', defaultPeriod = '1개월', height = 250,
-  dayChange, dayChangePct, provisionalFrom, liveBadge = '실시간',
+  dayChange, dayChangePct, provisionalFrom, liveBadge = '실시간', liveBadgeTone = 'live',
 }: Props) {
   const UP = mode === 'korea' ? '#F6465D' : '#16C784';
   const DOWN = mode === 'korea' ? '#4C82FB' : '#EA3943';
@@ -297,6 +299,9 @@ export default function PriceChart({
     return { hiI, hiV, loI, loV };
   })();
 
+  // 목/합성 데이터는 배지 톤까지 경고색으로 — 문구만 바꾸면 초록 배지가 여전히 "실데이터"라고 말한다.
+  const badgeWarn = idx == null && liveBadgeTone === 'warn';
+
   const label = (i: number) => labels?.[period]?.[i] ?? String(i + 1);
   const money = (v: number) => cur + (v ?? 0).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
   const tickIdx = [0, Math.round((n - 1) / 3), Math.round(((n - 1) * 2) / 3), n - 1];
@@ -311,9 +316,15 @@ export default function PriceChart({
             <span className="text-[15px] font-bold text-fg">{name}</span>
             <span className="font-mono text-xs text-mut">{code}</span>
             <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
-              idx == null
-                ? 'border-[rgba(22,199,132,.3)] bg-[rgba(22,199,132,.14)] text-[#3fe0a0]'
-                : 'border-[rgba(124,108,255,.3)] bg-[rgba(124,108,255,.16)] text-[#9D90FF]'}`}>
+              badgeWarn ? ''
+                : idx == null
+                  ? 'border-[rgba(22,199,132,.3)] bg-[rgba(22,199,132,.14)] text-[#3fe0a0]'
+                  : 'border-[rgba(124,108,255,.3)] bg-[rgba(124,108,255,.16)] text-[#9D90FF]'}`}
+              style={badgeWarn ? {
+                borderColor: 'color-mix(in srgb, var(--warn) 32%, transparent)',
+                background: 'color-mix(in srgb, var(--warn) 14%, transparent)',
+                color: 'var(--warn)',
+              } : undefined}>
               {idx == null ? liveBadge : '과거 시점'}
             </span>
           </div>
