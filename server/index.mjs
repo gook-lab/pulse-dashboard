@@ -7,6 +7,7 @@ import { pool } from './lib.mjs';
 import { SEOUL_GU, ymOffset } from './realestate/lawd.mjs';
 import { fetchDeals, jeonseAgg } from './realestate/collect.mjs';
 import { routes as realestateRoutes } from './realestate/index.mjs';
+import { createPortfolioHistory } from './portfolioHistory.mjs';
 
 // server/.env 로드 (없어도 무시 — 키 없는 라우트는 그대로 동작)
 // ※ collect.mjs 도 자체적으로 로드한다(단독 `pnpm collect` 실행 대비). 중복 호출은 무해.
@@ -15,6 +16,10 @@ try { process.loadEnvFile(fileURLToPath(new URL('.env', import.meta.url))); } ca
 const PORT = process.env.PORT || 8080;
 const { FRED_API_KEY, FINNHUB_API_KEY, ECOS_API_KEY, ALPHAVANTAGE_API_KEY } = process.env;
 // DATA_GO_KR_KEY 와 UA 는 realestate/collect.mjs 로 이동(단일 소스).
+
+// --- 포트폴리오 이력 관리 (일별 스냅샷) -----------------------------------------
+const CACHE_DIR = fileURLToPath(new URL('./cache/', import.meta.url));
+let portfolioHistory = null;
 
 // --- 작은 TTL 캐시 -----------------------------------------------------------
 const cache = new Map(); // key -> { at, ttl, data }
@@ -661,6 +666,15 @@ const routes = {
     try { return await kisBalance(); }
     catch (e) { return { configured: false, reason: String(e?.message || e), holdings: [] }; }
   }),
+  // 포트폴리오 일별 이력 (최근 N일, 기본 400일). 60초 캐시.
+  '/api/portfolio/history': (q) => {
+    const days = Math.min(400, Math.max(1, +(q?.get('days') || 400)));
+    return cached(`portfolio-history:${days}`, 60_000, async () => {
+      if (!portfolioHistory) return { entries: [] };
+      const entries = await portfolioHistory.read(days);
+      return { entries };
+    });
+  },
   // 뉴스 배치 (1h 캐시) + 수동 갱신(캐시 버스트)
   '/api/news': () => cached('news', 60 * 60_000, fetchNews),
   '/api/news/refresh': () => { cache.delete('news'); return cached('news', 60 * 60_000, fetchNews); },
@@ -874,4 +888,20 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`[pulse-server] listening on http://localhost:${PORT}`));
+server.listen(PORT, async () => {
+  console.log(`[pulse-server] listening on http://localhost:${PORT}`);
+
+  // 포트폴리오 이력 기록 시작 (서버 기동 1회 + 1시간 간격)
+  try {
+    portfolioHistory = createPortfolioHistory({
+      fetchBalance: kisBalance,
+      fetchKospi: () => kisIndex('0001'),
+      fetchSpx: () => finnhubQuote('SPY'),
+      file: `${CACHE_DIR}portfolio-history.json`,
+    });
+    await portfolioHistory.start(60 * 60_000); // 1시간
+    console.log('[portfolio-history] started (1h interval)');
+  } catch (e) {
+    console.error('[portfolio-history] failed to start:', e.message);
+  }
+});
