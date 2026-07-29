@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Bell } from 'lucide-react';
 import { useStore, type Tab } from '../store/useStore';
 import { Segmented } from '@/components/common';
+import NotificationCenter from './NotificationCenter';
 import { useKisState } from '../lib/kisSocket';
 import type { ColorMode } from '../lib/colors';
 import s from './AppBar.module.css';
@@ -47,6 +48,7 @@ export default function AppBar() {
   const setColorMode = useStore((st) => st.setColorMode);
   const watchlist = useStore((st) => st.watchlist);
   const selectStock = useStore((st) => st.selectStock);
+  const notifications = useStore((st) => st.notifications);
   const wsState = useKisState();
 
   const ny = useClock('America/New_York');
@@ -57,6 +59,10 @@ export default function AppBar() {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
+
+  // 알림 센터
+  const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const matches = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -92,60 +98,83 @@ export default function AppBar() {
   const ws = WS_META[wsState] ?? WS_META.disconnected;
 
   return (
-    <header className={s.bar}>
-      <div className={s.left}>
-        <div className={s.logo}>P</div>
-        <span className={s.brand}>PULSE</span>
-        <nav className={s.nav}>
-          {TABS.map((t) => (
-            <button key={t.id} className={tab === t.id ? `${s.tab} ${s.active}` : s.tab} onClick={() => setTab(t.id)}>
-              {t.label}
+    <>
+      <header className={s.bar}>
+        <div className={s.left}>
+          <div className={s.logo}>P</div>
+          <span className={s.brand}>PULSE</span>
+          <nav className={s.nav}>
+            {TABS.map((t) => (
+              <button key={t.id} className={tab === t.id ? `${s.tab} ${s.active}` : s.tab} onClick={() => setTab(t.id)}>
+                {t.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className={s.right}>
+          <div className={s.search}>
+            <span className={s.searchIcon}><Search size={14} /></span>
+            <input
+              ref={inputRef}
+              className={s.searchInput}
+              placeholder="종목 검색"
+              value={q}
+              onChange={(e) => { setQ(e.target.value); setOpen(true); setHi(0); }}
+              onFocus={() => setOpen(true)}
+              onBlur={() => setTimeout(() => setOpen(false), 120)}
+              onKeyDown={onInputKey}
+              aria-label="종목 검색"
+            />
+            <span className={s.kbd}>⌘K</span>
+            {open && matches.length > 0 && (
+              <div className={s.searchPop} role="listbox">
+                {matches.map((w, i) => (
+                  <button
+                    key={w.code}
+                    role="option"
+                    aria-selected={i === hi}
+                    className={i === hi ? `${s.searchOpt} ${s.searchOptOn}` : s.searchOpt}
+                    onMouseEnter={() => setHi(i)}
+                    onMouseDown={(e) => { e.preventDefault(); pick(w.code); }}
+                  >
+                    <span>{w.name}</span>
+                    <span className={`${s.searchOptPx} mono`}>{w.code}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className={s.clock}><span className={s.city}>뉴욕</span><span className="mono">{ny}</span></div>
+          <div className={s.clock}><span className={s.city}>서울</span><span className="mono">{seoul}</span></div>
+          <div className={s.ws} title="KIS 실시간 WebSocket 연결 상태">
+            <span className={`${s.dot} ${ws.cls}`} /> {ws.label}
+          </div>
+
+          {/* 벨 아이콘 + 알림 뱃지 */}
+          <div className={s.notificationButton}>
+            <button
+              className={s.bellBtn}
+              onClick={() => setNotificationCenterOpen(!notificationCenterOpen)}
+              aria-label="알림 센터 열기"
+              title="알림"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className={s.badge}>{unreadCount > 9 ? '9+' : unreadCount}</span>
+              )}
             </button>
-          ))}
-        </nav>
-      </div>
+          </div>
 
-      <div className={s.right}>
-        <div className={s.search}>
-          <span className={s.searchIcon}><Search size={14} /></span>
-          <input
-            ref={inputRef}
-            className={s.searchInput}
-            placeholder="종목 검색"
-            value={q}
-            onChange={(e) => { setQ(e.target.value); setOpen(true); setHi(0); }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 120)}
-            onKeyDown={onInputKey}
-            aria-label="종목 검색"
-          />
-          <span className={s.kbd}>⌘K</span>
-          {open && matches.length > 0 && (
-            <div className={s.searchPop} role="listbox">
-              {matches.map((w, i) => (
-                <button
-                  key={w.code}
-                  role="option"
-                  aria-selected={i === hi}
-                  className={i === hi ? `${s.searchOpt} ${s.searchOptOn}` : s.searchOpt}
-                  onMouseEnter={() => setHi(i)}
-                  onMouseDown={(e) => { e.preventDefault(); pick(w.code); }}
-                >
-                  <span>{w.name}</span>
-                  <span className={`${s.searchOptPx} mono`}>{w.code}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <Segmented options={COLOR_OPTS} value={colorMode} onChange={setColorMode} />
         </div>
+      </header>
 
-        <div className={s.clock}><span className={s.city}>뉴욕</span><span className="mono">{ny}</span></div>
-        <div className={s.clock}><span className={s.city}>서울</span><span className="mono">{seoul}</span></div>
-        <div className={s.ws} title="KIS 실시간 WebSocket 연결 상태">
-          <span className={`${s.dot} ${ws.cls}`} /> {ws.label}
-        </div>
-        <Segmented options={COLOR_OPTS} value={colorMode} onChange={setColorMode} />
-      </div>
-    </header>
+      <NotificationCenter
+        open={notificationCenterOpen}
+        onOpenChange={setNotificationCenterOpen}
+      />
+    </>
   );
 }

@@ -66,3 +66,51 @@
 }
 .searchOpt:hover, .searchOptOn { background: var(--panel-2); color: var(--text); }
 .searchOptPx { margin-left: auto; font-size: 11px; color: var(--text-mut); }
+
+/* 알림 센터 벨 버튼 */
+.notificationButton {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.bellBtn {
+  position: relative;
+  background: none;
+  border: none;
+  padding: 4px;
+  color: var(--text-sub);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.bellBtn:hover {
+  background-color: var(--panel-2);
+  color: var(--text);
+}
+
+.bellBtn:active {
+  background-color: rgba(124, 108, 255, 0.12);
+}
+
+.badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #ea3943;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 1.5px solid var(--panel);
+}
