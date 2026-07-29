@@ -390,14 +390,21 @@ async function daumTop100(market = 'KOSPI', by = 'cap') {
 }
 
 // 당일 분봉(장중 촘촘한 차트용). 30개/호출 → 뒤로 페이지네이션해 하루치(~수백) 수집.
+const nap = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function kisMinutes(code, pages = 13) {
   const out = [];
   let hour = '153000';
+  // 모의 환경은 초당 호출 상한이 낮다 — 13페이지를 간격 없이 던지면 중간에 끊겨
+  // 최근 몇십 분만 남는다(1일 차트가 뭉텅이로 비어 보임). 간격 + 1회 재시도로 손실을 줄인다.
+  const page = (h) => kisGet('/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice', 'FHKST03010200', {
+    FID_ETC_CLS_CODE: '', FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: code,
+    FID_INPUT_HOUR_1: h, FID_PW_DATA_INCU_YN: 'N',
+  }).catch(() => null);
   for (let p = 0; p < pages; p++) {
-    const j = await kisGet('/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice', 'FHKST03010200', {
-      FID_ETC_CLS_CODE: '', FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: code,
-      FID_INPUT_HOUR_1: hour, FID_PW_DATA_INCU_YN: 'N',
-    }).catch(() => null);
+    if (p > 0) await nap(120);
+    let j = await page(hour);
+    if (!j) { await nap(500); j = await page(hour); } // 스로틀 한 번은 넘긴다
     const rows = (j?.output2 || []).filter((r) => r && r.stck_prpr);
     if (!rows.length) break;
     for (const r of rows) out.push({ date: r.stck_bsop_date, time: r.stck_cntg_hour, o: +r.stck_oprc, h: +r.stck_hgpr, l: +r.stck_lwpr, c: +r.stck_prpr, v: +r.cntg_vol });
@@ -599,9 +606,17 @@ const routes = {
   '/api/kr/chart-all': (q) => {
     const code = (q?.get('code') || '').trim();
     return cached(`chartall:${code}`, 5 * 60_000, async () => {
-      const [daily, weekly, monthly] = await Promise.all([
-        kisChart(code, 'D').catch(() => []), kisChart(code, 'W').catch(() => []), kisChart(code, 'M').catch(() => []),
-      ]);
+      // 3개를 동시에 던지면 순간 호출률이 3배가 되어 모의 환경에서 일부가 스로틀로 빈 배열이 된다.
+      // 순차 + 간격으로 받는다. daily 는 1일~3개월 탭·52주 범위의 근거라 실패 시 재시도한다.
+      let daily = await kisChart(code, 'D').catch(() => []);
+      if (!daily.length) { await nap(500); daily = await kisChart(code, 'D').catch(() => []); }
+      await nap(120);
+      const weekly = await kisChart(code, 'W').catch(() => []);
+      await nap(120);
+      const monthly = await kisChart(code, 'M').catch(() => []);
+      // 빈 일봉을 5분간 캐시하면 그동안 차트가 목 스케일로 떨어진다(삼성전자에 ₩85,636 같은 값).
+      // throw 로 저장을 회피하면 cached() 가 직전 성공값을 stale 로 돌려준다.
+      if (!daily.length) throw new Error('일봉 응답 없음(KIS 스로틀 가능) — 캐시 저장 회피');
       return { daily, weekly, monthly };
     });
   },
@@ -647,10 +662,16 @@ const routes = {
     return cached(`rank:${market}:${by}`, 30_000, () =>
       (by === 'up' || by === 'down') ? kisFluctuation({ market, dir: by, limit }) : kisRank({ market, by, limit }));
   },
-  // KIS 당일 분봉(장중 촘촘 차트). code=005930
+  // KIS 당일 분봉(장중 촘촘 차트 + 실거래량). code=005930
+  // 빈 결과를 캐시하면 스로틀 한 번에 60초 내내 차트가 폴백된다 → throw 로 저장을 회피한다.
+  // cached() 는 실패 시 직전 성공값을 stale 로 돌려주므로, 한 번이라도 받았으면 화면이 유지된다.
   '/api/kr/intraday': (q) => {
     const code = (q?.get('code') || '').trim();
-    return cached(`intra:${code}`, 60_000, () => kisMinutes(code));
+    return cached(`intra:${code}`, 60_000, async () => {
+      const rows = await kisMinutes(code);
+      if (!rows.length) throw new Error('분봉 응답 없음(KIS 스로틀 가능) — 캐시 저장 회피');
+      return rows;
+    });
   },
   // KIS 국내 종목 시세 (codes=005930,000660)
   '/api/kr/quotes': (q) => {
