@@ -373,8 +373,17 @@ function mockScreen(q: ScreenQuery): ScreenResult {
   const total = pool.length;
   const eligible = pool.filter((c) => c.signals[dealType].dealCount >= minDeals && valueOf(c) != null);
   const dir = sortDir === 'asc' ? 1 : -1;
+  // 기준월 평당가 — 서버 attachPrices 와 같은 규칙(기준월 = 3개월 전, 직전 유효값 backfill)
+  const basisPrice = (c: typeof pool[number]): number | null => {
+    const series = c.series[dealType === 'trade' ? 't' : 'r'];
+    for (let i = Math.min(series.length - 3, series.length - 1); i >= 0; i--) {
+      if (series[i][0] != null) return Math.round(series[i][0] as number);
+    }
+    return null;
+  };
+
   const ranked = eligible
-    .map((c) => ({ id: c.aptSeq, value: valueOf(c) as number, deals: c.signals[dealType].dealCount }))
+    .map((c) => ({ id: c.aptSeq, value: valueOf(c) as number, deals: c.signals[dealType].dealCount, price: basisPrice(c) }))
     .sort((a, b) => (a.value - b.value) * dir)
     .map((r, i) => ({ ...r, rank: i + 1 }));
 
@@ -432,6 +441,6 @@ export const mockApi: MarketApi = {
   screenApartments: (q) => delay(mockScreen(q)),
   getAptComplex: (aptSeq) => delay(MOCK_COMPLEXES.find((c) => c.aptSeq === aptSeq) ?? null),
   getComplexDeals: () => delay({ deals: [] }), // 목은 빈 deals
-  getRanking: (): Promise<RankingItem[]> => delay([], 120), // unavailable — 목 생성 금지
+  getRanking: (_kind?: unknown, _market?: unknown): Promise<RankingItem[]> => delay([], 120), // unavailable — 목 생성 금지
   getPortfolioHistory: (): Promise<{ entries: any[] }> => delay({ entries: [] }), // 목 생성 금지
 };

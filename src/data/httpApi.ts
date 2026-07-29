@@ -186,9 +186,9 @@ export const httpApi: MarketApi = {
   },
 
   // 국내 순위: KIS 급등/급락(by=up|down) + 거래량/대금(by=volume|amount). 30초 캐시(서버).
-  getRanking: async (kind: 'up' | 'down' | 'volume' | 'amount'): Promise<RankingItem[]> => {
+  getRanking: async (kind: 'up' | 'down' | 'volume' | 'amount', market: 'all' | 'kospi' | 'kosdaq' = 'all'): Promise<RankingItem[]> => {
     try {
-      const items = await getJson<RankingItem[]>(`/api/kr/rank?by=${kind}&market=all&limit=10`);
+      const items = await getJson<RankingItem[]>(`/api/kr/rank?by=${kind}&market=${market}&limit=10`);
       return Array.isArray(items) ? items : [];
     } catch {
       return [];

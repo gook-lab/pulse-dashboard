@@ -250,7 +250,14 @@ export interface ScreenQuery {
   bbox?: [number, number, number, number] | null;
 }
 
-export interface ScreenRank { id: string; value: number; deals: number; rank: number }
+export interface ScreenRank {
+  id: string;
+  value: number;
+  deals: number;
+  rank: number;
+  /** 기준월(신고지연 보정) 평당가 중앙값, 만원. 해당 유형 거래가 전혀 없으면 null. */
+  price?: number | null;
+}
 
 export interface ScreenResult {
   ranked: ScreenRank[];
@@ -346,7 +353,7 @@ export interface MarketApi {
   /** 단지별 거래 내역. 날짜 내림차순. */
   getComplexDeals(aptSeq: string): Promise<ComplexDealsResult>;
   /** 국내주식 실시간 순위. kind: 'up'|'down'|'volume'|'amount', 10개 상한. */
-  getRanking(kind: 'up' | 'down' | 'volume' | 'amount'): Promise<RankingItem[]>;
+  getRanking(kind: 'up' | 'down' | 'volume' | 'amount', market?: 'all' | 'kospi' | 'kosdaq'): Promise<RankingItem[]>;
   /** 포트폴리오 수익률 이력. days: 조회 일수(22/66/250/전체). */
   getPortfolioHistory(days: number): Promise<PortfolioHistoryResult>;
 }

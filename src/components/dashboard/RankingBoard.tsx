@@ -16,10 +16,10 @@ const KINDS: { value: Kind; label: string }[] = [
   { value: 'amount', label: '거래대금' },
 ];
 
-const MARKETS: { value: KrMarket; label: string; disabled?: boolean }[] = [
+const MARKETS: { value: KrMarket; label: string }[] = [
   { value: 'all', label: '전체' },
-  { value: 'kospi', label: '코스피', disabled: true },
-  { value: 'kosdaq', label: '코스닥', disabled: true },
+  { value: 'kospi', label: '코스피' },
+  { value: 'kosdaq', label: '코스닥' },
 ];
 
 import { fmtVol, fmtAmt } from '../../lib/format';
@@ -46,7 +46,7 @@ export default function RankingBoard() {
     const load = async () => {
       if (document.hidden) return;
       try {
-        const items = await refreshRanking(kind);
+        const items = await refreshRanking(kind, market);
         if (alive) {
           setState({ items, loading: false, error: false });
         }
@@ -77,7 +77,7 @@ export default function RankingBoard() {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [kind, refreshRanking]);
+  }, [kind, market, refreshRanking]);
 
   const handleRowClick = (item: RankingItem) => {
     selectStock(item.code, { name: item.name, market: 'KR', changePct: item.changePct });
