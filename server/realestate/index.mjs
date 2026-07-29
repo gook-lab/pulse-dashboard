@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto';
 import { collectSeoul, writeRaw, formatStats } from './collect.mjs';
 import { buildMaster, geocodeAll, writeGeocodeReport, detectGeocodeDrop } from './complexes.mjs';
 import { computeAll, getSignal } from './signals.mjs';
+import { writeDealShards, readComplexDeals, createDealsLRU } from './deals.mjs';
 
 const CACHE_DIR = fileURLToPath(new URL('../cache/', import.meta.url));
 const TMP_DIR = fileURLToPath(new URL('../cache/.tmp/', import.meta.url));
@@ -24,6 +25,7 @@ export const SIGNAL_KEYS = ['momentum3', 'momentum6', 'momentum12', 'high52wPct'
 
 // ── 메모리 상주 ─────────────────────────────────────────────────────────────
 let store = null;   // { generatedAt, dataMonth, months, complexes[], master[], etag }
+let dealsCache = null;  // LRU 캐시 for apt-deals 샤드
 
 /**
  * 배치는 별도 프로세스(`pnpm collect`)라 파일을 바꿔도 실행 중인 서버는 모른다.
@@ -180,6 +182,24 @@ export const routes = {
     return { ...c, months: s.months, generatedAt: s.generatedAt };
   },
 
+  /** 단지별 거래 이력 — aptSeq로 조회하여 구별 샤드에서 로드. */
+  '/api/realestate/complex/deals': async (q) => {
+    const s = await requireStore();
+    const aptSeq = q?.get('id');
+    if (!aptSeq) { const e = new Error('missing id'); e.status = 400; throw e; }
+
+    const c = s.complexes.find((x) => x.aptSeq === aptSeq);
+    if (!c) { const e = new Error('not found'); e.status = 404; throw e; }
+
+    // LRU 캐시 초기화
+    if (!dealsCache) dealsCache = createDealsLRU();
+
+    // 샤드 로드 (LRU 캐시 활용)
+    const result = await readComplexDeals(aptSeq, c.sggCd, null, dealsCache);
+
+    return result;
+  },
+
   /**
    * 프론트 설정. JS 키는 도메인 제한이 걸린 공개 키지만
    * 소스에 커밋하지 않는 원칙을 지키기 위해 server/.env 에서 내려준다.
@@ -248,6 +268,8 @@ export async function runBatch({ kinds = ['rent'], log = console.log } = {}) {
   }
 
   await writeRaw(rows, stats);
+  await writeDealShards(rows);
+  log(`[deals] 구별 거래 이력 샤드 저장`);
 
   const master = buildMaster(rows);
   log(`[complexes] 단지 ${master.length.toLocaleString()}개 (aptSeq 기준)`);
@@ -295,6 +317,9 @@ export async function rebuildFromRaw({ log = console.log } = {}) {
   const buf = await readFile(`${CACHE_DIR}apt-raw.json.gz`);
   const { rows, stats } = JSON.parse(gunzipSync(buf));
   log(`[rebuild] 원시 ${rows.length.toLocaleString()}건 로드 (수집 ${stats.generatedAt})`);
+
+  await writeDealShards(rows);
+  log(`[deals] 구별 거래 이력 샤드 재생성`);
 
   const master = buildMaster(rows);
   const months = [...stats.months].reverse();
