@@ -1,19 +1,24 @@
 import { create } from 'zustand';
 import type {
   IndexQuote, HeatmapNode, FearGreed, CryptoFG, MacroItem, WatchItem, NewsItem, AiOpinion, StockDetail,
-  Portfolio, Report, SeoulRent, Market, ScreenQuery, ScreenResult, ComplexesResult,
+  Portfolio, Report, SeoulRent, Market, ScreenQuery, ScreenResult, ComplexesResult, PaperOrder,
 } from '../data/types';
 
 export interface DetailHint { code: string; name: string; market?: Market; cur?: string; dec?: number; changePct?: number }
 import { httpApi } from '../data/httpApi';
 import type { ColorMode } from '../lib/colors';
+import { appendOrder } from '../lib/paperOrders';
+import toast from '../lib/toast';
 
 // 데이터 소스 주입 지점. httpApi = 백엔드 준비된 엔드포인트는 실연동, 나머지는 목.
 const api = httpApi;
 
 export type Tab = 'dashboard' | 'detail' | 'news' | 'portfolio' | 'research' | 'realestate';
 
-// ── 부동산 스크리너 ─────────────────────────────────────────────────────────
+// ── 페이퍼 주문 ──────────────────────────────────────────────────────────────
+const PAPER_ORDERS_KEY = 'pulse.paper-orders';
+
+// ── 부동산 스크리너 ─────────────────────────────────────────────────────────────
 /** 워치리스트 + "지난 갱신 대비" 스냅샷 localStorage 영속. */
 const APT_WATCH_KEY = 'pulse.apt-watchlist';
 const APT_SNAP_KEY = 'pulse.apt-watch-snapshot';
@@ -56,6 +61,8 @@ interface State {
   detailLoading: boolean;
   newsFetchedAt: string | null;
   newsRefreshing: boolean;
+  // ── 페이퍼 주문 ──
+  paperOrders: PaperOrder[];
   // ── 부동산 스크리너 ──
   screenerQuery: ScreenQuery;
   /** 단지 마스터. 배치 사이 불변 — 탭 첫 진입에 1회만 요청. */
@@ -91,6 +98,8 @@ interface State {
   refreshNews: () => Promise<void>;
   selectStock: (code: string, hint?: Omit<DetailHint, 'code'>) => void;
   loadDetail: (code: string) => Promise<void>;
+  // ── 페이퍼 주문 ──
+  placePaperOrder: (order: PaperOrder) => void;
   // ── 부동산 스크리너 ──
   loadRealestate: () => Promise<void>;
   setScreenerQuery: (patch: Partial<ScreenQuery>) => void;
@@ -124,6 +133,7 @@ export const useStore = create<State>((set) => ({
   detailHint: null,
   detail: null,
   detailLoading: false,
+  paperOrders: readJson<PaperOrder[]>(PAPER_ORDERS_KEY, []),
   screenerQuery: DEFAULT_QUERY,
   aptComplexes: null,
   aptScreen: null,
@@ -194,6 +204,24 @@ export const useStore = create<State>((set) => ({
     }
     // 사용자가 그 사이 다른 종목을 눌렀으면 stale 응답 무시.
     if (useStore.getState().selectedCode === code) set({ detail, detailLoading: false });
+  },
+
+  // ── 페이퍼 주문 ──────────────────────────────────────────────────────────
+  placePaperOrder: (order) => {
+    set((s) => {
+      const paperOrders = appendOrder(s.paperOrders, order);
+      // localStorage 영속 — 실패 시 1회 경고
+      const prevSize = s.paperOrders.length;
+      const showWarning = prevSize > 0 && paperOrders.length < prevSize + 1; // 상한 도달
+      try {
+        localStorage.setItem(PAPER_ORDERS_KEY, JSON.stringify(paperOrders));
+      } catch {
+        if (showWarning) {
+          toast.error({ message: '주문 저장 실패. 저장소가 가득 찼을 수 있습니다.' });
+        }
+      }
+      return { paperOrders };
+    });
   },
 
   // ── 부동산 스크리너 ──────────────────────────────────────────────────────

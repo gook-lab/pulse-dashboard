@@ -281,6 +281,19 @@ export interface ComplexesResult {
 /** 배치를 한 번도 안 돌렸을 때. 프론트는 EmptyState 로 안내한다. */
 export interface NeedsCollect { needsCollect: true; hint: string }
 
+export interface PaperOrder {
+  id: string;
+  code: string;
+  name: string;
+  market: Market;
+  side: 'buy' | 'sell';
+  type: 'limit' | 'market';
+  price: number;
+  qty: number;
+  fee: number;
+  at: number; // timestamp
+}
+
 /** M0 백엔드가 구현할 계약. 목/실백엔드 공통. */
 export interface MarketApi {
   getIndices(): Promise<IndexQuote[]>;
