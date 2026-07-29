@@ -10,3 +10,6 @@ dist-ssr
 server/cache/
 .claude/worktrees/
 tsconfig.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+*.tsbuildinfo
