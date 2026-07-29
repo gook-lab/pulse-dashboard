@@ -1,0 +1,251 @@
+.container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.mapContainer {
+  flex: 1;
+  min-height: calc(100vh - 300px);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   좌상단 칩 · 레벨 설명
+   ───────────────────────────────────────────────────────────────── */
+.chipTop {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--text-sub);
+  font-weight: 500;
+  z-index: 10;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   우상단 줌 버튼
+   ───────────────────────────────────────────────────────────────── */
+.zoomControls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+}
+
+.zoomBtn {
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.zoomBtn:hover {
+  background: rgba(0, 0, 0, 0.9);
+  border-color: var(--text-sub);
+}
+
+.zoomBtn:active {
+  transform: scale(0.95);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   동 단위 집계 박스 (CustomOverlay)
+   ───────────────────────────────────────────────────────────────── */
+.districtBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 10px;
+  background: rgba(124, 108, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  min-width: 60px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.districtBox:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.districtName {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   단지 마커 (CustomOverlay로 렌더)
+   ───────────────────────────────────────────────────────────────── */
+.markerDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  cursor: pointer;
+  transition: all 0.1s;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.markerDot:hover,
+.markerOn {
+  transform: scale(1.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+}
+
+/* 선택 단지 — 리스트에서 클릭한 "지금 보고 있는" 단지. hover 확대와 구분되는 브랜드 링. */
+.markerSel {
+  transform: scale(1.35);
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  z-index: 9998;
+}
+
+.markerSel .markerTip {
+  display: block;
+}
+
+/* 회색 마커 — 저거래·데이터부족 단지 */
+.markerDim {
+  width: 10px;
+  height: 10px;
+  opacity: 0.75;
+}
+
+/* 마커 툴팁 — hover(마우스)·markerOn(리스트발 하이라이트) 때만 */
+.markerTip {
+  display: none;
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: var(--mono);
+  pointer-events: none;
+}
+
+.markerDot:hover .markerTip,
+.markerOn .markerTip {
+  display: block;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   하단 범례 스트립
+   ───────────────────────────────────────────────────────────────── */
+.legendStrip {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.3));
+  padding: 20px 16px 12px;
+  z-index: 5;
+}
+
+.legendContent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-sub);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.legendLabel {
+  font-family: var(--mono);
+  font-size: 11.5px; /* 판단용 숫자 — 3.3:1 미달 방지, --text-sub 유지 */
+  color: var(--text-sub);
+  font-weight: 600;
+}
+
+.legendBox {
+  width: 16px;
+  height: 8px;
+  border-radius: 2px;
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+.legendNote {
+  font-size: 10.5px;
+  color: var(--text-mut);
+  margin-left: 8px;
+  opacity: 0.85;
+}
+
+/* 산식 설명 툴팁 트리거 — 과밀했던 범례 문장의 나머지 절반 */
+.legendInfo {
+  font-size: 12px;
+  color: var(--text-sub);
+  cursor: help;
+  line-height: 1;
+}
+
+/* 좌표 없어 지도에서 빠진 단지 수 — 범례 위 좌측 */
+.noCoordChip {
+  position: absolute;
+  bottom: 44px;
+  left: 12px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px 9px;
+  font-size: 11.5px;
+  color: var(--text-sub);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  z-index: 5;
+}
+
+/* 반응형 */
+@media (max-width: 1024px) {
+  .mapContainer {
+    min-height: 400px;
+  }
+
+  .chipTop {
+    font-size: 10px;
+    padding: 5px 10px;
+  }
+
+  .zoomBtn {
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
+  }
+}

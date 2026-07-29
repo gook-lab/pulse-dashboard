@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:#0A0D14;color:#EDF0F6;font-family:'Pretendard',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:#9D90FF;text-decoration:none}a:hover{color:#B9AEFF}
+  button{font-family:inherit}
+  :focus-visible{outline:2px solid #7C6CFF;outline-offset:2px}
+  ::-webkit-scrollbar{width:9px}::-webkit-scrollbar-thumb{background:#242c3b;border-radius:8px}::-webkit-scrollbar-track{background:transparent}
+  @keyframes pulseDot{0%{box-shadow:0 0 0 0 rgba(124,108,255,.5)}70%{box-shadow:0 0 0 6px rgba(124,108,255,0)}100%{box-shadow:0 0 0 0 rgba(124,108,255,0)}}
+</style>
+</helmet>
+<div data-screen-label="기능 확장 시안" style="min-width:1280px;height:100vh;display:flex;flex-direction:column;background:#0A0D14;overflow:hidden">
+
+  <header style="flex-shrink:0;display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid #1B2130;background:#0d111a">
+    <div style="display:flex;align-items:center;gap:9px">
+      <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(150deg,#7C6CFF,#5a49d8);display:grid;place-items:center;color:#fff;font-weight:800;font-size:14px">P</div>
+      <span style="font-size:15px;font-weight:800">기능 확장 시안</span>
+      <span style="font-size:11px;color:#5E6879;border:1px solid #1B2130;border-radius:6px;padding:3px 8px">우선순위 5건 · Claude Code 핸드오프용</span>
+    </div>
+    <nav style="display:flex;gap:3px;margin-left:10px">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+        <button onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</button>
+      </sc-for>
+    </nav>
+    <div style="flex:1"></div>
+    <div style="position:relative">
+      <button onClick="{{ toggleNoti }}" aria-label="알림 센터" style="position:relative;width:34px;height:34px;display:grid;place-items:center;border-radius:9px;border:1px solid #232b3a;background:#141924;color:#8A93A6;cursor:pointer;font-size:15px">
+        🔔
+        <sc-if value="{{ unread }}"><span style="position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#EA3943;color:#fff;font-family:'JetBrains Mono';font-size:9.5px;font-weight:800;display:grid;place-items:center">{{ unreadCount }}</span></sc-if>
+      </button>
+    </div>
+    <button onClick="{{ toggleMode }}" style="background:#141924;border:1px solid #1B2130;color:#8A93A6;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:600;cursor:pointer">{{ modeLabel }}</button>
+  </header>
+
+  <div style="flex-shrink:0;padding:10px 18px;border-bottom:1px solid #161B27;background:#0B0E16;display:flex;align-items:center;gap:10px">
+    <span style="font-family:'JetBrains Mono';font-size:10px;font-weight:800;color:#B9AEFF;background:rgba(124,108,255,.14);border:1px solid rgba(124,108,255,.3);border-radius:5px;padding:2px 7px">{{ curId }}</span>
+    <span style="font-size:12.5px;color:#C7CEDB;font-weight:600">{{ curTitle }}</span>
+    <span style="font-size:11.5px;color:#5E6879">{{ curDesc }}</span>
+  </div>
+
+  <main style="flex:1;min-height:0;overflow-y:auto;padding:16px 18px">
+
+    <!-- S1 주문 티켓 -->
+    <sc-if value="{{ isS1 }}">
+      <div style="display:grid;grid-template-columns:300px 360px minmax(0,1fr);gap:14px;max-width:1220px">
+        <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;overflow:hidden;align-self:start">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 13px;border-bottom:1px solid #1B2130"><span style="font-size:12.5px;font-weight:700">호가</span><span style="font-size:10px;color:#5E6879">클릭 → 지정가 채움</span></div>
+          <div style="padding:3px 0">
+            <sc-for list="{{ ob }}" as="lv" hint-placeholder-count="11">
+              <button onClick="{{ lv.onClick }}" style="{{ lv.rowStyle }}">
+                <div style="{{ lv.barStyle }}"></div>
+                <span style="{{ lv.priceStyle }}">{{ lv.priceStr }}</span>
+                <span style="position:relative;z-index:1;font-family:'JetBrains Mono';font-size:11px;color:#8A93A6">{{ lv.qtyStr }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </section>
+
+        <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;overflow:hidden;align-self:start">
+          <div style="padding:13px 16px;border-bottom:1px solid #1B2130">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:800">삼성전자</span><span style="font-family:'JetBrains Mono';font-size:11.5px;color:#5E6879">005930</span><span style="margin-left:auto;font-family:'JetBrains Mono';font-size:13px;font-weight:700;{{ curPxStyle }}">{{ curPxStr }}</span></div>
+          </div>
+          <div style="padding:14px 16px;display:flex;flex-direction:column;gap:13px">
+            <div style="display:flex;gap:3px;padding:3px;background:#12161f;border:1px solid #1B2130;border-radius:10px">
+              <sc-for list="{{ sides }}" as="sd" hint-placeholder-count="2"><button onClick="{{ sd.onClick }}" style="{{ sd.style }}">{{ sd.label }}</button></sc-for>
+            </div>
+            <div style="display:flex;gap:3px;padding:3px;background:#12161f;border:1px solid #1B2130;border-radius:10px">
+              <sc-for list="{{ ptypes }}" as="pt" hint-placeholder-count="2"><button onClick="{{ pt.onClick }}" style="{{ pt.style }}">{{ pt.label }}</button></sc-for>
+            </div>
+            <sc-if value="{{ isLimit }}">
+              <div>
+                <div style="font-size:10.5px;color:#7A8496;font-weight:600;margin-bottom:6px">지정가 <span style="color:#5E6879;font-weight:500">· 호가단위 {{ tickStr }}원 스냅</span></div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <button onClick="{{ pxDown }}" aria-label="가격 내림" style="{{ stepBtn }}">−</button>
+                  <div style="flex:1;text-align:center;font-family:'JetBrains Mono';font-size:16px;font-weight:800;background:#0d1119;border:1px solid #232b3a;border-radius:9px;padding:9px 0">{{ limitStr }}</div>
+                  <button onClick="{{ pxUp }}" aria-label="가격 올림" style="{{ stepBtn }}">＋</button>
+                </div>
+              </div>
+            </sc-if>
+            <div>
+              <div style="font-size:10.5px;color:#7A8496;font-weight:600;margin-bottom:6px">수량</div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <button onClick="{{ qDown }}" aria-label="수량 감소" style="{{ stepBtn }}">−</button>
+                <div style="flex:1;text-align:center;font-family:'JetBrains Mono';font-size:16px;font-weight:800;background:#0d1119;border:1px solid #232b3a;border-radius:9px;padding:9px 0">{{ qty }}주</div>
+                <button onClick="{{ qUp }}" aria-label="수량 증가" style="{{ stepBtn }}">＋</button>
+              </div>
+              <div style="display:flex;gap:6px;margin-top:8px">
+                <sc-for list="{{ pctChips }}" as="c" hint-placeholder-count="4"><button onClick="{{ c.onClick }}" style="{{ c.style }}">{{ c.label }}</button></sc-for>
+              </div>
+            </div>
+            <div style="border-top:1px solid #1B2130;padding-top:12px;display:flex;flex-direction:column;gap:7px">
+              <div style="display:flex;justify-content:space-between"><span style="font-size:11.5px;color:#8A93A6">예상 체결금액</span><span style="font-family:'JetBrains Mono';font-size:12.5px;font-weight:700">{{ orderAmt }}</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="font-size:11.5px;color:#8A93A6">수수료 (0.015%)</span><span style="font-family:'JetBrains Mono';font-size:11.5px;color:#8A93A6">{{ feeStr }}</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="font-size:11.5px;color:#8A93A6">{{ afterLabel }}</span><span style="font-family:'JetBrains Mono';font-size:12px;font-weight:600;color:#C7CEDB">{{ afterStr }}</span></div>
+            </div>
+            <button onClick="{{ openConfirm }}" style="{{ submitStyle }}">{{ submitLabel }}</button>
+            <div style="font-size:10px;color:#5E6879;text-align:center">모의 주문 — 실제 체결되지 않습니다</div>
+          </div>
+        </section>
+
+        <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;overflow:hidden;align-self:start">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #1B2130"><span style="font-size:12.5px;font-weight:700">모의 주문 내역</span><span style="font-size:10px;color:#5E6879">localStorage · 포트폴리오 연동</span></div>
+          <sc-if value="{{ hasOrders }}">
+            <div>
+              <sc-for list="{{ orders }}" as="o" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:52px minmax(0,1fr) 90px 110px;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid #12161f">
+                  <span style="{{ o.sideStyle }}">{{ o.side }}</span>
+                  <div style="min-width:0"><div style="font-size:12.5px;font-weight:600">{{ o.name }}</div><div style="font-size:10.5px;color:#5E6879;font-family:'JetBrains Mono'">{{ o.time }}</div></div>
+                  <span style="text-align:right;font-family:'JetBrains Mono';font-size:12px;color:#C7CEDB">{{ o.qty }}주</span>
+                  <span style="text-align:right;font-family:'JetBrains Mono';font-size:12px;font-weight:600">{{ o.px }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noOrders }}">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:38px 20px;color:#5E6879">
+              <span style="font-size:20px">🧾</span><span style="font-size:12px">아직 주문이 없습니다 — 티켓에서 모의 주문을 넣어보세요</span>
+            </div>
+          </sc-if>
+        </section>
+      </div>
+
+      <sc-if value="{{ confirmOpen }}">
+        <div onClick="{{ closeConfirm }}" style="position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(6,8,13,.62);backdrop-filter:blur(4px)">
+          <div onClick="{{ stop }}" style="width:360px;background:#0F131C;border:1px solid #1B2130;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.55)">
+            <div style="padding:15px 18px;border-bottom:1px solid #1B2130;font-size:14px;font-weight:800">{{ confirmTitle }}</div>
+            <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;justify-content:space-between"><span style="font-size:12px;color:#8A93A6">종목</span><span style="font-size:12.5px;font-weight:700">삼성전자 · 005930</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="font-size:12px;color:#8A93A6">수량 / 가격</span><span style="font-family:'JetBrains Mono';font-size:12.5px;font-weight:700">{{ qty }}주 · {{ confirmPx }}</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="font-size:12px;color:#8A93A6">예상 금액</span><span style="font-family:'JetBrains Mono';font-size:12.5px;font-weight:700">{{ orderAmt }}</span></div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;padding:13px 18px;border-top:1px solid #1B2130">
+              <button onClick="{{ closeConfirm }}" style="{{ ghostBtn }}">취소</button>
+              <button onClick="{{ placeOrder }}" style="{{ submitStyleSm }}">{{ submitLabel }} 확정</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </sc-if>
+
+    <!-- D1 랭킹 -->
+    <sc-if value="{{ isD1 }}">
+      <div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px;max-width:1220px">
+        <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #1B2130">
+            <div style="display:flex;align-items:center;gap:9px"><span style="font-size:13px;font-weight:700">실시간 랭킹</span><span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#5E6879"><span style="width:6px;height:6px;border-radius:50%;background:#7C6CFF;animation:pulseDot 1.8s infinite"></span>15초 갱신</span></div>
+            <div style="display:flex;gap:3px;padding:3px;background:#12161f;border:1px solid #1B2130;border-radius:9px">
+              <sc-for list="{{ mkts }}" as="m" hint-placeholder-count="3"><button onClick="{{ m.onClick }}" style="{{ m.style }}">{{ m.label }}</button></sc-for>
+            </div>
+          </div>
+          <div style="display:flex;gap:3px;padding:9px 14px 0">
+            <sc-for list="{{ rkTabs }}" as="rt" hint-placeholder-count="4"><button onClick="{{ rt.onClick }}" style="{{ rt.style }}">{{ rt.label }}</button></sc-for>
+          </div>
+          <div style="padding:6px 0 4px">
+            <sc-for list="{{ ranks }}" as="r" hint-placeholder-count="10">
+              <div style="display:grid;grid-template-columns:34px 40px minmax(0,1fr) 96px 84px 74px;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid #12161f;cursor:pointer" style-hover="background:#12172a">
+                <span style="{{ r.rankStyle }}">{{ r.rank }}</span>
+                <span style="{{ r.mkStyle }}">{{ r.mk }}</span>
+                <div style="min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</div><div style="font-size:10.5px;color:#5E6879;font-family:'JetBrains Mono'">{{ r.sub }}</div></div>
+                <span style="text-align:right;font-family:'JetBrains Mono';font-size:12.5px;color:#EDF0F6">{{ r.px }}</span>
+                <span style="text-align:right;font-family:'JetBrains Mono';font-size:12.5px;font-weight:700;{{ r.pctStyle }}">{{ r.pct }}</span>
+                <svg width="70" height="20" viewBox="0 0 64 22" style="justify-self:end;overflow:visible"><polyline points="{{ r.spark }}" fill="none" stroke="{{ r.color }}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></polyline></svg>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+        <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:16px 18px;align-self:start">
+          <div style="font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:12px">구현 노트</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <sc-for list="{{ d1notes }}" as="n" hint-placeholder-count="4">
+              <div style="display:flex;gap:9px"><span style="width:5px;height:5px;border-radius:50%;background:#7C6CFF;margin-top:6px;flex-shrink:0"></span><span style="font-size:12px;color:#8A93A6;line-height:1.55">{{ n.t }}</span></div>
+            </sc-for>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- P1 수익률 추이 -->
+    <sc-if value="{{ isP1 }}">
+      <div style="max-width:1000px">
+        <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:18px 20px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+            <div>
+              <div style="font-size:13px;font-weight:700;margin-bottom:8px">내 수익률 vs 벤치마크</div>
+              <div style="display:flex;align-items:flex-end;gap:10px">
+                <span style="font-family:'JetBrains Mono';font-size:30px;font-weight:800;line-height:.92;{{ myRetStyle }}">{{ myRetStr }}</span>
+                <span style="font-size:12px;color:#8A93A6;margin-bottom:3px">{{ p1period }} · 초과수익 <b style="{{ excessStyle }}">{{ excessStr }}</b></span>
+              </div>
+            </div>
+            <div style="display:flex;gap:3px;padding:3px;background:#12161f;border:1px solid #1B2130;border-radius:10px">
+              <sc-for list="{{ p1tabs }}" as="p" hint-placeholder-count="4"><button onClick="{{ p.onClick }}" style="{{ p.style }}">{{ p.label }}</button></sc-for>
+            </div>
+          </div>
+          <div ref="{{ p1Ref }}" onPointerMove="{{ p1Move }}" onPointerLeave="{{ p1Leave }}" style="position:relative;cursor:crosshair">
+            {{ p1chart }}
+            <sc-if value="{{ p1tipOn }}">
+              <div style="{{ p1tipStyle }}">
+                <div style="font-size:10px;color:#8A93A6;margin-bottom:4px">{{ p1tipDate }}</div>
+                <sc-for list="{{ p1tipRows }}" as="tr" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:7px;padding:1.5px 0"><span style="width:8px;height:2.5px;border-radius:2px;background:{{ tr.c }}"></span><span style="font-size:10.5px;color:#C7CEDB;width:56px">{{ tr.n }}</span><span style="font-family:'JetBrains Mono';font-size:11px;font-weight:700;color:{{ tr.c }}">{{ tr.v }}</span></div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px;margin-top:12px">
+            <sc-for list="{{ p1legend }}" as="lg" hint-placeholder-count="3">
+              <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:#8A93A6"><span style="width:14px;height:3px;border-radius:2px;background:{{ lg.c }}"></span>{{ lg.n }}<span style="font-family:'JetBrains Mono';font-weight:700;color:{{ lg.c }}">{{ lg.v }}</span></span>
+            </sc-for>
+            <span style="margin-left:auto;font-size:10.5px;color:#5E6879">시작점=0% 정규화 · 스크럽 시 3개 값 동시 표시</span>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- B1 단지 시트 -->
+    <sc-if value="{{ isB1 }}">
+      <div style="display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;max-width:1220px">
+        <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;overflow:hidden">
+          <div style="padding:14px 18px;border-bottom:1px solid #1B2130">
+            <div style="display:flex;align-items:center;gap:9px">
+              <span style="font-size:16px;font-weight:800">고덕그라시움</span>
+              <span style="font-size:10.5px;color:#8A93A6;background:#141924;border:1px solid #232b3a;border-radius:6px;padding:2px 7px">강동구 고덕동</span>
+              <button aria-label="관심 단지" style="margin-left:auto;background:none;border:none;font-size:16px;color:#E9B44A;cursor:pointer">★</button>
+            </div>
+            <div style="display:flex;gap:14px;margin-top:8px">
+              <span style="font-size:11px;color:#5E6879">2019 준공</span><span style="font-size:11px;color:#5E6879">4,932세대</span><span style="font-size:11px;color:#5E6879">용적률 249%</span>
+            </div>
+          </div>
+          <div style="padding:13px 18px 6px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12.5px;font-weight:700">실거래 이력 · 24개월</span>
+            <div style="display:flex;gap:3px;padding:3px;background:#12161f;border:1px solid #1B2130;border-radius:9px">
+              <sc-for list="{{ pyTabs }}" as="py" hint-placeholder-count="3"><button onClick="{{ py.onClick }}" style="{{ py.style }}">{{ py.label }}</button></sc-for>
+            </div>
+          </div>
+          <div style="padding:4px 18px 16px">
+            <svg viewBox="0 0 640 220" style="width:100%;display:block;overflow:visible">
+              <line x1="0" y1="55" x2="640" y2="55" stroke="#1a2130"></line><line x1="0" y1="110" x2="640" y2="110" stroke="#1a2130"></line><line x1="0" y1="165" x2="640" y2="165" stroke="#1a2130"></line>
+              <polyline points="{{ b1line }}" fill="none" stroke="#7C6CFF" stroke-width="2" stroke-linejoin="round" stroke-dasharray="5 4" opacity=".85"></polyline>
+              <sc-for list="{{ b1dots }}" as="d" hint-placeholder-count="30">
+                <circle cx="{{ d.x }}" cy="{{ d.y }}" r="3.4" fill="{{ d.c }}" opacity=".82"></circle>
+              </sc-for>
+            </svg>
+            <div style="display:flex;justify-content:space-between;margin-top:6px"><span style="font-family:'JetBrains Mono';font-size:10px;color:#5E6879">2024.08</span><span style="font-family:'JetBrains Mono';font-size:10px;color:#5E6879">2026.07</span></div>
+            <div style="display:flex;gap:14px;margin-top:8px">
+              <span style="display:flex;align-items:center;gap:5px;font-size:10.5px;color:#8A93A6"><span style="width:14px;height:0;border-top:2px dashed #7C6CFF"></span>3개월 중앙값</span>
+              <span style="display:flex;align-items:center;gap:5px;font-size:10.5px;color:#8A93A6"><span style="width:8px;height:8px;border-radius:50%;background:#4C82FB"></span>{{ b1legendA }}</span>
+              <span style="display:flex;align-items:center;gap:5px;font-size:10.5px;color:#8A93A6"><span style="width:8px;height:8px;border-radius:50%;background:#E9B44A"></span>{{ b1legendB }}</span>
+            </div>
+          </div>
+        </section>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:15px 18px">
+            <div style="font-size:12.5px;font-weight:700;margin-bottom:12px">KB시세 vs 실거래 <span style="font-size:10.5px;color:#5E6879;font-weight:500">· {{ pyLabel }} 기준</span></div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:11px;color:#8A93A6">KB시세 (일반가)</span><span style="font-family:'JetBrains Mono';font-size:12px;font-weight:700">{{ kbStr }}</span></div><div style="height:9px;border-radius:4px;background:#141924;overflow:hidden"><div style="{{ kbBar }}"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:11px;color:#8A93A6">실거래 중앙값 (3개월)</span><span style="font-family:'JetBrains Mono';font-size:12px;font-weight:700">{{ dealStr }}</span></div><div style="height:9px;border-radius:4px;background:#141924;overflow:hidden"><div style="{{ dealBar }}"></div></div></div>
+            </div>
+            <div style="margin-top:12px;padding:9px 12px;border-radius:9px;background:{{ gapBg }};border:1px solid {{ gapBd }}">
+              <span style="font-size:11.5px;color:#C7CEDB">괴리율 <b style="font-family:'JetBrains Mono';{{ gapStyle }}">{{ gapStr }}</b> — {{ gapNote }}</span>
+            </div>
+          </section>
+          <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;overflow:hidden">
+            <button onClick="{{ toggleLoan }}" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:13px 18px;background:none;border:none;cursor:pointer">
+              <span style="font-size:12.5px;font-weight:700;color:#EDF0F6">대출 계산기</span>
+              <span style="font-size:11px;color:#5E6879">{{ loanChevron }}</span>
+            </button>
+            <sc-if value="{{ loanOpen }}">
+              <div style="padding:2px 18px 16px;display:flex;flex-direction:column;gap:12px">
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:11px;color:#8A93A6">LTV</span><span style="font-family:'JetBrains Mono';font-size:11.5px;font-weight:700">{{ ltv }}%</span></div>
+                  <div style="display:flex;gap:5px">
+                    <sc-for list="{{ ltvChips }}" as="lc" hint-placeholder-count="4"><button onClick="{{ lc.onClick }}" style="{{ lc.style }}">{{ lc.label }}</button></sc-for>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:space-between"><span style="font-size:11.5px;color:#8A93A6">최대 대출액</span><span style="font-family:'JetBrains Mono';font-size:13px;font-weight:800">{{ loanMax }}</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="font-size:11.5px;color:#8A93A6">월 상환액 <span style="color:#5E6879">(30년 · 연 3.8%)</span></span><span style="font-family:'JetBrains Mono';font-size:13px;font-weight:800">{{ loanMonthly }}</span></div>
+                <div style="font-size:10px;color:#5E6879">단순 계산 — 실제 한도는 심사에 따릅니다</div>
+              </div>
+            </sc-if>
+          </section>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- C1 알림 센터는 우측 드로어로 -->
+    <sc-if value="{{ isC1 }}">
+      <div style="max-width:760px;display:flex;flex-direction:column;gap:12px">
+        <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:18px 20px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">알림 센터</div>
+          <p style="margin:0;font-size:12.5px;color:#8A93A6;line-height:1.6">우측 상단 <b style="color:#C7CEDB">🔔 벨 아이콘</b>을 눌러 드로어를 여세요. 가격 알림(S4)·부동산 변동(B2)·시스템 공지가 시간순으로 쌓이고, 항목 클릭 시 해당 탭/종목으로 딥링크됩니다. 미읽음 카운트는 벨 배지에 표시됩니다.</p>
+        </section>
+      </div>
+    </sc-if>
+  </main>
+
+  <sc-if value="{{ notiOpen }}">
+    <div onClick="{{ toggleNoti }}" style="position:fixed;inset:0;z-index:60;background:rgba(6,8,13,.45)">
+      <div onClick="{{ stop }}" style="position:absolute;top:0;right:0;bottom:0;width:360px;background:#0F131C;border-left:1px solid #1B2130;display:flex;flex-direction:column;box-shadow:-18px 0 50px rgba(0,0,0,.45)">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #1B2130">
+          <span style="font-size:13.5px;font-weight:800">알림 <span style="font-family:'JetBrains Mono';font-size:11px;color:#8A93A6">{{ unreadCount }} 미읽음</span></span>
+          <button onClick="{{ readAll }}" style="background:none;border:none;color:#9D90FF;font-size:11.5px;font-weight:700;cursor:pointer">모두 읽음</button>
+        </div>
+        <div style="flex:1;overflow-y:auto">
+          <sc-for list="{{ notis }}" as="n" hint-placeholder-count="5">
+            <button onClick="{{ n.onClick }}" style="{{ n.rowStyle }}">
+              <span style="{{ n.iconStyle }}">{{ n.icon }}</span>
+              <div style="flex:1;min-width:0;text-align:left">
+                <div style="display:flex;align-items:center;gap:6px"><span style="font-size:12.5px;font-weight:700;color:#EDF0F6">{{ n.title }}</span><sc-if value="{{ n.isNew }}"><span style="width:6px;height:6px;border-radius:50%;background:#7C6CFF;flex-shrink:0"></span></sc-if></div>
+                <div style="font-size:11.5px;color:#8A93A6;line-height:1.5;margin-top:2px">{{ n.desc }}</div>
+                <div style="font-family:'JetBrains Mono';font-size:10px;color:#5E6879;margin-top:4px">{{ n.time }}</div>
+              </div>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1400,&quot;height&quot;:880},&quot;colorMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;korea&quot;,&quot;global&quot;],&quot;default&quot;:&quot;korea&quot;,&quot;tsType&quot;:&quot;'korea'|'global'&quot;,&quot;section&quot;:&quot;표시&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.p1Ref=React.createRef();
+    this.state={ mode:props.colorMode||'korea', tab:'S1',
+      side:'buy', ptype:'limit', limit:81200, qty:10, confirmOpen:false, orders:[],
+      mkt:'전체', rkTab:'급상승',
+      p1period:'3개월', p1idx:null, p1w:940,
+      py:'84㎡', ltv:60, loanOpen:true,
+      notiOpen:false, notis:[
+        {icon:'📈',title:'AAPL 목표가 도달',desc:'$230 도달 — 설정 알림이 충족되었습니다.',time:'5분 전',isNew:true,kind:'price'},
+        {icon:'🏢',title:'고덕그라시움 신규 거래 2건',desc:'84㎡ 12.4억 — 직전 중앙값 대비 +2.1%',time:'1시간 전',isNew:true,kind:'apt'},
+        {icon:'📉',title:'카카오 급락 알림',desc:'-5.2% — 등락률 ±5% 조건 충족',time:'3시간 전',isNew:true,kind:'price'},
+        {icon:'🔔',title:'아침 브리핑 도착',desc:'반도체 강세 지속 · 오늘 FOMC 의사록 공개',time:'08:00',isNew:false,kind:'sys'},
+        {icon:'🏢',title:'관심단지 배치 갱신',desc:'6개월 모멘텀 상위 변동: 고덕동 +1.3%p',time:'어제',isNew:false,kind:'apt'}
+      ]};
+  }
+  componentDidMount(){
+    const el=this.p1Ref.current;
+    if(el){ const set=()=>this.setState({p1w:Math.max(420,el.clientWidth)}); set(); this._ro=new ResizeObserver(set); this._ro.observe(el); }
+  }
+  componentDidUpdate(){ const el=this.p1Ref.current; if(el&&!this._ro){ const set=()=>this.setState({p1w:Math.max(420,el.clientWidth)}); set(); this._ro=new ResizeObserver(set); this._ro.observe(el); } }
+  componentWillUnmount(){ this._ro&&this._ro.disconnect(); }
+  rng(seed){ let a=seed>>>0; return ()=>{ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  seg(active,extra){ return {padding:'6px 12px',borderRadius:'8px',border:'none',fontSize:'12px',fontWeight:active?700:500,cursor:'pointer',background:active?'rgba(124,108,255,.18)':'transparent',color:active?'#EDF0F6':'#8A93A6',flex:extra?'1':'none',transition:'background .15s,color .15s'}; }
+  won(n){ return '₩'+Math.round(n).toLocaleString('en-US'); }
+  eok(n){ return (n/10000).toFixed(1)+'억'; }
+
+  renderVals(){
+    const kr=this.state.mode==='korea';
+    const UP=kr?'#F6465D':'#16C784', DOWN=kr?'#4C82FB':'#EA3943', NEU='#8A93A6';
+    const mono="'JetBrains Mono', ui-monospace, monospace";
+    const chip=(c,fs)=>({color:c,background:c+'1E',border:'1px solid '+c+'44',padding:'2px 8px',borderRadius:'999px',fontSize:(fs||10.5)+'px',fontWeight:700,whiteSpace:'nowrap',display:'inline-block',textAlign:'center'});
+    const T=this.state;
+
+    const TABS=[['S1','모의 주문 티켓','Toss 간편주문 — 호가 클릭 채움 · % 칩 · 확인 모달'],['D1','실시간 랭킹','급상승/거래량/인기 탭 · 15초 폴링 · 행 재정렬'],['P1','수익률 vs 벤치마크','내 수익률·KOSPI·S&P 정규화 비교 · 스크럽'],['B1','단지 상세 시트','실거래 산점+중앙값 · KB시세 괴리 · 대출 계산'],['C1','알림 센터','가격·부동산·시스템 알림 드로어 · 딥링크']];
+    const cur=TABS.find(t=>t[0]===T.tab);
+    const tabs=TABS.map(t=>({label:t[0]+' '+t[1],onClick:()=>this.setState({tab:t[0]}),
+      style:{padding:'7px 12px',borderRadius:'8px',border:'1px solid '+(T.tab===t[0]?'rgba(124,108,255,.3)':'transparent'),background:T.tab===t[0]?'rgba(124,108,255,.15)':'transparent',color:T.tab===t[0]?'#EDF0F6':'#8A93A6',fontSize:'12px',fontWeight:T.tab===t[0]?700:500,cursor:'pointer',whiteSpace:'nowrap'}}));
+
+    // ── S1 주문 티켓 ──
+    const tick=100, curPx=81200;
+    const sideC = T.side==='buy'?UP:DOWN;
+    const ob=[]; const qAt=k=>((k*37+23)%88)+16;
+    for(let i=5;i>=1;i--){ const px=curPx+tick*i, q=qAt(i+10);
+      ob.push({priceStr:px.toLocaleString(),qtyStr:q.toLocaleString(),onClick:()=>this.setState({ptype:'limit',limit:px}),
+        priceStyle:{position:'relative',zIndex:1,fontFamily:mono,fontSize:'11.5px',fontWeight:600,color:DOWN},
+        rowStyle:{position:'relative',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 12px',width:'100%',border:'none',background:'transparent',cursor:'pointer'},
+        barStyle:{position:'absolute',top:'2px',bottom:'2px',right:0,width:(q/112*100).toFixed(0)+'%',background:DOWN+'20',borderRadius:'3px'}}); }
+    ob.push({priceStr:curPx.toLocaleString(),qtyStr:'현재가',onClick:()=>this.setState({ptype:'limit',limit:curPx}),
+      priceStyle:{position:'relative',zIndex:1,fontFamily:mono,fontSize:'11.5px',fontWeight:800,color:'#EDF0F6'},
+      rowStyle:{position:'relative',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 12px',width:'100%',border:'none',background:'#141a26',cursor:'pointer'},barStyle:{display:'none'}});
+    for(let i=1;i<=5;i++){ const px=curPx-tick*i, q=qAt(i);
+      ob.push({priceStr:px.toLocaleString(),qtyStr:q.toLocaleString(),onClick:()=>this.setState({ptype:'limit',limit:px}),
+        priceStyle:{position:'relative',zIndex:1,fontFamily:mono,fontSize:'11.5px',fontWeight:600,color:UP},
+        rowStyle:{position:'relative',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 12px',width:'100%',border:'none',background:'transparent',cursor:'pointer'},
+        barStyle:{position:'absolute',top:'2px',bottom:'2px',left:0,width:(q/112*100).toFixed(0)+'%',background:UP+'20',borderRadius:'3px'}}); }
+
+    const cash=5000000, held=24;
+    const pxUse = T.ptype==='limit'?T.limit:curPx;
+    const maxQ = T.side==='buy'? Math.floor(cash/pxUse) : held;
+    const amt = pxUse*T.qty, fee=amt*0.00015;
+    const sides=[['buy','매수'],['sell','매도']].map(([k,l])=>({label:l,onClick:()=>this.setState({side:k,qty:Math.min(T.qty, k==='buy'?Math.floor(cash/pxUse):held)}),
+      style:{...this.seg(T.side===k,true),color:T.side===k?'#fff':'#8A93A6',background:T.side===k?(k==='buy'?UP:DOWN):'transparent'}}));
+    const ptypes=[['limit','지정가'],['market','시장가']].map(([k,l])=>({label:l,onClick:()=>this.setState({ptype:k}),style:this.seg(T.ptype===k,true)}));
+    const pctChips=[10,25,50,100].map(p=>({label:p===100?'최대':p+'%',onClick:()=>this.setState({qty:Math.max(1,Math.floor(maxQ*p/100))}),
+      style:{flex:1,padding:'5px 0',borderRadius:'7px',border:'1px solid #232b3a',background:'#141924',color:'#8A93A6',fontSize:'11px',fontWeight:600,cursor:'pointer'}}));
+
+    // ── D1 랭킹 ──
+    const RK={
+      '급상승':[['에코프로비엠','KR','247540',178900,8.4],['한미반도체','KR','042700',132500,7.9],['NVIDIA','US','NVDA',128.4,5.2],['SK하이닉스','KR','000660',208500,4.8],['레인보우로보','KR','277810',148200,4.5],['AMD','US','AMD',162.3,4.1],['알테오젠','KR','196170',312000,3.8],['Tesla','US','TSLA',246.1,3.4],['두산로보틱스','KR','454910',68200,3.1],['Broadcom','US','AVGO',171.2,2.8]],
+      '급하락':[['카카오','KR','035720',41350,-5.2],['Intel','US','INTC',30.1,-4.4],['엔켐','KR','348370',182000,-4.1],['루닛','KR','328130',52300,-3.8],['Nike','US','NKE',71.2,-3.2],['포스코퓨처엠','KR','003670',248500,-2.9],['셀트리온','KR','068270',192000,-2.4],['Boeing','US','BA',178.4,-2.2],['LG화학','KR','051910',342000,-1.9],['Pfizer','US','PFE',27.8,-1.6]],
+      '거래량':[['삼성전자','KR','005930',81200,1.4],['NVIDIA','US','NVDA',128.4,5.2],['SK하이닉스','KR','000660',208500,4.8],['Tesla','US','TSLA',246.1,3.4],['카카오','KR','035720',41350,-5.2],['Apple','US','AAPL',227.3,1.0],['에코프로','KR','086520',98400,2.1],['AMD','US','AMD',162.3,4.1],['NAVER','KR','035420',172000,1.5],['Palantir','US','PLTR',28.9,2.4]],
+      '인기':[['NVIDIA','US','NVDA',128.4,5.2],['삼성전자','KR','005930',81200,1.4],['Tesla','US','TSLA',246.1,3.4],['에코프로비엠','KR','247540',178900,8.4],['Apple','US','AAPL',227.3,1.0],['SK하이닉스','KR','000660',208500,4.8],['카카오','KR','035720',41350,-5.2],['알테오젠','KR','196170',312000,3.8],['Microsoft','US','MSFT',449.8,0.6],['한미반도체','KR','042700',132500,7.9]]
+    };
+    const mkStyle=m=> m==='US'?{color:'#7CA7FF',background:'rgba(76,130,251,.16)',border:'1px solid rgba(76,130,251,.3)',padding:'1px 5px',borderRadius:'5px',fontSize:'9px',fontWeight:800,fontFamily:mono,textAlign:'center'}:{color:'#E9B44A',background:'rgba(233,180,74,.14)',border:'1px solid rgba(233,180,74,.28)',padding:'1px 5px',borderRadius:'5px',fontSize:'9px',fontWeight:800,fontFamily:mono,textAlign:'center'};
+    const spark=(seed,up)=>{ const r=this.rng(seed); let y=11,p=[]; for(let i=0;i<16;i++){ y+=(r()-0.5)*4+(up?-0.5:0.5); y=Math.max(2,Math.min(20,y)); p.push((2+i*4)+','+y.toFixed(1)); } return p.join(' '); };
+    const list=(RK[T.rkTab]||[]).filter(r=>T.mkt==='전체'||r[1]===T.mkt);
+    const ranks=list.map((r,i)=>{ const c=r[4]>=0?UP:DOWN; return {rank:i+1,mk:r[1],mkStyle:mkStyle(r[1]),name:r[0],sub:r[2],
+      px:(r[1]==='US'?'$':'₩')+r[3].toLocaleString(),pct:(r[4]>=0?'+':'')+r[4].toFixed(1)+'%',pctStyle:{color:c},color:c,spark:spark(i*7+T.rkTab.length,r[4]>=0),
+      rankStyle:{fontFamily:mono,fontSize:'12px',fontWeight:800,color:i<3?'#B9AEFF':'#5E6879',textAlign:'center'}};});
+    const rkTabs=Object.keys(RK).map(k=>({label:k,onClick:()=>this.setState({rkTab:k}),style:this.seg(T.rkTab===k)}));
+    const mkts=['전체','KR','US'].map(m=>({label:m,onClick:()=>this.setState({mkt:m}),style:this.seg(T.mkt===m)}));
+
+    // ── P1 수익률 ──
+    const PN={'1개월':22,'3개월':66,'1년':250,'전체':420}[T.p1period];
+    const mkSeries=(seed,drift,vol)=>{ const r=this.rng(seed+PN); const a=[0]; for(let i=1;i<PN;i++) a.push(a[i-1]+drift+(r()-0.5)*vol); return a; };
+    const my=mkSeries(11,0.12,0.85), ks=mkSeries(23,0.02,0.55), sp=mkSeries(37,0.045,0.5);
+    const W=this.state.p1w, H=240, pad={l:6,r:6,t:14,b:16};
+    const allv=[...my,...ks,...sp]; const mn=Math.min(...allv), mx=Math.max(...allv), span=(mx-mn)||1;
+    const X=i=>pad.l+(W-pad.l-pad.r)*i/(PN-1), Y=v=>pad.t+(H-pad.t-pad.b)*(1-(v-mn)/span);
+    const path=a=>a.map((v,i)=>(i?'L ':'M ')+X(i).toFixed(1)+' '+Y(v).toFixed(1)).join(' ');
+    const E=React.createElement;
+    const idx=T.p1idx;
+    const kids=[
+      E('line',{key:'z',x1:pad.l,y1:Y(0),x2:W-pad.r,y2:Y(0),stroke:'#2a3346',strokeWidth:1,strokeDasharray:'4 4'}),
+      E('path',{key:'k',d:path(ks),fill:'none',stroke:'#5E6879',strokeWidth:1.8,strokeLinejoin:'round'}),
+      E('path',{key:'s',d:path(sp),fill:'none',stroke:'#4C82FB',strokeWidth:1.8,strokeLinejoin:'round'}),
+      E('path',{key:'m',d:path(my),fill:'none',stroke:'#7C6CFF',strokeWidth:2.6,strokeLinejoin:'round'})
+    ];
+    if(idx!=null){ kids.push(E('line',{key:'c',x1:X(idx),y1:pad.t-4,x2:X(idx),y2:H-pad.b+4,stroke:'#4a5568',strokeWidth:1,strokeDasharray:'3 3'}));
+      [[my,'#7C6CFF'],[sp,'#4C82FB'],[ks,'#5E6879']].forEach(([a,c],j)=>kids.push(E('circle',{key:'p'+j,cx:X(idx),cy:Y(a[idx]),r:4,fill:c,stroke:'#0A0D14',strokeWidth:2})));
+    }
+    const p1chart=E('svg',{width:'100%',height:H,viewBox:'0 0 '+W+' '+H,style:{display:'block',overflow:'visible'}},kids);
+    const pctS=v=>(v>=0?'+':'')+v.toFixed(1)+'%';
+    const iEnd=idx==null?PN-1:idx;
+    const dateAt=i=>{ const d=new Date(2026,6,29); d.setDate(d.getDate()-Math.round((1-i/(PN-1))*{'1개월':30,'3개월':92,'1년':365,'전체':720}[T.p1period])); return (d.getMonth()+1).toString().padStart(2,'0')+'.'+d.getDate().toString().padStart(2,'0'); };
+    const p1tabs=['1개월','3개월','1년','전체'].map(p=>({label:p,onClick:()=>this.setState({p1period:p,p1idx:null}),style:this.seg(T.p1period===p)}));
+    const tipX=idx==null?0:Math.max(0,Math.min(W-150,X(idx)-75));
+
+    // ── B1 단지 시트 ──
+    // 평형별로 산점 시드·거래량·중앙값 기울기·괴리율이 모두 달라야 전환이 눈에 보인다
+    const pyd={'59㎡':{med:92000,n:40,slope:0.09,gapF:1.008},'84㎡':{med:124000,n:34,slope:0.13,gapF:1.014},'114㎡':{med:152000,n:22,slope:0.05,gapF:0.994}};
+    const P=pyd[T.py], med0=P.med;
+    const hash=s=>{ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; };
+    const rB=this.rng(hash(T.py+'|b1'));
+    const b1dots=[]; const CW=640,CH=220;
+    for(let i=0;i<P.n;i++){ const t=rB(); const x=8+t*(CW-16);
+      const drift=med0*(1-P.slope/2+t*P.slope), pr=drift*(0.94+rB()*0.12);
+      const y=CH-18-((pr-med0*0.85)/(med0*0.35))*(CH-40);
+      b1dots.push({x:x.toFixed(0),y:Math.max(8,Math.min(CH-8,y)).toFixed(0),c:rB()>0.5?'#4C82FB':'#E9B44A'});
+    }
+    const b1line=Array.from({length:9},(_,i)=>{ const x=8+(CW-16)*i/8; const v=med0*(1-P.slope/2+i/8*P.slope); const y=CH-18-((v-med0*0.85)/(med0*0.35))*(CH-40); return x.toFixed(0)+','+Math.max(8,Math.min(CH-8,y)).toFixed(0); }).join(' ');
+    const kb=med0*1.04, deal=kb*P.gapF;
+    const gap=(deal/kb-1)*100;
+    const pyTabs=Object.keys(pyd).map(p=>({label:p,onClick:()=>this.setState({py:p}),style:this.seg(T.py===p)}));
+    const ltvChips=[40,50,60,70].map(v=>({label:v+'%',onClick:()=>this.setState({ltv:v}),
+      style:{flex:1,padding:'5px 0',borderRadius:'7px',border:'1px solid '+(T.ltv===v?'rgba(124,108,255,.4)':'#232b3a'),background:T.ltv===v?'rgba(124,108,255,.16)':'#141924',color:T.ltv===v?'#EDF0F6':'#8A93A6',fontSize:'11px',fontWeight:700,cursor:'pointer'}}));
+    const loanAmt=deal*10000*T.ltv/100;
+    const mr=0.038/12, nm=360, monthly=loanAmt*mr*Math.pow(1+mr,nm)/(Math.pow(1+mr,nm)-1);
+
+    // ── 알림 ──
+    const notis=T.notis.map((n,i)=>({...n,
+      onClick:()=>this.setState(s=>({notis:s.notis.map((x,j)=>j===i?{...x,isNew:false}:x)})),
+      iconStyle:{width:'34px',height:'34px',display:'grid',placeItems:'center',borderRadius:'10px',background:'#141924',border:'1px solid #232b3a',fontSize:'15px',flexShrink:0},
+      rowStyle:{display:'flex',gap:'11px',width:'100%',padding:'13px 16px',border:'none',borderBottom:'1px solid #12161f',background:n.isNew?'rgba(124,108,255,.05)':'transparent',cursor:'pointer'}}));
+    const unreadCount=T.notis.filter(n=>n.isNew).length;
+
+    const myLast=my[iEnd], ksLast=ks[iEnd], spLast=sp[iEnd];
+    return {
+      tabs, curId:cur[0], curTitle:cur[1], curDesc:cur[2],
+      isS1:T.tab==='S1', isD1:T.tab==='D1', isP1:T.tab==='P1', isB1:T.tab==='B1', isC1:T.tab==='C1',
+      modeLabel:kr?'한국식 ↑빨강':'국제식 ↑초록', toggleMode:()=>this.setState({mode:kr?'global':'korea'}),
+      stop:e=>e.stopPropagation(),
+      // S1
+      ob, sides, ptypes, pctChips, isLimit:T.ptype==='limit', tickStr:tick.toLocaleString(),
+      limitStr:T.limit.toLocaleString(), qty:T.qty,
+      curPxStr:curPx.toLocaleString()+' ▲1.4%', curPxStyle:{color:UP},
+      pxUp:()=>this.setState({limit:T.limit+tick}), pxDown:()=>this.setState({limit:Math.max(tick,T.limit-tick)}),
+      qUp:()=>this.setState({qty:Math.min(maxQ,T.qty+1)}), qDown:()=>this.setState({qty:Math.max(1,T.qty-1)}),
+      stepBtn:{width:'38px',height:'38px',borderRadius:'9px',border:'1px solid #232b3a',background:'#141924',color:'#C7CEDB',fontSize:'16px',fontWeight:700,cursor:'pointer'},
+      orderAmt:this.won(amt), feeStr:this.won(fee),
+      afterLabel:T.side==='buy'?'매수 후 예수금':'매도 후 보유',
+      afterStr:T.side==='buy'?this.won(cash-amt-fee):(held-T.qty)+'주',
+      submitLabel:T.side==='buy'?'매수':'매도',
+      submitStyle:{width:'100%',padding:'12px 0',borderRadius:'10px',border:'none',background:sideC,color:'#fff',fontSize:'14px',fontWeight:800,cursor:'pointer'},
+      submitStyleSm:{padding:'8px 16px',borderRadius:'8px',border:'none',background:sideC,color:'#fff',fontSize:'12.5px',fontWeight:800,cursor:'pointer'},
+      ghostBtn:{padding:'8px 14px',borderRadius:'8px',border:'1px solid #232b3a',background:'transparent',color:'#8A93A6',fontSize:'12.5px',fontWeight:600,cursor:'pointer'},
+      confirmOpen:T.confirmOpen, openConfirm:()=>this.setState({confirmOpen:true}), closeConfirm:()=>this.setState({confirmOpen:false}),
+      confirmTitle:(T.side==='buy'?'매수':'매도')+' 주문 확인', confirmPx:T.ptype==='limit'?T.limit.toLocaleString()+'원':'시장가',
+      placeOrder:()=>{ const o={side:T.side==='buy'?'매수':'매도',name:'삼성전자',qty:T.qty,px:T.ptype==='limit'?T.limit.toLocaleString():'시장가',time:'15:'+(10+T.orders.length*3)+':2'+T.orders.length,
+        sideStyle:chip(T.side==='buy'?UP:DOWN)}; this.setState(s=>({orders:[o,...s.orders],confirmOpen:false})); },
+      orders:T.orders, hasOrders:T.orders.length>0, noOrders:T.orders.length===0,
+      // D1
+      mkts, rkTabs, ranks,
+      d1notes:[{t:'15초 폴링 + stale-while-revalidate — 재조회 중에도 직전 순위 유지 (aptScreen 패턴)'},{t:'순위 변동 시 framer-motion layout으로 행 재정렬, 신규 진입 행은 배경 플래시 1회'},{t:'행 클릭 → selectStock(code) → 종목상세 딥링크'},{t:'시장 필터(전체/KR/US)와 랭킹 종류(급상승/급하락/거래량/인기)는 독립 상태'}],
+      // P1
+      p1Ref:this.p1Ref, p1chart, p1period:T.p1period, p1tabs,
+      myRetStr:pctS(myLast), myRetStyle:{color:myLast>=0?UP:DOWN},
+      excessStr:pctS(myLast-ksLast)+'p', excessStyle:{color:(myLast-ksLast)>=0?UP:DOWN,fontFamily:mono},
+      p1Move:e=>{ const el=this.p1Ref.current; if(!el) return; const b=el.getBoundingClientRect(); const t=(e.clientX-b.left)/Math.max(1,b.width); this.setState({p1idx:Math.max(0,Math.min(PN-1,Math.round(t*(PN-1))))}); },
+      p1Leave:()=>this.setState({p1idx:null}),
+      p1tipOn:idx!=null, p1tipStyle:{position:'absolute',left:tipX+'px',top:'-6px',width:'150px',padding:'8px 10px',background:'rgba(19,24,36,.97)',border:'1px solid #2a3346',borderRadius:'10px',boxShadow:'0 10px 26px rgba(0,0,0,.55)',pointerEvents:'none',zIndex:5},
+      p1tipDate:idx==null?'':dateAt(idx),
+      p1tipRows:idx==null?[]:[{n:'내 계좌',c:'#7C6CFF',v:pctS(my[idx])},{n:'S&P 500',c:'#4C82FB',v:pctS(sp[idx])},{n:'KOSPI',c:'#5E6879',v:pctS(ks[idx])}],
+      p1legend:[{n:'내 계좌',c:'#7C6CFF',v:pctS(myLast)},{n:'S&P 500',c:'#4C82FB',v:pctS(spLast)},{n:'KOSPI',c:'#5E6879',v:pctS(ksLast)}],
+      // B1
+      pyTabs, pyLabel:T.py, b1dots, b1line,
+      b1legendA:T.py+' 저층', b1legendB:T.py+' 중·고층',
+      kbStr:this.eok(kb), dealStr:this.eok(deal),
+      kbBar:{width:(kb/Math.max(kb,deal)*100).toFixed(1)+'%',height:'100%',borderRadius:'4px',background:'#5E6879'},
+      dealBar:{width:(deal/Math.max(kb,deal)*100).toFixed(1)+'%',height:'100%',borderRadius:'4px',background:'#7C6CFF'},
+      gapStr:pctS(gap), gapStyle:{color:gap>=0?UP:DOWN},
+      gapBg:gap>=0?this.hexA(UP,.08):this.hexA(DOWN,.08), gapBd:gap>=0?this.hexA(UP,.28):this.hexA(DOWN,.28),
+      gapNote:gap>=0?'실거래가 시세를 앞서는 상승 국면':'실거래가 시세 아래 — 관망 국면',
+      loanOpen:T.loanOpen, toggleLoan:()=>this.setState({loanOpen:!T.loanOpen}), loanChevron:T.loanOpen?'접기 ▲':'펼치기 ▼',
+      ltv:T.ltv, ltvChips, loanMax:this.eok(loanAmt/10000), loanMonthly:this.won(monthly),
+      // C1
+      notiOpen:T.notiOpen, toggleNoti:()=>this.setState({notiOpen:!T.notiOpen}),
+      notis, unread:unreadCount>0, unreadCount,
+      readAll:()=>this.setState(s=>({notis:s.notis.map(n=>({...n,isNew:false}))}))
+    };
+  }
+  hexA(hex,a){ const n=parseInt(hex.slice(1),16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; }
+}
+</script>
+</body>
+</html>

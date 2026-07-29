@@ -1,0 +1,131 @@
+.dash { display: flex; flex-direction: column; gap: 16px; }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+.left, .right { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* 1180px 미만: 우측 컬럼을 좌측 아래로 스택(수평 스크롤 제거) */
+@media (max-width: 1180px) {
+  .grid { grid-template-columns: 1fr; }
+}
+
+/* index cards — 7개 카드를 4+3 균등 배치(우하단 구멍 제거). 12컬럼: 첫 4개 span3, 나머지 span4 */
+.cards { display: grid; grid-template-columns: repeat(12, 1fr); gap: 10px; }
+.cards > * { grid-column: span 3; }
+.cards > *:nth-child(n+5) { grid-column: span 4; }
+@media (max-width: 720px) {
+  .cards { grid-template-columns: repeat(2, 1fr); }
+  .cards > *, .cards > *:nth-child(n+5) { grid-column: span 1; }
+}
+.cardTile { background: var(--panel-2); border: 1px solid var(--border); border-radius: 11px; padding: 12px; }
+.cardName { font-size: 12px; color: var(--text-sub); }
+.cardPx { font-size: 18px; font-weight: 700; margin-top: 6px; letter-spacing: -.01em; }
+.cardChg { font-size: 12px; margin-top: 2px; }
+.spark { display: block; margin-top: 8px; width: 100%; height: 24px; }
+
+/* heatmap treemap */
+.tmap { position: relative; width: 100%; background: var(--border); border-radius: 8px; overflow: hidden; }
+.secLabel {
+  position: absolute; z-index: 3; padding: 3px 5px 0; font-size: 9.5px; font-weight: 700;
+  letter-spacing: .04em; text-transform: uppercase; color: rgba(255,255,255,.72);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+}
+.tmapTile {
+  position: absolute; border-radius: 3px; color: #fff; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  line-height: 1.05; text-align: center;
+}
+.tmapSym { font-weight: 700; letter-spacing: -.01em; }
+.tmapPct { opacity: .92; margin-top: 1px; font-family: var(--mono); }
+.indLabel {
+  position: absolute; z-index: 2; padding: 2px 4px 0; font-size: 8px; font-weight: 700;
+  letter-spacing: .02em; text-transform: uppercase; color: rgba(255,255,255,.5);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+}
+/* 히트맵 호버 툴팁 (Finviz식) */
+.htTip {
+  position: fixed; z-index: 60; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; box-shadow: 0 16px 44px -10px rgba(0,0,0,.7); pointer-events: none;
+}
+.htHead { font-size: 9.5px; font-weight: 700; letter-spacing: .05em; color: var(--text-mut); text-transform: uppercase; margin-bottom: 8px; }
+.htHero { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 8px; padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid var(--border); }
+.htHeroSym { font-size: 15px; font-weight: 800; color: var(--text); }
+.htHeroPx { font-size: 13px; font-weight: 700; }
+.htHeroChg { font-size: 12px; font-weight: 700; }
+.htRows { display: flex; flex-direction: column; }
+.htRow { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 8px; padding: 3px 0; }
+.htRowOn { background: var(--panel-2); border-radius: 4px; margin: 0 -4px; padding: 3px 4px; }
+.htSym { font-size: 11.5px; color: var(--text-sub); font-weight: 600; }
+.htPx { font-size: 11.5px; color: var(--text); text-align: right; }
+.htChg { font-size: 11.5px; text-align: right; font-weight: 600; }
+.htSpark { display: block; }
+
+/* heatmap (legacy simple) */
+.heat { display: flex; flex-direction: column; gap: 5px; }
+.heatRow { display: flex; gap: 5px; }
+.hblock {
+  border-radius: 7px; padding: 10px 11px; color: #fff; min-height: 62px;
+  display: flex; flex-direction: column; justify-content: center;
+  border: 1px solid rgba(255,255,255,.06); overflow: hidden;
+}
+.hsym { font-weight: 700; font-size: 13.5px; }
+.hpc { font-size: 11.5px; opacity: .95; margin-top: 1px; }
+.legend { display: flex; align-items: center; gap: 3px; justify-content: center; font-size: 10px; color: var(--text-mut); margin-top: 11px; }
+.lbox { width: 22px; height: 11px; border-radius: 3px; }
+
+/* watchlist */
+.wl { display: flex; flex-direction: column; }
+.wlHead, .wlRow { display: grid; grid-template-columns: 1.4fr 1fr 0.9fr 0.7fr; gap: 8px; align-items: center; }
+.wlHead { font-size: 10.5px; color: var(--text-mut); padding: 0 4px 8px; border-bottom: 1px solid var(--border); }
+.wlRow { padding: 9px 4px; border-bottom: 1px solid var(--row); cursor: pointer; }
+.wlRow:hover { background: var(--panel-2); }
+.wlName { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.volRank {
+  flex: none; width: 20px; text-align: center; font-size: 10px; font-weight: 800;
+  font-family: var(--font-mono, monospace); color: var(--text-sub); /* 순위는 판단 숫자 — mut(3.3:1)는 대비 미달 */
+}
+.volName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.flag { font-size: 11px; }
+.rt { text-align: right; }
+
+/* fear & greed */
+.fg { display: flex; flex-direction: column; align-items: center; }
+.gauge { position: relative; width: 100%; max-width: 300px; }
+.fgVal { font-size: 46px; font-weight: 800; line-height: 1; }
+.fgLabel { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-sub); margin-top: 4px; text-align: center; }
+.fgCenter { position: absolute; left: 0; right: 0; top: 50%; text-align: center; }
+.fgMeta { display: flex; gap: 18px; margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--border); width: 100%; justify-content: center; }
+.fgMeta div { text-align: center; }
+.fgK { font-size: 10px; color: var(--text-mut); }
+.fgV { font-size: 14px; margin-top: 2px; }
+.crypto { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); width: 100%; }
+.cryptoK { font-size: 11px; color: var(--text-sub); }
+.cryptoV { font-size: 15px; font-weight: 700; }
+.cryptoLabel { font-size: 11px; color: var(--text-mut); }
+.attr { margin-left: auto; font-size: 9.5px; color: var(--text-mut); opacity: .8; }
+.stale { font-size: 10px; color: var(--text-mut); margin-top: 8px; text-align: center; }
+
+/* macro */
+.macro { display: flex; flex-direction: column; }
+.mrow { display: flex; align-items: center; justify-content: space-between; padding: 9px 2px; border-bottom: 1px solid var(--row); }
+.mrow:last-child { border-bottom: none; }
+.mname { font-size: 12.5px; color: var(--text-sub); }
+.mval { display: flex; align-items: center; gap: 9px; }
+
+/* ai opinion */
+.aiScore { display: flex; align-items: baseline; gap: 8px; }
+.aiNum { font-size: 30px; font-weight: 800; color: var(--brand); }
+.aiStance { font-size: 12px; color: var(--text-sub); margin: 8px 0 12px; line-height: 1.5; }
+.aiBar { height: 6px; border-radius: 4px; background: var(--panel-2); overflow: hidden; margin-top: 4px; }
+.aiBarFill { height: 100%; background: var(--brand); border-radius: 4px; }
+.aiMkt { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.aiMktName { font-size: 11.5px; color: var(--text-sub); width: 44px; flex-shrink: 0; }
+.aiCol { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.aiList { font-size: 11.5px; line-height: 1.7; color: var(--text-sub); }
+.aiList b { color: var(--text); font-size: 10.5px; letter-spacing: .04em; }
+
+/* news */
+.news { display: flex; flex-direction: column; }
+.nitem { padding: 10px 0; border-bottom: 1px solid var(--row); }
+.nitem:last-child { border-bottom: none; }
+.nhl { display: block; font-size: 13px; line-height: 1.45; color: var(--text); text-decoration: none; }
+a.nhl:hover { color: var(--brand); }
+.nmeta { display: flex; gap: 8px; align-items: center; font-size: 10.5px; color: var(--text-mut); margin-top: 5px; }
+/* 감성 배지는 공통 Badge + signColor(mode)로 대체 — 하드코딩 색 제거 */

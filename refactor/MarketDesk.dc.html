@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%}
+  body{background:#0A0D14;color:#EDF0F6;font-family:'Pretendard',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  ::selection{background:rgba(124,108,255,.35)}
+  a{color:#9D90FF;text-decoration:none}
+  a:hover{color:#B9AEFF}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#242c3b;border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:#33415a;background-clip:padding-box}
+  ::-webkit-scrollbar-track{background:transparent}
+  @keyframes tape{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  @keyframes pulseDot{0%{box-shadow:0 0 0 0 rgba(22,199,132,.55)}70%{box-shadow:0 0 0 7px rgba(22,199,132,0)}100%{box-shadow:0 0 0 0 rgba(22,199,132,0)}}
+</style>
+</helmet>
+<div ref="{{ rootRef }}" data-screen-label="시황 대시보드" style="height:100vh;width:100%;display:flex;flex-direction:column;background:#0A0D14;color:#EDF0F6;font-family:'Pretendard',system-ui,sans-serif;overflow:hidden;min-width:1280px">
+
+  <header style="height:56px;flex-shrink:0;display:flex;align-items:center;gap:20px;padding:0 18px;border-bottom:1px solid #1B2130;background:linear-gradient(#0d111a,#0b0e16);white-space:nowrap">
+    <div style="display:flex;align-items:center;gap:11px">
+      <div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#7C6CFF,#4C82FB);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:#fff;box-shadow:0 4px 14px rgba(124,108,255,.4)">P</div>
+      <div style="display:flex;flex-direction:column;line-height:1.08">
+        <span style="font-weight:800;font-size:16px;letter-spacing:.01em">PULSE<span style="color:#7C6CFF">.</span></span>
+        <span style="font-size:10px;color:#5E6879;letter-spacing:.04em">실시간 통합 시황 데스크</span>
+      </div>
+    </div>
+    <nav style="display:flex;gap:2px;margin-left:6px;flex-shrink:0">
+      <sc-for list="{{ navTabs }}" as="t" hint-placeholder-count="5">
+        <span style="{{ t.style }}" onClick="{{ t.onClick }}" style-hover="color:#C7CEDB">{{ t.label }}</span>
+      </sc-for>
+    </nav>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:16px;padding-right:2px;flex-shrink:0">
+      <div style="display:flex;flex-direction:column;align-items:flex-end;line-height:1.12">
+        <span style="font-size:10px;color:#5E6879">뉴욕 · <span style="{{ nyStatusStyle }}">{{ nyStatus }}</span></span>
+        <span style="font-family:'JetBrains Mono';font-size:13px;font-weight:600;color:#C7CEDB">{{ nyTime }}</span>
+      </div>
+      <div style="width:1px;height:26px;background:#232B3A"></div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;line-height:1.12">
+        <span style="font-size:10px;color:#5E6879">서울 · <span style="{{ seoulStatusStyle }}">{{ seoulStatus }}</span></span>
+        <span style="font-family:'JetBrains Mono';font-size:13px;font-weight:600;color:#C7CEDB">{{ seoulTime }}</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;background:#0F1420;border:1px solid #232B3A;border-radius:9px;width:216px;flex-shrink:0">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5E6879" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <input placeholder="종목·지수·뉴스 검색" style="background:transparent;border:0;outline:0;color:#C7CEDB;font-size:12.5px;width:100%;font-family:inherit">
+      <span style="font-family:'JetBrains Mono';font-size:10px;color:#4a5468;border:1px solid #2a3446;border-radius:4px;padding:1px 5px">⌘K</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border-radius:9px;flex-shrink:0;{{ wsStyle }}">
+      <span style="width:8px;height:8px;border-radius:50%;{{ wsDotStyle }}"></span>
+      <span style="font-size:12px;font-weight:600;{{ wsTextStyle }}">{{ wsLabel }}</span>
+    </div>
+    <div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#2a3346,#1a2130);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#C7CEDB;border:1px solid #2a3446">JK</div>
+  </header>
+
+  <div style="height:34px;flex-shrink:0;display:flex;align-items:center;overflow:hidden;border-bottom:1px solid #161B27;background:#0B0E16">
+    <div style="display:inline-flex;align-items:center;gap:26px;white-space:nowrap;animation:tape 46s linear infinite;padding-left:26px;font-family:'JetBrains Mono';font-size:12px;will-change:transform">
+      <sc-for list="{{ tape }}" as="q" hint-placeholder-count="12">
+        <span style="display:inline-flex;align-items:center;gap:7px">
+          <span style="color:#8A93A6;font-weight:600">{{ q.sym }}</span>
+          <span style="color:#C7CEDB">{{ q.price }}</span>
+          <span style="{{ q.style }}">{{ q.pctStr }}</span>
+        </span>
+      </sc-for>
+      <sc-for list="{{ tape }}" as="q" hint-placeholder-count="12">
+        <span style="display:inline-flex;align-items:center;gap:7px">
+          <span style="color:#8A93A6;font-weight:600">{{ q.sym }}</span>
+          <span style="color:#C7CEDB">{{ q.price }}</span>
+          <span style="{{ q.style }}">{{ q.pctStr }}</span>
+        </span>
+      </sc-for>
+    </div>
+  </div>
+
+  <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
+  <main style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 418px;gap:12px;padding:12px;overflow:hidden">
+
+    <div style="min-height:0;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+
+      <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;flex-shrink:0">
+        <sc-for list="{{ indices }}" as="c" hint-placeholder-count="7">
+          <div style="background:#0F131C;border:1px solid #1B2130;border-radius:12px;padding:11px 12px;display:flex;flex-direction:column;gap:5px;min-width:0">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:4px">
+              <span style="font-size:11px;color:#8A93A6;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.name }}</span>
+              <span style="font-size:9px;{{ c.arrowStyle }}">{{ c.arrow }}</span>
+            </div>
+            <span style="font-family:'JetBrains Mono';font-size:17px;font-weight:700;letter-spacing:-.01em">{{ c.valueStr }}</span>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+              <span style="font-family:'JetBrains Mono';font-size:11.5px;font-weight:600;{{ c.chgStyle }}">{{ c.pctStr }}</span>
+              <svg width="58" height="20" viewBox="0 0 64 22" style="overflow:visible;flex-shrink:0"><polyline points="{{ c.spark }}" fill="none" stroke="{{ c.color }}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"></polyline></svg>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="flex:1.85;min-height:270px;background:#0F131C;border:1px solid #1B2130;border-radius:14px;display:flex;flex-direction:column;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #1B2130;flex-shrink:0">
+          <div style="display:flex;align-items:baseline;gap:9px">
+            <span style="font-size:13px;font-weight:700;letter-spacing:.01em">US 마켓 히트맵</span>
+            <span style="font-size:11px;color:#5E6879">S&amp;P 500 · 섹터별 등락</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:10px;color:#5E6879">-3%</span>
+            <div style="{{ heatLegendStyle }}"></div>
+            <span style="font-size:10px;color:#5E6879">+3%</span>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;gap:3px;padding:9px;min-height:0">
+          <sc-for list="{{ heat }}" as="sec" hint-placeholder-count="6">
+            <div style="{{ sec.style }}">
+              <div style="font-size:10.5px;color:#8A93A6;text-transform:uppercase;letter-spacing:.05em;padding:0 2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;font-weight:600">{{ sec.name }}</div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:3px;min-height:0">
+                <sc-for list="{{ sec.tiles }}" as="t" hint-placeholder-count="4">
+                  <div style="{{ t.style }}">
+                    <span style="font-weight:800;font-size:13px;line-height:1">{{ t.sym }}</span>
+                    <span style="font-size:10.5px;opacity:.95;font-family:'JetBrains Mono'">{{ t.pctStr }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="flex:1;min-height:170px;background:#0F131C;border:1px solid #1B2130;border-radius:14px;display:flex;flex-direction:column;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #1B2130;flex-shrink:0">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:13px;font-weight:700">관심종목 · 실시간</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:10.5px;color:#5E6879"><span style="width:6px;height:6px;border-radius:50%;background:#16C784"></span>한국투자 WebSocket</span>
+          </div>
+          <div style="display:flex;gap:4px">
+            <span style="font-size:11px;font-weight:600;color:#C7CEDB;background:#1a2130;padding:3px 10px;border-radius:7px">전체</span>
+            <span style="font-size:11px;color:#5E6879;padding:3px 10px;border-radius:7px;cursor:pointer" style-hover="color:#C7CEDB">미국</span>
+            <span style="font-size:11px;color:#5E6879;padding:3px 10px;border-radius:7px;cursor:pointer" style-hover="color:#C7CEDB">한국</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(120px,1.7fr) 1fr 0.95fr 76px 0.8fr 58px;gap:10px;padding:8px 14px;border-bottom:1px solid #151A25;font-size:10px;color:#5E6879;font-weight:600;flex-shrink:0">
+          <span>종목</span><span style="text-align:right">현재가</span><span style="text-align:right">등락</span><span style="text-align:center">추이</span><span style="text-align:right">거래량</span><span style="text-align:right">AI</span>
+        </div>
+        <div style="flex:1;overflow-y:auto;min-height:0">
+          <sc-for list="{{ wl }}" as="r" hint-placeholder-count="10">
+            <div onClick="{{ r.onClick }}" style="display:grid;grid-template-columns:minmax(120px,1.7fr) 1fr 0.95fr 76px 0.8fr 58px;align-items:center;gap:10px;padding:var(--rpy,9px) 14px;border-bottom:1px solid #12161f;min-height:var(--rowh,40px);cursor:pointer" style-hover="background:#12172a">
+              <div style="display:flex;align-items:center;gap:9px;min-width:0">
+                <span style="{{ r.mkStyle }}">{{ r.market }}</span>
+                <div style="min-width:0;display:flex;flex-direction:column;line-height:1.15">
+                  <span style="font-size:var(--fs,13px);font-weight:600;color:#EDF0F6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</span>
+                  <span style="font-size:10.5px;color:#5E6879;font-family:'JetBrains Mono'">{{ r.ticker }}</span>
+                </div>
+              </div>
+              <div style="text-align:right"><span style="{{ r.priceStyle }}">{{ r.priceStr }}</span></div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;line-height:1.2">
+                <span style="{{ r.chgStyle }}">{{ r.arrow }} {{ r.pctStr }}</span>
+                <span style="font-size:10px;color:#5E6879;font-family:'JetBrains Mono'">{{ r.chgAbs }}</span>
+              </div>
+              <div style="display:flex;justify-content:center"><svg width="70" height="22" viewBox="0 0 64 22" style="overflow:visible"><polyline points="{{ r.spark }}" fill="none" stroke="{{ r.color }}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></polyline></svg></div>
+              <div style="text-align:right;font-family:'JetBrains Mono';font-size:11px;color:#8A93A6">{{ r.vol }}</div>
+              <div style="text-align:right"><span style="{{ r.opStyle }}">{{ r.opinion }}</span></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="min-height:0;display:flex;flex-direction:column;gap:12px;overflow-y:auto;padding-right:3px">
+
+      <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #1B2130">
+          <span style="font-size:13px;font-weight:700">공포·탐욕 지수</span>
+          <span style="font-size:11px;color:#5E6879">Fear &amp; Greed</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;padding:14px 14px 16px">
+          <svg width="236" height="130" viewBox="0 0 236 128" style="overflow:visible">
+            <sc-for list="{{ gaugeSegs }}" as="s" hint-placeholder-count="5">
+              <path d="{{ s.d }}" fill="none" stroke="{{ s.color }}" stroke-width="13" stroke-linecap="butt"></path>
+            </sc-for>
+            <line x1="{{ gcx }}" y1="{{ gcy }}" x2="{{ needleX }}" y2="{{ needleY }}" stroke="#EDF0F6" stroke-width="3" stroke-linecap="round"></line>
+            <circle cx="{{ gcx }}" cy="{{ gcy }}" r="6" fill="#EDF0F6"></circle>
+            <circle cx="{{ gcx }}" cy="{{ gcy }}" r="11" fill="none" stroke="#EDF0F6" stroke-opacity="0.22" stroke-width="2"></circle>
+          </svg>
+          <div style="display:flex;flex-direction:column;align-items:center;margin-top:-16px;gap:2px">
+            <span style="font-family:'JetBrains Mono';font-size:34px;font-weight:800;line-height:1"><span style="{{ fgValueStyle }}">{{ fg }}</span></span>
+            <span style="font-size:14px;font-weight:700"><span style="{{ fgLabelStyle }}">{{ fgLabel }}</span></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;width:100%;max-width:224px;font-size:10px;color:#5E6879;margin-top:8px"><span>극도의 공포</span><span>극도의 탐욕</span></div>
+          <div style="font-size:11px;color:#5E6879;margin-top:9px">어제 <span style="color:#8A93A6">65</span> · 지난주 <span style="color:#8A93A6">58</span> · 1개월 전 <span style="color:#8A93A6">44</span></div>
+        </div>
+      </div>
+
+      <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #1B2130">
+          <span style="font-size:13px;font-weight:700">매크로 · 금리 지수</span>
+          <span style="font-size:11px;color:#5E6879">부동산·환율·원자재</span>
+        </div>
+        <div style="padding:4px 14px 8px">
+          <sc-for list="{{ macro }}" as="m" hint-placeholder-count="7">
+            <div style="display:grid;grid-template-columns:1.4fr auto 62px 56px;align-items:center;gap:10px;padding:var(--rpy,9px) 0;border-bottom:1px solid #12161f">
+              <span style="font-size:12.5px;color:#C7CEDB;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.name }}</span>
+              <span style="font-family:'JetBrains Mono';font-size:13px;font-weight:600;text-align:right">{{ m.valueStr }}<span style="font-size:10px;color:#5E6879;margin-left:2px">{{ m.unit }}</span></span>
+              <span style="font-family:'JetBrains Mono';font-size:11.5px;font-weight:600;text-align:right;{{ m.chgStyle }}">{{ m.pctStr }}</span>
+              <svg width="56" height="20" viewBox="0 0 64 22" style="overflow:visible;justify-self:end"><polyline points="{{ m.spark }}" fill="none" stroke="{{ m.color }}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"></polyline></svg>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:linear-gradient(#101422,#0e1119);border:1px solid #262041;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #201b38">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:16px;height:16px;border-radius:5px;background:linear-gradient(135deg,#7C6CFF,#4C82FB);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff">AI</span>
+            <span style="font-size:13px;font-weight:700">AI 종합 투자의견</span>
+          </div>
+          <span style="font-size:11px;color:#5E6879">업데이트 {{ updated }} KST</span>
+        </div>
+        <div style="padding:13px 14px 15px;display:flex;flex-direction:column;gap:12px">
+          <div>
+            <div style="display:flex;align-items:flex-end;gap:11px">
+              <span style="font-family:'JetBrains Mono';font-size:42px;font-weight:800;line-height:.85;color:#EDF0F6">{{ ai.score }}</span>
+              <span style="font-size:13px;color:#5E6879;margin-bottom:5px">/ 100</span>
+              <div style="margin-left:auto;margin-bottom:5px"><span style="{{ ai.stanceStyle }}">{{ ai.stance }}</span></div>
+            </div>
+            <div style="margin-top:11px;{{ ai.barTrackStyle }}"><div style="{{ ai.markerStyle }}"></div></div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:#5E6879;margin-top:5px"><span>매도</span><span>중립</span><span>매수</span></div>
+          </div>
+          <p style="margin:0;font-size:12.5px;line-height:1.6;color:#B4BCCB;text-wrap:pretty">{{ ai.summary }}</p>
+          <div style="height:1px;background:#201b38"></div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <sc-for list="{{ ai.markets }}" as="k" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:10px;padding:4px 0">
+                <span style="width:70px;font-size:12px;color:#A7B0C0;flex-shrink:0">{{ k.name }}</span>
+                <div style="flex:1;height:6px;border-radius:4px;background:#1a2130;overflow:hidden"><div style="{{ k.fillStyle }}"></div></div>
+                <span style="{{ k.tagStyle }}">{{ k.pctStr }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="height:1px;background:#201b38"></div>
+          <div>
+            <div style="font-size:11px;color:#7A8496;font-weight:600;margin-bottom:6px">주요 근거</div>
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <sc-for list="{{ ai.factors }}" as="f" hint-placeholder-count="4">
+                <div style="display:flex;align-items:flex-start;gap:9px;padding:4px 0">
+                  <span style="{{ f.tagStyle }}">{{ f.tag }}</span>
+                  <span style="font-size:12px;color:#C7CEDB;line-height:1.5">{{ f.text }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #1B2130">
+          <div style="display:flex;align-items:center;gap:9px">
+            <span style="font-size:13px;font-weight:700">뉴스 헤드라인</span>
+            <span style="font-size:10.5px;color:#5E6879;background:#1a2130;padding:2px 7px;border-radius:6px">히스토리 저장됨</span>
+          </div>
+          <span style="font-size:11px;color:#9D90FF;cursor:pointer" style-hover="color:#B9AEFF">전체 보기 →</span>
+        </div>
+        <div style="padding:2px 0">
+          <sc-for list="{{ news }}" as="n" hint-placeholder-count="8">
+            <div style="display:flex;flex-direction:column;gap:6px;padding:11px 14px;border-bottom:1px solid #12161f;cursor:pointer" style-hover="background:#12172a">
+              <div style="display:flex;align-items:center;gap:7px">
+                <span style="{{ n.sourceStyle }}">{{ n.source }}</span>
+                <span style="{{ n.sentStyle }}">{{ n.sentiment }}</span>
+                <span style="margin-left:auto;font-size:10.5px;color:#5E6879;font-family:'JetBrains Mono'">{{ n.time }}</span>
+              </div>
+              <div style="font-size:13px;line-height:1.45;color:#DCE1EA;font-weight:500;text-wrap:pretty">{{ n.title }}</div>
+              <sc-if value="{{ n.hasTicker }}" hint-placeholder-val="{{ true }}">
+                <div><span style="font-family:'JetBrains Mono';font-size:10.5px;color:#8A93A6;background:#161c28;border:1px solid #232b3a;padding:2px 7px;border-radius:6px">${{ n.ticker }}</span></div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+    </div>
+  </main>
+  </sc-if>
+
+  <sc-if value="{{ isStock }}">
+  <main style="flex:1;min-height:0;display:grid;grid-template-columns:232px minmax(0,1fr) 344px;gap:12px;padding:12px;overflow:hidden">
+    <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;min-height:0">
+      <div style="padding:11px 14px;border-bottom:1px solid #1B2130;font-size:13px;font-weight:700;flex-shrink:0">관심종목</div>
+      <div style="flex:1;overflow-y:auto;min-height:0">
+        <sc-for list="{{ detailList }}" as="d" hint-placeholder-count="10">
+          <div style="{{ d.rowStyle }}" onClick="{{ d.onClick }}">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0">
+              <span style="{{ d.mkStyle }}">{{ d.ticker }}</span>
+              <span style="font-size:12.5px;font-weight:600;color:#EDF0F6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ d.name }}</span>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-family:'JetBrains Mono';font-size:12px;color:#C7CEDB">{{ d.price }}</div>
+              <div style="font-family:'JetBrains Mono';font-size:11px;{{ d.pctStyle }}">{{ d.pct }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="min-height:0;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+      <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:15px 18px;flex-shrink:0">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+          <div>
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px">
+              <span style="{{ detail.mkStyle }}">{{ detail.market }}</span>
+              <span style="font-size:19px;font-weight:800">{{ detail.name }}</span>
+              <span style="font-family:'JetBrains Mono';font-size:13px;color:#5E6879">{{ detail.ticker }}</span>
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:12px">
+              <span style="font-family:'JetBrains Mono';font-size:32px;font-weight:800;line-height:1">{{ detail.price }}</span>
+              <span style="font-family:'JetBrains Mono';font-size:14px;font-weight:700;margin-bottom:3px;{{ detail.pctStyle }}">{{ detail.arrow }} {{ detail.pct }} · {{ detail.chgAbs }}</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:3px;background:#12161f;border:1px solid #1e2532;border-radius:9px;padding:3px;flex-shrink:0">
+            <span style="padding:5px 11px;border-radius:6px;font-size:12px;font-weight:700;color:#EDF0F6;background:rgba(124,108,255,.18)">1D</span>
+            <span style="padding:5px 11px;border-radius:6px;font-size:12px;color:#8A93A6;cursor:pointer" style-hover="color:#C7CEDB">1W</span>
+            <span style="padding:5px 11px;border-radius:6px;font-size:12px;color:#8A93A6;cursor:pointer" style-hover="color:#C7CEDB">1M</span>
+            <span style="padding:5px 11px;border-radius:6px;font-size:12px;color:#8A93A6;cursor:pointer" style-hover="color:#C7CEDB">1Y</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:14px">
+          <div style="display:flex;justify-content:space-between;font-size:10.5px;color:#5E6879"><span>52주 최저 {{ detail.loStr }}</span><span>52주 최고 {{ detail.hiStr }}</span></div>
+          <div style="position:relative;height:6px;border-radius:4px;background:#1a2130"><div style="{{ detail.rangeStyle }}"></div></div>
+        </div>
+      </div>
+      <div style="flex:1;min-height:180px;background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:14px;overflow:hidden">
+        <svg viewBox="0 0 900 300" preserveAspectRatio="none" style="width:100%;height:100%;display:block">
+          <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{{ detail.chartColor }}" stop-opacity="0.30"></stop><stop offset="1" stop-color="{{ detail.chartColor }}" stop-opacity="0"></stop></linearGradient></defs>
+          <line x1="0" y1="75" x2="900" y2="75" stroke="#1a2130" stroke-width="1"></line>
+          <line x1="0" y1="150" x2="900" y2="150" stroke="#1a2130" stroke-width="1"></line>
+          <line x1="0" y1="225" x2="900" y2="225" stroke="#1a2130" stroke-width="1"></line>
+          <path d="{{ detail.chartArea }}" fill="url(#cg)"></path>
+          <path d="{{ detail.chartLine }}" fill="none" stroke="{{ detail.chartColor }}" stroke-width="2.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+          <circle cx="{{ detail.lastX }}" cy="{{ detail.lastY }}" r="4.5" fill="{{ detail.chartColor }}"></circle>
+        </svg>
+      </div>
+      <div style="display:grid;grid-template-columns:264px minmax(0,1fr);gap:12px;height:210px;flex-shrink:0">
+        <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;display:flex;flex-direction:column;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 13px;border-bottom:1px solid #1B2130;flex-shrink:0"><span style="font-size:12.5px;font-weight:700">호가</span><span style="font-size:10px;color:#5E6879">실시간 잔량</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;padding:3px 0;min-height:0">
+            <sc-for list="{{ orderbook }}" as="lv" hint-placeholder-count="11">
+              <div style="{{ lv.rowStyle }}">
+                <div style="{{ lv.barStyle }}"></div>
+                <span style="{{ lv.priceStyle }}">{{ lv.priceStr }}</span>
+                <span style="position:relative;z-index:1;font-family:'JetBrains Mono';font-size:11px;color:#8A93A6">{{ lv.qtyStr }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;display:flex;flex-direction:column;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 13px;border-bottom:1px solid #1B2130;flex-shrink:0"><span style="font-size:12.5px;font-weight:700">체결 내역</span><span style="font-size:10px;color:#5E6879">최근 체결</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 0.7fr 0.6fr;gap:8px;padding:6px 13px;border-bottom:1px solid #151A25;font-size:10px;color:#5E6879;font-weight:600;flex-shrink:0"><span>시간</span><span style="text-align:right">체결가</span><span style="text-align:right">수량</span><span style="text-align:right">구분</span></div>
+          <div style="flex:1;overflow-y:auto;min-height:0">
+            <sc-for list="{{ trades }}" as="tr" hint-placeholder-count="14">
+              <div style="display:grid;grid-template-columns:1fr 1fr 0.7fr 0.6fr;gap:8px;align-items:center;padding:5px 13px;border-bottom:1px solid #12161f">
+                <span style="font-family:'JetBrains Mono';font-size:11px;color:#8A93A6">{{ tr.time }}</span>
+                <span style="{{ tr.priceStyle }}">{{ tr.priceStr }}</span>
+                <span style="text-align:right;font-family:'JetBrains Mono';font-size:11px;color:#C7CEDB">{{ tr.qtyStr }}</span>
+                <span style="text-align:right"><span style="{{ tr.sideStyle }}">{{ tr.side }}</span></span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="min-height:0;display:flex;flex-direction:column;gap:12px;overflow-y:auto;padding-right:3px">
+      <div style="background:linear-gradient(#101422,#0e1119);border:1px solid #262041;border-radius:14px;padding:14px;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <span style="width:16px;height:16px;border-radius:5px;background:linear-gradient(135deg,#7C6CFF,#4C82FB);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff">AI</span>
+          <span style="font-size:13px;font-weight:700">AI 투자의견</span>
+          <div style="margin-left:auto"><span style="{{ detail.recStyle }}">{{ detail.rec }}</span></div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:9px">
+          <span style="font-family:'JetBrains Mono';font-size:38px;font-weight:800;line-height:.85;color:#EDF0F6">{{ detail.aiScore }}</span>
+          <span style="font-size:12px;color:#5E6879;margin-bottom:5px">/ 100 · AI 스코어</span>
+        </div>
+        <div style="{{ detail.barStyle }}"><div style="{{ detail.markerStyle }}"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#5E6879;margin-top:5px;margin-bottom:12px"><span>매도</span><span>중립</span><span>매수</span></div>
+        <div style="display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid #201b38;border-bottom:1px solid #201b38;margin-bottom:11px">
+          <div><div style="font-size:10.5px;color:#7A8496;margin-bottom:3px">목표주가</div><div style="font-family:'JetBrains Mono';font-size:15px;font-weight:700">{{ detail.target }}</div></div>
+          <div style="text-align:right"><div style="font-size:10.5px;color:#7A8496;margin-bottom:3px">상승여력</div><div style="font-family:'JetBrains Mono';font-size:15px;font-weight:700;{{ detail.upsideStyle }}">{{ detail.upsideStr }}</div></div>
+        </div>
+        <div style="font-size:11px;color:#7A8496;font-weight:600;margin-bottom:7px">주요 근거</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ detail.factors }}" as="f" hint-placeholder-count="3">
+            <div style="display:flex;align-items:flex-start;gap:9px">
+              <span style="{{ f.tagStyle }}">{{ f.tag }}</span>
+              <span style="font-size:12px;color:#C7CEDB;line-height:1.5">{{ f.text }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;overflow:hidden;flex-shrink:0">
+        <div style="padding:11px 14px;border-bottom:1px solid #1B2130;font-size:13px;font-weight:700">종목 정보</div>
+        <div style="padding:6px 14px 12px">
+          <sc-for list="{{ detail.stats }}" as="s" hint-placeholder-count="6">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #12161f">
+              <span style="font-size:12px;color:#8A93A6">{{ s.k }}</span>
+              <span style="font-family:'JetBrains Mono';font-size:12.5px;font-weight:600;color:#DCE1EA">{{ s.v }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </main>
+  </sc-if>
+
+  <sc-if value="{{ isNews }}">
+  <main style="flex:1;min-height:0;display:grid;grid-template-columns:250px minmax(0,1fr);gap:12px;padding:12px;overflow:hidden">
+    <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;display:flex;flex-direction:column;overflow-y:auto;padding:15px;gap:18px">
+      <div>
+        <div style="font-size:11px;color:#7A8496;font-weight:700;letter-spacing:.04em;margin-bottom:9px">감성 필터</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ newsFilters }}" as="c" hint-placeholder-count="4"><span style="{{ c.style }}" onClick="{{ c.onClick }}">{{ c.label }}</span></sc-for>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#7A8496;font-weight:700;letter-spacing:.04em;margin-bottom:9px">출처</div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <sc-for list="{{ srcCounts }}" as="s" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:9px;padding:6px 4px;border-radius:7px;cursor:pointer" style-hover="background:#141a26">
+              <span style="width:8px;height:8px;border-radius:2px;{{ s.dot }}"></span>
+              <span style="font-size:12.5px;color:#C7CEDB;flex:1">{{ s.name }}</span>
+              <span style="font-family:'JetBrains Mono';font-size:11px;color:#5E6879">{{ s.count }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#7A8496;font-weight:700;letter-spacing:.04em;margin-bottom:9px">관심 종목 뉴스</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ trendTickers }}" as="t" hint-placeholder-count="5"><span style="font-family:'JetBrains Mono';font-size:11px;color:#8A93A6;background:#161c28;border:1px solid #232b3a;padding:3px 9px;border-radius:7px;cursor:pointer" style-hover="color:#C7CEDB;border-color:#33415a">${{ t.sym }}</span></sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;min-height:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #1B2130;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:9px"><span style="font-size:14px;font-weight:700">뉴스 헤드라인 히스토리</span><span style="font-size:10.5px;color:#5E6879;background:#1a2130;padding:2px 7px;border-radius:6px">자동 저장</span></div>
+        <span style="font-size:11.5px;color:#5E6879">최신순 · 실시간 수집</span>
+      </div>
+      <div style="flex:1;overflow-y:auto;min-height:0;padding:2px 0">
+        <sc-for list="{{ newsGroups }}" as="g" hint-placeholder-count="2">
+          <div style="padding:11px 16px 6px;font-size:11px;font-weight:700;color:#7A8496;letter-spacing:.04em;position:sticky;top:0;background:#0F131C;z-index:1">{{ g.label }}</div>
+          <sc-for list="{{ g.items }}" as="n" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;gap:7px;padding:13px 16px;border-bottom:1px solid #12161f;cursor:pointer" style-hover="background:#12172a">
+              <div style="display:flex;align-items:center;gap:7px">
+                <span style="{{ n.sourceStyle }}">{{ n.source }}</span>
+                <span style="{{ n.sentStyle }}">{{ n.sentiment }}</span>
+                <span style="margin-left:auto;font-size:10.5px;color:#5E6879;font-family:'JetBrains Mono'">{{ n.time }}</span>
+              </div>
+              <div style="font-size:14px;font-weight:600;line-height:1.4;color:#EDF0F6;text-wrap:pretty">{{ n.title }}</div>
+              <div style="font-size:12.5px;line-height:1.55;color:#8A93A6;text-wrap:pretty">{{ n.summary }}</div>
+              <sc-if value="{{ n.hasTickers }}">
+                <div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ n.tickers }}" as="tk" hint-placeholder-count="2"><span style="font-family:'JetBrains Mono';font-size:10.5px;color:#8A93A6;background:#161c28;border:1px solid #232b3a;padding:2px 7px;border-radius:6px">${{ tk.sym }}</span></sc-for></div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </sc-for>
+      </div>
+    </div>
+  </main>
+  </sc-if>
+
+  <sc-if value="{{ isPortfolio }}">
+  <main style="flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:12px;overflow-y:auto">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;flex-shrink:0">
+      <div style="background:linear-gradient(135deg,#161233,#0f1119);border:1px solid #262041;border-radius:14px;padding:15px 16px">
+        <div style="font-size:11.5px;color:#8A93A6;margin-bottom:8px">총 평가금액</div>
+        <div style="font-family:'JetBrains Mono';font-size:23px;font-weight:800">{{ port.totalStr }}</div>
+      </div>
+      <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:15px 16px">
+        <div style="font-size:11.5px;color:#8A93A6;margin-bottom:8px">평가손익</div>
+        <div style="font-family:'JetBrains Mono';font-size:21px;font-weight:800;{{ port.plStyle }}">{{ port.plStr }}</div>
+        <div style="font-family:'JetBrains Mono';font-size:12px;font-weight:600;margin-top:2px;{{ port.plStyle }}">{{ port.plPctStr }}</div>
+      </div>
+      <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:15px 16px">
+        <div style="font-size:11.5px;color:#8A93A6;margin-bottom:8px">일간 손익</div>
+        <div style="font-family:'JetBrains Mono';font-size:21px;font-weight:800;{{ port.dayStyle }}">{{ port.dayStr }}</div>
+        <div style="font-family:'JetBrains Mono';font-size:12px;font-weight:600;margin-top:2px;{{ port.dayStyle }}">{{ port.dayPctStr }}</div>
+      </div>
+      <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:15px 16px">
+        <div style="font-size:11.5px;color:#8A93A6;margin-bottom:8px">투자원금</div>
+        <div style="font-family:'JetBrains Mono';font-size:23px;font-weight:800;color:#C7CEDB">{{ port.costStr }}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;flex:1;min-height:0">
+      <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;min-height:220px">
+        <div style="padding:12px 16px;border-bottom:1px solid #1B2130;font-size:13px;font-weight:700;flex-shrink:0">보유 종목</div>
+        <div style="display:grid;grid-template-columns:minmax(120px,1.6fr) 0.8fr 1fr 1fr 1.1fr 1fr 96px;gap:10px;padding:9px 16px;border-bottom:1px solid #151A25;font-size:10.5px;color:#5E6879;font-weight:600;flex-shrink:0">
+          <span>종목</span><span style="text-align:right">수량</span><span style="text-align:right">평단</span><span style="text-align:right">현재가</span><span style="text-align:right">평가액</span><span style="text-align:right">손익률</span><span style="text-align:right">비중</span>
+        </div>
+        <div style="flex:1;overflow-y:auto;min-height:0">
+          <sc-for list="{{ port.holdings }}" as="h" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:minmax(120px,1.6fr) 0.8fr 1fr 1fr 1.1fr 1fr 96px;gap:10px;align-items:center;padding:11px 16px;border-bottom:1px solid #12161f">
+              <div style="display:flex;align-items:center;gap:9px;min-width:0"><span style="{{ h.mkStyle }}">{{ h.ticker }}</span><span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ h.name }}</span></div>
+              <span style="text-align:right;font-family:'JetBrains Mono';font-size:12px;color:#C7CEDB">{{ h.qtyStr }}</span>
+              <span style="text-align:right;font-family:'JetBrains Mono';font-size:12px;color:#8A93A6">{{ h.avgStr }}</span>
+              <span style="text-align:right;font-family:'JetBrains Mono';font-size:12.5px;color:#EDF0F6">{{ h.priceStr }}</span>
+              <span style="text-align:right;font-family:'JetBrains Mono';font-size:12.5px;font-weight:600;color:#EDF0F6">{{ h.valueStr }}</span>
+              <div style="text-align:right"><div style="font-family:'JetBrains Mono';font-size:12.5px;font-weight:700;{{ h.plStyle }}">{{ h.plPctStr }}</div><div style="font-family:'JetBrains Mono';font-size:10.5px;{{ h.plStyle }}">{{ h.plStr }}</div></div>
+              <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end"><span style="font-family:'JetBrains Mono';font-size:11.5px;color:#C7CEDB">{{ h.weightStr }}</span><div style="width:100%;height:5px;border-radius:3px;background:#1a2130;overflow:hidden"><div style="{{ h.weightBarStyle }}"></div></div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;display:flex;flex-direction:column;overflow:hidden">
+        <div style="padding:12px 16px;border-bottom:1px solid #1B2130;font-size:13px;font-weight:700;flex-shrink:0">자산 배분</div>
+        <div style="padding:18px 16px;display:flex;flex-direction:column;align-items:center;gap:16px;overflow-y:auto">
+          <div style="position:relative;width:150px;height:150px;flex-shrink:0">
+            <svg viewBox="0 0 130 130" style="width:100%;height:100%;transform:rotate(-90deg)">
+              <circle cx="65" cy="65" r="54" fill="none" stroke="#1a2130" stroke-width="16"></circle>
+              <sc-for list="{{ port.donutSegs }}" as="s" hint-placeholder-count="6"><circle cx="65" cy="65" r="54" fill="none" stroke-width="16" stroke="{{ s.stroke }}" stroke-dasharray="{{ s.strokeDasharray }}" stroke-dashoffset="{{ s.strokeDashoffset }}"></circle></sc-for>
+            </svg>
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font-size:10px;color:#5E6879">총자산</span><span style="font-family:'JetBrains Mono';font-size:12.5px;font-weight:700">{{ port.totalStr }}</span></div>
+          </div>
+          <div style="width:100%;display:flex;flex-direction:column;gap:2px">
+            <sc-for list="{{ port.holdings }}" as="h" hint-placeholder-count="6">
+              <div style="display:flex;align-items:center;gap:9px;padding:6px 2px"><span style="width:9px;height:9px;border-radius:3px;{{ h.dot }}"></span><span style="font-size:12.5px;color:#C7CEDB;flex:1">{{ h.name }}</span><span style="font-family:'JetBrains Mono';font-size:12px;font-weight:600;color:#DCE1EA">{{ h.weightStr }}</span></div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  </sc-if>
+
+  <sc-if value="{{ isResearch }}">
+  <main style="flex:1;min-height:0;display:grid;grid-template-columns:340px minmax(0,1fr);gap:12px;padding:12px;overflow:hidden">
+    <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;min-height:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #1B2130;flex-shrink:0"><span style="font-size:13px;font-weight:700">리서치 리포트</span><span style="font-size:10.5px;color:#5E6879">PULSE AI · 6건</span></div>
+      <div style="flex:1;overflow-y:auto;min-height:0">
+        <sc-for list="{{ reportList }}" as="r" hint-placeholder-count="6">
+          <div style="{{ r.rowStyle }}" onClick="{{ r.onClick }}">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+              <span style="{{ r.mkStyle }}">{{ r.ticker }}</span>
+              <span style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</span>
+              <div style="margin-left:auto"><span style="{{ r.ratingStyle }}">{{ r.rating }}</span></div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:11px;color:#5E6879;font-family:'JetBrains Mono'">{{ r.date }}</span>
+              <span style="font-family:'JetBrains Mono';font-size:11.5px;font-weight:700;{{ r.upsideStyle }}">목표 {{ r.upsideStr }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:3px">
+      <div style="background:linear-gradient(#101422,#0e1119);border:1px solid #262041;border-radius:14px;padding:18px 20px">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
+          <span style="width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,#7C6CFF,#4C82FB);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff">AI</span>
+          <span style="font-size:11.5px;color:#9D90FF;font-weight:700">PULSE AI 리서치</span>
+          <span style="margin-left:auto;font-size:11px;color:#5E6879">{{ report.date }} · 신뢰도 {{ report.conf }}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+          <span style="{{ report.mkStyle }}">{{ report.market }}</span>
+          <span style="font-size:22px;font-weight:800">{{ report.name }}</span>
+          <span style="font-family:'JetBrains Mono';font-size:14px;color:#5E6879">{{ report.ticker }}</span>
+          <div style="margin-left:auto"><span style="{{ report.ratingStyle }}">{{ report.rating }}</span></div>
+        </div>
+        <p style="margin:10px 0 0;font-size:13.5px;line-height:1.65;color:#C7CEDB;text-wrap:pretty">{{ report.note }}</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:14px 16px">
+          <div style="font-size:11px;color:#8A93A6;margin-bottom:7px">현재가</div>
+          <div style="font-family:'JetBrains Mono';font-size:19px;font-weight:800">{{ report.price }}</div>
+        </div>
+        <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:14px 16px">
+          <div style="font-size:11px;color:#8A93A6;margin-bottom:7px">목표주가</div>
+          <div style="font-family:'JetBrains Mono';font-size:19px;font-weight:800">{{ report.target }}</div>
+        </div>
+        <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:14px 16px">
+          <div style="font-size:11px;color:#8A93A6;margin-bottom:7px">상승여력</div>
+          <div style="font-family:'JetBrains Mono';font-size:19px;font-weight:800;{{ report.upsideStyle }}">{{ report.upsideStr }}</div>
+        </div>
+      </div>
+
+      <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:15px 16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:12.5px;font-weight:700">AI 종합 스코어</span><span style="font-family:'JetBrains Mono';font-size:18px;font-weight:800">{{ report.aiScore }}<span style="font-size:11px;color:#5E6879;font-weight:500"> / 100</span></span></div>
+        <div style="{{ report.barStyle }}"><div style="{{ report.markerStyle }}"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#5E6879;margin-top:5px"><span>매도</span><span>중립</span><span>매수</span></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:15px 16px">
+          <div style="font-size:12.5px;font-weight:700;margin-bottom:11px">투자 포인트</div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <sc-for list="{{ report.points }}" as="pt" hint-placeholder-count="2">
+              <div style="display:flex;align-items:flex-start;gap:9px"><span style="{{ report.posDot }}"></span><span style="font-size:12.5px;color:#C7CEDB;line-height:1.5">{{ pt.text }}</span></div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:15px 16px">
+          <div style="font-size:12.5px;font-weight:700;margin-bottom:11px">리스크 요인</div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <sc-for list="{{ report.risks }}" as="rk" hint-placeholder-count="2">
+              <div style="display:flex;align-items:flex-start;gap:9px"><span style="{{ report.negDot }}"></span><span style="font-size:12.5px;color:#C7CEDB;line-height:1.5">{{ rk.text }}</span></div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:15px 16px">
+        <div style="font-size:12.5px;font-weight:700;margin-bottom:12px">밸류에이션</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div><div style="font-size:11px;color:#8A93A6;margin-bottom:5px">PER</div><div style="font-family:'JetBrains Mono';font-size:14px;font-weight:700">{{ report.per }}</div></div>
+          <div><div style="font-size:11px;color:#8A93A6;margin-bottom:5px">PBR</div><div style="font-family:'JetBrains Mono';font-size:14px;font-weight:700">{{ report.pbr }}</div></div>
+          <div><div style="font-size:11px;color:#8A93A6;margin-bottom:5px">시가총액</div><div style="font-family:'JetBrains Mono';font-size:14px;font-weight:700">{{ report.mcap }}</div></div>
+          <div><div style="font-size:11px;color:#8A93A6;margin-bottom:5px">목표주가</div><div style="font-family:'JetBrains Mono';font-size:14px;font-weight:700">{{ report.target }}</div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;colorConvention&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;global&quot;,&quot;korea&quot;],&quot;default&quot;:&quot;global&quot;,&quot;tsType&quot;:&quot;'global'|'korea'&quot;,&quot;section&quot;:&quot;표시&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;comfortable&quot;,&quot;compact&quot;],&quot;default&quot;:&quot;comfortable&quot;,&quot;tsType&quot;:&quot;'comfortable'|'compact'&quot;,&quot;section&quot;:&quot;표시&quot;},&quot;liveUpdates&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;동작&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.rootRef = React.createRef();
+    const sp = (d)=>this.spark(d);
+    this.state = {
+      tick: new Date(),
+      flash: {},
+      view: 'dashboard', sel: 'NVDA', newsFilter: '전체', report: 'NVDA',
+      fg: 71,
+      idx: [
+        {name:'S&P 500', sym:'SPX', value:5588.27, prev:5561.10, dec:2, spark:sp('up')},
+        {name:'NASDAQ', sym:'IXIC', value:18240.10, prev:18101.30, dec:2, spark:sp('up')},
+        {name:'다우', sym:'DJI', value:40120.50, prev:40210.80, dec:2, spark:sp('down')},
+        {name:'KOSPI', sym:'KS11', value:2745.30, prev:2721.44, dec:2, spark:sp('up')},
+        {name:'KOSDAQ', sym:'KQ11', value:782.15, prev:788.02, dec:2, spark:sp('down')},
+        {name:'VIX', sym:'VIX', value:13.42, prev:13.98, dec:2, spark:sp('down')},
+        {name:'USD/KRW', sym:'USDKRW', value:1378.50, prev:1375.20, dec:2, spark:sp('up')}
+      ],
+      wl: [
+        {name:'Apple', ticker:'AAPL', market:'US', cur:'$', dec:2, price:227.31, prev:225.02, opinion:'매수', vol:'54.2M', spark:sp('up')},
+        {name:'NVIDIA', ticker:'NVDA', market:'US', cur:'$', dec:2, price:128.44, prev:124.10, opinion:'매수', vol:'302M', spark:sp('up')},
+        {name:'Tesla', ticker:'TSLA', market:'US', cur:'$', dec:2, price:246.12, prev:251.30, opinion:'중립', vol:'98.7M', spark:sp('down')},
+        {name:'Microsoft', ticker:'MSFT', market:'US', cur:'$', dec:2, price:449.80, prev:447.10, opinion:'매수', vol:'21.4M', spark:sp('up')},
+        {name:'Amazon', ticker:'AMZN', market:'US', cur:'$', dec:2, price:201.55, prev:203.90, opinion:'중립', vol:'38.1M', spark:sp('down')},
+        {name:'삼성전자', ticker:'005930', market:'KR', cur:'₩', dec:0, price:81200, prev:80100, opinion:'매수', vol:'1,240만', spark:sp('up')},
+        {name:'SK하이닉스', ticker:'000660', market:'KR', cur:'₩', dec:0, price:208500, prev:214000, opinion:'중립', vol:'412만', spark:sp('down')},
+        {name:'NAVER', ticker:'035420', market:'KR', cur:'₩', dec:0, price:172000, prev:169500, opinion:'매수', vol:'86만', spark:sp('up')},
+        {name:'카카오', ticker:'035720', market:'KR', cur:'₩', dec:0, price:41350, prev:42100, opinion:'매도', vol:'305만', spark:sp('down')},
+        {name:'에코프로비엠', ticker:'247540', market:'KR', cur:'₩', dec:0, price:178900, prev:176200, opinion:'중립', vol:'128만', spark:sp('up')}
+      ],
+      macro: [
+        {name:'전세자금 지수', value:104.7, unit:'p', chg:0.3, dec:1, spark:sp('up')},
+        {name:'부동산 매매지수', value:96.2, unit:'p', chg:-0.1, dec:1, spark:sp('down')},
+        {name:'원/달러 환율', value:1378.5, unit:'원', chg:0.24, dec:1, spark:sp('up')},
+        {name:'국고채 10Y', value:3.12, unit:'%', chg:0.03, dec:2, spark:sp('up')},
+        {name:'WTI 유가', value:78.4, unit:'$', chg:-1.2, dec:1, spark:sp('down')},
+        {name:'금 (Gold)', value:2398.0, unit:'$', chg:0.6, dec:1, spark:sp('up')},
+        {name:'비트코인', value:64120, unit:'$', chg:2.1, dec:0, spark:sp('up')}
+      ]
+    };
+    this.heatRaw = [
+      {name:'Technology', tiles:[['AAPL',1.0,34],['NVDA',3.5,32],['MSFT',0.6,33],['GOOGL',1.5,21],['META',0.9,15],['AVGO',2.1,8]]},
+      {name:'Consumer', tiles:[['AMZN',-1.1,20],['TSLA',-2.0,8],['HD',0.4,4],['MCD',0.2,2]]},
+      {name:'Financial', tiles:[['JPM',0.7,6],['V',0.5,6],['MA',-0.3,5],['BAC',1.2,4],['WFC',0.9,2]]},
+      {name:'Health', tiles:[['LLY',1.8,8],['UNH',-1.5,5],['JNJ',0.1,4],['MRK',0.6,3]]},
+      {name:'Comm.', tiles:[['NFLX',2.2,3],['DIS',-0.8,2],['TMUS',0.3,2]]},
+      {name:'Energy', tiles:[['XOM',-0.9,5],['CVX',-1.4,3],['COP',0.5,2]]}
+    ];
+    this.newsRaw = [
+      {source:'CNN', sentiment:'호재', date:'오늘', time:'12분 전', ticker:'NVDA', tickers:['NVDA','AMD'], title:'뉴욕증시, 반도체 강세에 나스닥 사상 최고 마감', summary:'엔비디아가 4% 넘게 오르며 지수를 견인했고, 필라델피아 반도체 지수는 2.8% 상승 마감했습니다.'},
+      {source:'Bloomberg', sentiment:'중립', date:'오늘', time:'34분 전', ticker:'', tickers:[], title:'연준 위원 "9월 금리 인하 신중히 검토해야"', summary:'추가 물가 지표 확인이 필요하다는 매파적 발언에 국채 금리가 소폭 반등했습니다.'},
+      {source:'Reuters', sentiment:'악재', date:'오늘', time:'1시간 전', ticker:'USDKRW', tickers:['USDKRW'], title:'원/달러 환율 1,380원 육박… 외국인 순매도 지속', summary:'달러 강세와 외국인 자금 이탈이 겹치며 원화 약세가 심화되고 있습니다.'},
+      {source:'연합인포맥스', sentiment:'호재', date:'오늘', time:'1시간 전', ticker:'005930', tickers:['005930'], title:'삼성전자, HBM3E 엔비디아 공급 임박 보도', summary:'하반기 양산 공급 계약이 임박했다는 소식에 개장 초 3% 급등했습니다.'},
+      {source:'CNBC', sentiment:'악재', date:'오늘', time:'2시간 전', ticker:'TSLA', tickers:['TSLA'], title:'테슬라 2분기 인도량 예상 하회… 목표주가 하향', summary:'주요 IB들이 인도량 둔화를 반영해 목표주가를 일제히 낮췄습니다.'},
+      {source:'WSJ', sentiment:'호재', date:'어제', time:'21시간 전', ticker:'AAPL', tickers:['AAPL'], title:'애플, AI 아이폰 사이클 기대에 매수 의견 상향', summary:'교체 수요 확대 전망에 다수 애널리스트가 투자의견을 상향 조정했습니다.'},
+      {source:'Bloomberg', sentiment:'악재', date:'어제', time:'1일 전', ticker:'', tickers:['XOM'], title:'국제유가 하락 전환… 글로벌 수요 둔화 우려 부각', summary:'중국 제조업 지표 부진으로 WTI가 배럴당 78달러선으로 밀렸습니다.'},
+      {source:'Reuters', sentiment:'중립', date:'어제', time:'1일 전', ticker:'', tickers:[], title:'MSCI 한국 편입 비중 조정 논의 재점화', summary:'선진국 지수 편입 재검토 가능성이 거론되며 수급 기대가 형성됐습니다.'},
+      {source:'CNBC', sentiment:'호재', date:'이번 주', time:'3일 전', ticker:'MSFT', tickers:['MSFT'], title:'MS 애저 AI 매출 고성장… 클라우드 재가속', summary:'Copilot 도입 확대와 Azure AI 수요로 클라우드 매출 성장률이 반등했습니다.'},
+      {source:'연합인포맥스', sentiment:'악재', date:'이번 주', time:'4일 전', ticker:'035720', tickers:['035720'], title:'카카오, 실적 부진·사법 리스크에 약세', summary:'2분기 영업이익 컨센서스 하회 우려와 규제 이슈가 겹쳤습니다.'},
+      {source:'WSJ', sentiment:'중립', date:'이번 주', time:'5일 전', ticker:'', tickers:[], title:'美 국채 10년물 금리, 레인지 등락 지속', summary:'고용·물가 지표 관망 속 뚜렷한 방향성 없는 흐름이 이어지고 있습니다.'}
+    ];
+    this.srcColor = {CNN:'#E23A3A', Bloomberg:'#E5A93C', Reuters:'#F0803C', '연합인포맥스':'#4C82FB', CNBC:'#2E9E6B', WSJ:'#9D90FF'};
+    this.fund={
+      AAPL:{mcap:'$3.52조',per:34.2,pbr:51.1,hi52:237.23,lo52:164.08,eps:6.64,div:'0.44%',target:255,ai:74,rec:'매수',factors:[['호재','AI 아이폰 교체 수요 사이클 기대'],['호재','서비스 매출 사상 최고·마진 개선'],['중립','중국 수요 회복 속도가 관건']]},
+      NVDA:{mcap:'$3.16조',per:68.5,pbr:58.2,hi52:140.76,lo52:66.25,eps:1.87,div:'0.03%',target:150,ai:81,rec:'적극 매수',factors:[['호재','블랙웰 GPU 수요 폭증, DC 매출 급증'],['호재','주요 CSP 캡엑스 상향 사이클'],['악재','높은 밸류에이션에 따른 변동성']]},
+      TSLA:{mcap:'$785B',per:58.1,pbr:11.4,hi52:299.29,lo52:138.80,eps:4.24,div:'-',target:230,ai:52,rec:'중립',factors:[['호재','FSD·로보택시 모멘텀 부각'],['악재','인도량 둔화와 마진 압박'],['중립','EV 수요 성장세 둔화']]},
+      MSFT:{mcap:'$3.34조',per:37.8,pbr:12.6,hi52:468.35,lo52:362.90,eps:11.90,div:'0.68%',target:500,ai:76,rec:'매수',factors:[['호재','Azure AI 매출 고성장'],['호재','Copilot 상용화 확대'],['중립','캡엑스 급증에 따른 마진 관망']]},
+      AMZN:{mcap:'$2.10조',per:44.3,pbr:8.1,hi52:214.20,lo52:151.61,eps:4.55,div:'-',target:230,ai:70,rec:'매수',factors:[['호재','AWS 성장 재가속'],['호재','광고 매출 고성장'],['악재','소비 둔화 우려']]},
+      '005930':{mcap:'₩484조',per:13.2,pbr:1.4,hi52:88800,lo52:68500,eps:6120,div:'2.1%',target:95000,ai:72,rec:'매수',factors:[['호재','HBM3E 엔비디아 공급 임박'],['호재','메모리 업황 회복 국면'],['중립','파운드리 수율 개선 필요']]},
+      '000660':{mcap:'₩152조',per:18.9,pbr:2.6,hi52:248500,lo52:118000,eps:11020,div:'1.0%',target:240000,ai:66,rec:'매수',factors:[['호재','HBM 시장 선점 효과'],['악재','단기 급등에 따른 부담'],['중립','D램 가격 변동성']]},
+      '035420':{mcap:'₩28조',per:22.4,pbr:1.3,hi52:232000,lo52:151000,eps:7680,div:'0.5%',target:210000,ai:63,rec:'매수',factors:[['호재','웹툰·커머스 성장'],['중립','광고 경기 민감도'],['악재','플랫폼 규제 리스크']]},
+      '035720':{mcap:'₩18조',per:41.2,pbr:1.6,hi52:60900,lo52:36050,eps:1004,div:'0.3%',target:45000,ai:44,rec:'중립',factors:[['악재','실적 부진·사법 리스크'],['중립','AI 신사업 기대'],['악재','성장성 둔화']]},
+      '247540':{mcap:'₩17조',per:39.0,pbr:5.2,hi52:246000,lo52:118500,eps:4587,div:'-',target:190000,ai:55,rec:'중립',factors:[['호재','양극재 수요 회복 기대'],['악재','전기차 캐즘 우려'],['중립','원자재 가격 변동']]}
+    };
+    this.chartShape=(function(){var n=64,a=[],v=0.32;for(var i=0;i<n;i++){v+=(Math.random()-0.42)*0.06;v=Math.max(0.06,Math.min(0.95,v));a.push(v);}return a;})();
+    const cx=118, cy=118, r=94;
+    const pt=(f,rr)=>{const a=Math.PI*(1-f); const R=(rr==null)?r:rr; return [cx+R*Math.cos(a), cy-R*Math.sin(a)];};
+    this._g={cx,cy,r,pt};
+    const sc=['#EA3943','#F0743C','#F6B73C','#8FC93A','#16C784'];
+    this._segColors=sc;
+    this.gaugeSegs = sc.map((c,i)=>{const p0=pt(i/5), p1=pt((i+1)/5); return {d:'M '+p0[0].toFixed(1)+' '+p0[1].toFixed(1)+' A '+r+' '+r+' 0 0 1 '+p1[0].toFixed(1)+' '+p1[1].toFixed(1), color:c};});
+  }
+
+  spark(dir){
+    const n=20,w=64,h=22,pad=2; let y=h/2; const t=dir==='up'?-0.32:dir==='down'?0.32:0; const p=[];
+    for(let i=0;i<n;i++){ y+=(Math.random()-0.5)*3.4+t; y=Math.max(pad,Math.min(h-pad,y)); p.push((pad+(w-2*pad)*i/(n-1)).toFixed(1)+','+y.toFixed(1)); }
+    return p.join(' ');
+  }
+  fmt(n,d){ return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+  clock(tz){ return this.state.tick.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:tz}); }
+  hourIn(tz){ return Number(this.state.tick.toLocaleString('en-US',{hour:'2-digit',hour12:false,timeZone:tz})); }
+
+  componentDidMount(){ this.applyDensity(); this._ck=setInterval(()=>this.setState({tick:new Date()}),1000); this.startLive(); }
+  componentDidUpdate(prev){ this.applyDensity(); if(prev.liveUpdates!==this.props.liveUpdates){ clearInterval(this._iv); this._iv=null; this.startLive(); } }
+  componentWillUnmount(){ clearInterval(this._ck); clearInterval(this._iv); clearTimeout(this._ft); }
+  startLive(){ if(this.props.liveUpdates===false) return; this._iv=setInterval(()=>this.tick(),2200); }
+  applyDensity(){ const el=this.rootRef.current; if(!el) return; const c=this.props.density==='compact'; el.style.setProperty('--rpy',c?'6px':'9px'); el.style.setProperty('--rowh',c?'32px':'40px'); el.style.setProperty('--fs',c?'12px':'13px'); }
+
+  tick(){
+    this.setState(s=>{
+      const flash={};
+      const walk=(arr,field)=>{ const cp=arr.map(o=>({...o})); const k=3+Math.floor(Math.random()*3); for(let i=0;i<k;i++){ const j=Math.floor(Math.random()*cp.length); const o=cp[j]; const base=o[field]; const drift=(Math.random()-0.47)*base*0.0022; const nv=Math.max(0.01, base+drift); flash[o.sym||o.ticker]= nv>=base?'up':'down'; o[field]=nv; } return cp; };
+      const idx=walk(s.idx,'value'); const wl=walk(s.wl,'price'); const fg=Math.max(3,Math.min(97, s.fg+(Math.random()-0.5)*1.8));
+      return {idx,wl,fg,flash,tick:new Date()};
+    });
+    clearTimeout(this._ft); this._ft=setTimeout(()=>this.setState({flash:{}}),700);
+  }
+
+  setView(v){ this.setState({view:v}); }
+  setSel(t){ this.setState({sel:t, view:'stock'}); }
+  setNewsFilter(f){ this.setState({newsFilter:f}); }
+  chartPaths(w,h){ const s=this.chartShape,n=s.length,pad=6; const X=i=>pad+(w-2*pad)*i/(n-1); const Y=v=>h-pad-(h-2*pad)*v; let line='M '+X(0).toFixed(1)+' '+Y(s[0]).toFixed(1); for(let i=1;i<n;i++){ line+=' L '+X(i).toFixed(1)+' '+Y(s[i]).toFixed(1); } const area=line+' L '+X(n-1).toFixed(1)+' '+h+' L '+X(0).toFixed(1)+' '+h+' Z'; return {line,area,lastX:X(n-1),lastY:Y(s[n-1])}; }
+
+  renderVals(){
+    const kr=(this.props.colorConvention??'global')==='korea';
+    const POS=kr?'#F6465D':'#16C784', NEG=kr?'#4C82FB':'#EA3943', NEU='#8A93A6';
+    const clr=v=>v>0?POS:v<0?NEG:NEU;
+    const chip=(c,fs)=>({color:c,background:c+'1E',border:'1px solid '+c+'44',padding:'2px 8px',borderRadius:'999px',fontSize:(fs||11)+'px',fontWeight:700,whiteSpace:'nowrap',lineHeight:1.55,display:'inline-block',flexShrink:0});
+    const flash=this.state.flash;
+    const fmt=this.fmt;
+    const mono="'JetBrains Mono', ui-monospace, monospace";
+
+    const indices=this.state.idx.map(o=>{ const chg=o.value-o.prev, pct=chg/o.prev*100, c=clr(pct); return {name:o.name, valueStr:fmt(o.value,o.dec), pctStr:(pct>=0?'+':'')+pct.toFixed(2)+'%', arrow:pct>=0?'▲':'▼', arrowStyle:{color:c}, chgStyle:{color:c}, spark:o.spark, color:c}; });
+
+    const tape=[...this.state.idx.map(o=>{const pct=(o.value-o.prev)/o.prev*100; return {sym:o.name, price:fmt(o.value,o.dec), pctStr:(pct>=0?'+':'')+pct.toFixed(2)+'%', style:{color:clr(pct),fontWeight:600}};}),
+      ...this.state.wl.slice(0,6).map(o=>{const pct=(o.price-o.prev)/o.prev*100; return {sym:o.ticker, price:o.cur+fmt(o.price,o.dec), pctStr:(pct>=0?'+':'')+pct.toFixed(2)+'%', style:{color:clr(pct),fontWeight:600}};})];
+
+    const heatColor=(pct)=>{ const a=Math.abs(pct); if(a<0.12) return {background:'#1b212e',color:'#8a93a6'}; const t=Math.min(a/3.2,1); const up=pct>0; const hue=up?(kr?353:150):(kr?214:6); const light=(26-12*t); const sat=(44+40*t); return {background:'hsl('+hue+' '+sat+'% '+light+'%)', color: t>0.55?'#ffffff':'rgba(238,242,248,.9)'}; };
+    const heat=this.heatRaw.map(sec=>{ const w=sec.tiles.reduce((a,t)=>a+t[2],0); return {name:sec.name, style:{display:'flex',flexDirection:'column',flexGrow:w,flexBasis:0,minWidth:0,minHeight:0}, tiles:sec.tiles.map(t=>{const hc=heatColor(t[1]); return {sym:t[0], pctStr:(t[1]>=0?'+':'')+t[1].toFixed(1)+'%', style:{flexGrow:t[2],flexBasis:0,minHeight:0,display:'flex',flexDirection:'column',alignItems:'flex-start',justifyContent:'center',padding:'3px 7px',borderRadius:'4px',overflow:'hidden',gap:'1px',background:hc.background,color:hc.color}};})}; });
+
+    const fg=Math.round(this.state.fg);
+    const seg=Math.max(0,Math.min(4,Math.floor(fg/20)));
+    const fgColor=this._segColors[seg];
+    const fgLabel=fg<25?'극도의 공포':fg<45?'공포':fg<55?'중립':fg<75?'탐욕':'극도의 탐욕';
+    const nn=this._g.pt(fg/100,this._g.r-22);
+
+    const macro=this.state.macro.map(o=>({name:o.name, valueStr:fmt(o.value,o.dec), unit:o.unit, pctStr:(o.chg>=0?'+':'')+o.chg.toFixed(o.dec)+(o.unit==='%'?'%p':''), chgStyle:{color:clr(o.chg)}, spark:o.spark, color:clr(o.chg)}));
+
+    const aiScore=68;
+    const ai={ score:aiScore, stance:'매수 우위', stanceStyle:chip(POS,12),
+      barTrackStyle:{position:'relative',height:'9px',borderRadius:'5px',background:'linear-gradient(90deg, '+NEG+', #5b6472 48%, '+POS+')'},
+      markerStyle:{position:'absolute',top:'-3px',left:aiScore+'%',transform:'translateX(-50%)',width:'3px',height:'15px',borderRadius:'2px',background:'#EDF0F6',boxShadow:'0 0 6px rgba(0,0,0,.6)'},
+      summary:'미국 대형 기술주 강세와 AI 반도체 수요 확대가 지수를 끌어올리는 가운데, 국내 증시는 환율 부담으로 상승폭이 제한적입니다. 단기적으로 위험자산 선호가 우세하나 변동성 확대 구간에 유의하세요.',
+      markets:[
+        {name:'미국 증시', pctStr:'강세 72', fillStyle:{width:'72%',height:'100%',borderRadius:'4px',background:POS}, tagStyle:chip(POS,10)},
+        {name:'한국 증시', pctStr:'중립 54', fillStyle:{width:'54%',height:'100%',borderRadius:'4px',background:NEU}, tagStyle:chip(NEU,10)},
+        {name:'환율·금리', pctStr:'주의 38', fillStyle:{width:'38%',height:'100%',borderRadius:'4px',background:NEG}, tagStyle:chip(NEG,10)}
+      ],
+      factors:[
+        {tag:'호재', text:'엔비디아 실적 서프라이즈, AI 반도체 수요 지속', tagStyle:chip(POS,10)},
+        {tag:'호재', text:'미 연준 9월 금리 인하 기대 확대', tagStyle:chip(POS,10)},
+        {tag:'악재', text:'원/달러 1,380원 근접, 외국인 순매도 지속', tagStyle:chip(NEG,10)},
+        {tag:'중립', text:'국내 2분기 실적 시즌 관망세 짙어져', tagStyle:chip(NEU,10)}
+      ] };
+
+    const mk=(m)=> m==='US'?{color:'#7CA7FF',background:'rgba(76,130,251,.16)',border:'1px solid rgba(76,130,251,.3)',padding:'1px 5px',borderRadius:'5px',fontSize:'9px',fontWeight:800,fontFamily:mono,letterSpacing:'.02em',flexShrink:0}:{color:'#E9B44A',background:'rgba(233,180,74,.14)',border:'1px solid rgba(233,180,74,.28)',padding:'1px 5px',borderRadius:'5px',fontSize:'9px',fontWeight:800,fontFamily:mono,letterSpacing:'.02em',flexShrink:0};
+    const opC={ '매수':POS,'중립':NEU,'매도':NEG };
+    const wl=this.state.wl.map(o=>{ const chg=o.price-o.prev, pct=chg/o.prev*100, c=clr(pct); const fl=flash[o.ticker]; const base={fontFamily:mono,fontWeight:600,fontSize:'13px',color:'#EDF0F6',padding:'2px 6px',borderRadius:'5px',transition:'background .5s'}; const pStyle= fl?{...base,background:(fl==='up'?POS:NEG)+'2a'}:base; return {name:o.name, ticker:o.ticker, market:o.market, mkStyle:mk(o.market), priceStr:o.cur+fmt(o.price,o.dec), priceStyle:pStyle, pctStr:(pct>=0?'+':'')+Math.abs(pct).toFixed(2)+'%', arrow:pct>=0?'▲':'▼', chgStyle:{color:c,fontFamily:mono,fontWeight:700,fontSize:'12.5px'}, chgAbs:(chg>=0?'+':'-')+o.cur+fmt(Math.abs(chg),o.dec), spark:o.spark, color:c, vol:o.vol, opinion:o.opinion, opStyle:chip(opC[o.opinion],10.5), onClick:()=>this.setSel(o.ticker)}; });
+
+    const sentC={'호재':POS,'악재':NEG,'중립':NEU};
+    const news=this.newsRaw.map(o=>{ const c=this.srcColor[o.source]||'#8A93A6'; return {source:o.source, sourceStyle:{color:c,background:c+'1c',border:'1px solid '+c+'33',padding:'2px 7px',borderRadius:'6px',fontSize:'10px',fontWeight:700,whiteSpace:'nowrap',flexShrink:0}, title:o.title, ticker:o.ticker, hasTicker:!!o.ticker, time:o.time, sentiment:o.sentiment, sentStyle:chip(sentC[o.sentiment],10)}; });
+
+    // navigation
+    const view=this.state.view;
+    const navMk=(v,label)=>({label,onClick:()=>this.setView(v),style: view===v?{padding:'7px 13px',borderRadius:'8px',fontSize:'13px',fontWeight:700,color:'#EDF0F6',background:'rgba(124,108,255,.16)',border:'1px solid rgba(124,108,255,.28)',cursor:'pointer',whiteSpace:'nowrap'}:{padding:'7px 13px',borderRadius:'8px',fontSize:'13px',fontWeight:500,color:'#8A93A6',border:'1px solid transparent',cursor:'pointer',whiteSpace:'nowrap'}});
+    const navTabs=[navMk('dashboard','대시보드'),navMk('stock','종목'),navMk('news','뉴스'),navMk('portfolio','포트폴리오'),navMk('research','리서치')];
+
+    // stock detail
+    const selO=this.state.wl.find(o=>o.ticker===this.state.sel)||this.state.wl[1];
+    const F=this.fund[selO.ticker]||{};
+    const dchg=selO.price-selO.prev, dpct=dchg/selO.prev*100, dcol=clr(dpct);
+    const cp=this.chartPaths(900,300);
+    const lo=F.lo52||selO.price*0.8, hi=F.hi52||selO.price*1.2, rpos=Math.max(2,Math.min(98,(selO.price-lo)/(hi-lo)*100));
+    const detail={ name:selO.name, ticker:selO.ticker, market:selO.market, mkStyle:mk(selO.market), price:selO.cur+fmt(selO.price,selO.dec), pct:(dpct>=0?'+':'')+Math.abs(dpct).toFixed(2)+'%', arrow:dpct>=0?'▲':'▼', chgAbs:(dchg>=0?'+':'-')+selO.cur+fmt(Math.abs(dchg),selO.dec), pctStyle:{color:dcol}, chartLine:cp.line, chartArea:cp.area, chartColor:dcol, lastX:cp.lastX.toFixed(1), lastY:cp.lastY.toFixed(1),
+      loStr:selO.cur+fmt(lo,selO.dec), hiStr:selO.cur+fmt(hi,selO.dec), rangeStyle:{position:'absolute',top:'-3px',left:rpos+'%',transform:'translateX(-50%)',width:'12px',height:'12px',borderRadius:'50%',background:'#EDF0F6',boxShadow:'0 0 6px rgba(0,0,0,.6)'},
+      stats:[{k:'시가총액',v:F.mcap||'-'},{k:'PER',v:F.per!=null?F.per.toFixed(1)+'배':'-'},{k:'PBR',v:F.pbr!=null?F.pbr.toFixed(1)+'배':'-'},{k:'EPS',v:F.eps!=null?selO.cur+fmt(F.eps,selO.dec):'-'},{k:'배당수익률',v:F.div||'-'},{k:'거래량',v:selO.vol}],
+      aiScore:F.ai||60, rec:F.rec||'중립', recStyle:chip(F.rec==='매도'?NEG:(F.rec==='중립'?NEU:POS),12), target:selO.cur+fmt(F.target||selO.price,selO.dec),
+      upsideStr:(F.target?(((F.target/selO.price-1)*100)>=0?'+':'')+((F.target/selO.price-1)*100).toFixed(1)+'%':'-'), upsideStyle:{color:(F.target&&F.target>=selO.price)?POS:NEG},
+      barStyle:{position:'relative',height:'9px',borderRadius:'5px',background:'linear-gradient(90deg, '+NEG+', #5b6472 48%, '+POS+')'}, markerStyle:{position:'absolute',top:'-3px',left:(F.ai||60)+'%',transform:'translateX(-50%)',width:'3px',height:'15px',borderRadius:'2px',background:'#EDF0F6'},
+      factors:(F.factors||[]).map(x=>({tag:x[0],text:x[1],tagStyle:chip(x[0]==='호재'?POS:x[0]==='악재'?NEG:NEU,10)})) };
+    const detailList=this.state.wl.map(o=>{ const p=(o.price-o.prev)/o.prev*100, c=clr(p), act=o.ticker===this.state.sel; return {name:o.name,ticker:o.ticker,mkStyle:mk(o.market),price:o.cur+fmt(o.price,o.dec),pct:(p>=0?'+':'')+Math.abs(p).toFixed(2)+'%',pctStyle:{color:c},onClick:()=>this.setSel(o.ticker),rowStyle:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',padding:'9px 12px',borderBottom:'1px solid #12161f',cursor:'pointer',borderLeft:act?'2px solid #7C6CFF':'2px solid transparent',background:act?'rgba(124,108,255,.1)':'transparent'}}; });
+
+    // news screen
+    const nf=this.state.newsFilter;
+    const nfChip=(label)=>({label,onClick:()=>this.setNewsFilter(label),style: nf===label?{padding:'5px 12px',borderRadius:'8px',fontSize:'12px',fontWeight:700,cursor:'pointer',color:'#EDF0F6',background:'rgba(124,108,255,.16)',border:'1px solid rgba(124,108,255,.3)'}:{padding:'5px 12px',borderRadius:'8px',fontSize:'12px',fontWeight:500,cursor:'pointer',color:'#8A93A6',background:'#141a26',border:'1px solid #232b3a'}});
+    const newsFilters=['전체','호재','악재','중립'].map(nfChip);
+    const nfilt=this.newsRaw.filter(o=> nf==='전체'||o.sentiment===nf);
+    const order=['오늘','어제','이번 주'], grp={};
+    nfilt.forEach(o=>{ (grp[o.date]=grp[o.date]||[]).push(o); });
+    const newsGroups=order.filter(d=>grp[d]).map(d=>({label:d, items:grp[d].map(o=>{const c=this.srcColor[o.source]||'#8A93A6'; return {source:o.source, sourceStyle:{color:c,background:c+'1c',border:'1px solid '+c+'33',padding:'2px 7px',borderRadius:'6px',fontSize:'10px',fontWeight:700,whiteSpace:'nowrap',flexShrink:0}, sentiment:o.sentiment, sentStyle:chip(sentC[o.sentiment],10), time:o.time, title:o.title, summary:o.summary||'', hasTickers:(o.tickers||[]).length>0, tickers:(o.tickers||[]).map(tk=>({sym:tk}))};})}));
+    const srcCounts=Object.keys(this.srcColor).map(s=>({name:s, dot:{background:this.srcColor[s]}, count:this.newsRaw.filter(o=>o.source===s).length}));
+    const trendTickers=['NVDA','AAPL','005930','TSLA','USDKRW'].map(t=>({sym:t}));
+
+    // portfolio
+    const fx=(this.state.idx.find(o=>o.sym==='USDKRW')||{value:1378}).value;
+    const holdRaw=[{t:'NVDA',qty:40,avg:96.5},{t:'AAPL',qty:60,avg:198.2},{t:'005930',qty:200,avg:74500},{t:'MSFT',qty:15,avg:410.0},{t:'035420',qty:50,avg:185000},{t:'TSLA',qty:25,avg:262.0}];
+    const pal=['#7C6CFF','#4C82FB','#16C784','#F6B73C','#EA3943','#22C1CC'];
+    let sumV=0,sumC=0,sumDay=0;
+    const hcalc=holdRaw.map((h,i)=>{ const o=this.state.wl.find(w=>w.ticker===h.t)||this.state.wl[0]; const price=o.price, val=h.qty*price, cost=h.qty*h.avg, day=h.qty*(o.price-o.prev), k=o.cur==='$'?fx:1; sumV+=val*k; sumC+=cost*k; sumDay+=day*k; return {o,h,price,val,cost,day,k,color:pal[i%pal.length]}; });
+    const holdings=hcalc.map(x=>{ const pl=x.val-x.cost, plp=pl/x.cost*100, w=x.val*x.k/sumV*100, c=clr(pl); return {name:x.o.name,ticker:x.o.ticker,mkStyle:mk(x.o.market),qtyStr:x.h.qty.toLocaleString('en-US')+'주',avgStr:x.o.cur+fmt(x.h.avg,x.o.dec),priceStr:x.o.cur+fmt(x.price,x.o.dec),valueStr:x.o.cur+fmt(x.val,x.o.dec),plStr:(pl>=0?'+':'-')+x.o.cur+fmt(Math.abs(pl),x.o.dec),plPctStr:(plp>=0?'+':'')+plp.toFixed(2)+'%',plStyle:{color:c},weightStr:w.toFixed(1)+'%',weightBarStyle:{width:w.toFixed(1)+'%',height:'100%',borderRadius:'3px',background:x.color},dot:{background:x.color}}; });
+    const Cc=2*Math.PI*54; let cum=0;
+    const donutSegs=hcalc.map(x=>{ const w=x.val*x.k/sumV, len=w*Cc, s={strokeDasharray:len.toFixed(1)+' '+(Cc-len).toFixed(1), strokeDashoffset:(-cum).toFixed(1), stroke:x.color}; cum+=len; return s; });
+    const totalPL=sumV-sumC, totalPLp=totalPL/sumC*100, dayPLp=sumDay/(sumV-sumDay)*100, won=n=>'₩'+this.fmt(n,0);
+    const port={ totalStr:won(sumV), costStr:won(sumC), plStr:(totalPL>=0?'+':'-')+won(Math.abs(totalPL)), plPctStr:(totalPLp>=0?'+':'')+totalPLp.toFixed(2)+'%', plStyle:{color:clr(totalPL)}, dayStr:(sumDay>=0?'+':'-')+won(Math.abs(sumDay)), dayPctStr:(dayPLp>=0?'+':'')+dayPLp.toFixed(2)+'%', dayStyle:{color:clr(sumDay)}, donutSegs, holdings };
+
+    // order book + trades (stock detail)
+    const tk = selO.dec===0 ? (selO.price>=100000?500:selO.price>=10000?100:50) : (selO.price>=100?0.1:0.05);
+    const obBase = Math.round(selO.price/tk)*tk;
+    const qAt=k=>((Math.abs(k)*37 + selO.ticker.length*17 + 23) % 88) + 16;
+    const obMax=112, rowBase={position:'relative',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 12px',flex:'1 1 0',minHeight:0};
+    const pStyle=(c,b)=>({color:c,fontFamily:mono,fontSize:'11.5px',fontWeight:b?800:600,position:'relative',zIndex:1});
+    const orderbook=[];
+    for(let i=5;i>=1;i--){ const q=qAt(i+10); orderbook.push({priceStr:selO.cur+fmt(obBase+tk*i,selO.dec),qtyStr:q.toLocaleString('en-US'),priceStyle:pStyle(NEG),rowStyle:{...rowBase},barStyle:{position:'absolute',top:'2px',bottom:'2px',right:0,width:(q/obMax*100).toFixed(0)+'%',background:NEG+'20',borderRadius:'3px'}}); }
+    orderbook.push({priceStr:selO.cur+fmt(obBase,selO.dec),qtyStr:'현재가',priceStyle:pStyle('#EDF0F6',true),rowStyle:{...rowBase,background:'#141a26'},barStyle:{display:'none'}});
+    for(let i=1;i<=5;i++){ const q=qAt(i); orderbook.push({priceStr:selO.cur+fmt(obBase-tk*i,selO.dec),qtyStr:q.toLocaleString('en-US'),priceStyle:pStyle(POS),rowStyle:{...rowBase},barStyle:{position:'absolute',top:'2px',bottom:'2px',left:0,width:(q/obMax*100).toFixed(0)+'%',background:POS+'20',borderRadius:'3px'}}); }
+    const trades=[], t0=15*3600+29*60+52;
+    for(let i=0;i<14;i++){ const up=(qAt(i*3+1)%2)===0, tp=obBase + tk*(((qAt(i*5))%7)-3), q=(qAt(i*2)%42)+1, ts=t0-i*7, hh=Math.floor(ts/3600), mi=Math.floor((ts%3600)/60), se=ts%60; trades.push({time:String(hh).padStart(2,'0')+':'+String(mi).padStart(2,'0')+':'+String(se).padStart(2,'0'), priceStr:selO.cur+fmt(tp,selO.dec), qtyStr:q, side:up?'매수':'매도', priceStyle:{color:up?POS:NEG,fontFamily:mono,fontSize:'11.5px',fontWeight:600,textAlign:'right'}, sideStyle:chip(up?POS:NEG,9.5)}); }
+
+    // research reports
+    const reportNote={NVDA:'AI 가속기 독점적 지위와 블랙웰 사이클 진입으로 실적 가시성이 높습니다. 밸류에이션 부담은 있으나 이익 성장률이 이를 상쇄합니다.',AAPL:'하드웨어 교체 사이클과 서비스 고마진 매출이 동반 성장하며 안정적 현금흐름을 유지합니다.','005930':'메모리 업황 반등과 HBM 공급 본격화로 이익 개선이 기대됩니다. 파운드리 회복이 추가 모멘텀이 될 전망입니다.',MSFT:'클라우드·AI 상용화의 최대 수혜주로 구독형 매출의 예측 가능성이 높습니다.',TSLA:'FSD·에너지 사업의 옵션 가치는 유효하나 단기 인도량과 마진 방어가 관건입니다.','000660':'HBM 선두 지위로 AI 메모리 수요를 선점하고 있으나 단기 급등에 따른 변동성은 유의해야 합니다.'};
+    const rTk=['NVDA','AAPL','005930','MSFT','TSLA','000660'], rDates={NVDA:'2026.07.24',AAPL:'2026.07.23','005930':'2026.07.23',MSFT:'2026.07.22',TSLA:'2026.07.22','000660':'2026.07.21'};
+    const recCol=r=>r==='매도'?NEG:(r==='중립'?NEU:POS);
+    const reportList=rTk.map(t=>{ const o=this.state.wl.find(w=>w.ticker===t)||{}, f=this.fund[t]||{}, up=f.target?((f.target/(o.price||1)-1)*100):0, act=t===this.state.report; return {ticker:t,name:o.name||t,mkStyle:mk(o.market||'US'),rating:f.rec||'중립',ratingStyle:chip(recCol(f.rec),9.5),upsideStr:(up>=0?'+':'')+up.toFixed(1)+'%',upsideStyle:{color:up>=0?POS:NEG},date:rDates[t]||'2026.07',onClick:()=>this.setState({report:t}),rowStyle:{padding:'12px 14px',borderBottom:'1px solid #12161f',cursor:'pointer',borderLeft:act?'2px solid #7C6CFF':'2px solid transparent',background:act?'rgba(124,108,255,.1)':'transparent'}}; });
+    const rt=this.state.report, ro=this.state.wl.find(w=>w.ticker===rt)||{}, rf=this.fund[rt]||{}, rup=rf.target?((rf.target/(ro.price||1)-1)*100):0;
+    const report={ name:ro.name||rt, ticker:rt, market:ro.market||'US', mkStyle:mk(ro.market||'US'), rating:rf.rec||'중립', ratingStyle:chip(recCol(rf.rec),12), aiScore:rf.ai||60, target:(ro.cur||'$')+fmt(rf.target||0,ro.dec||2), price:(ro.cur||'$')+fmt(ro.price||0,ro.dec||2), upsideStr:(rup>=0?'+':'')+rup.toFixed(1)+'%', upsideStyle:{color:rup>=0?POS:NEG}, note:reportNote[rt]||'', date:rDates[rt]||'2026.07', conf:(rf.ai||60)>=70?'높음':'보통',
+      points:(rf.factors||[]).filter(x=>x[0]==='호재').map(x=>({text:x[1]})), risks:(rf.factors||[]).filter(x=>x[0]!=='호재').map(x=>({text:x[1]})),
+      per:rf.per!=null?rf.per.toFixed(1)+'배':'-', pbr:rf.pbr!=null?rf.pbr.toFixed(1)+'배':'-', mcap:rf.mcap||'-',
+      posDot:{width:'6px',height:'6px',borderRadius:'2px',background:POS,marginTop:'6px',flexShrink:0}, negDot:{width:'6px',height:'6px',borderRadius:'2px',background:NEG,marginTop:'6px',flexShrink:0},
+      barStyle:{position:'relative',height:'9px',borderRadius:'5px',background:'linear-gradient(90deg, '+NEG+', #5b6472 48%, '+POS+')'}, markerStyle:{position:'absolute',top:'-3px',left:(rf.ai||60)+'%',transform:'translateX(-50%)',width:'3px',height:'15px',borderRadius:'2px',background:'#EDF0F6'} };
+
+    const seoulH=this.hourIn('Asia/Seoul'), nyH=this.hourIn('America/New_York');
+    const seoulOpen=seoulH>=9&&seoulH<16, nyOpen=nyH>=9&&nyH<16;
+    const live=this.props.liveUpdates!==false;
+    return {
+      rootRef:this.rootRef,
+      nyTime:this.clock('America/New_York'), seoulTime:this.clock('Asia/Seoul'),
+      nyStatus:nyOpen?'장중':'마감', seoulStatus:seoulOpen?'장중':'마감',
+      nyStatusStyle:{color:nyOpen?'#16C784':'#5E6879'}, seoulStatusStyle:{color:seoulOpen?'#16C784':'#5E6879'},
+      wsStyle: live?{background:'rgba(22,199,132,.1)',border:'1px solid rgba(22,199,132,.32)'}:{background:'rgba(138,147,166,.1)',border:'1px solid rgba(138,147,166,.28)'},
+      wsDotStyle: live?{background:'#16C784',animation:'pulseDot 1.8s infinite'}:{background:'#8A93A6'},
+      wsTextStyle:{color:live?'#3fe0a0':'#8A93A6'}, wsLabel: live?'실시간 연결됨':'일시정지',
+      tape, indices, heat, macro, ai, wl, news,
+      heatLegendStyle:{width:'116px',height:'8px',borderRadius:'3px',background:'linear-gradient(90deg, '+NEG+', #4b5563, '+POS+')'},
+      fg, fgLabel, fgValueStyle:{color:fgColor}, fgLabelStyle:{color:fgColor}, needleX:nn[0].toFixed(1), needleY:nn[1].toFixed(1), gaugeSegs:this.gaugeSegs, gcx:this._g.cx, gcy:this._g.cy,
+      updated:this.clock('Asia/Seoul'),
+      navTabs, isDashboard:view==='dashboard', isStock:view==='stock', isNews:view==='news', isPortfolio:view==='portfolio', isResearch:view==='research',
+      detail, detailList, newsFilters, newsGroups, srcCounts, trendTickers, port,
+      orderbook, trades, report, reportList
+    };
+  }
+}
+</script>
+</body>
+</html>

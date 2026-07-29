@@ -1,0 +1,15 @@
+.tape {
+  position: sticky; top: 51px; z-index: 19;
+  border-bottom: 1px solid var(--border);
+  background: rgba(10, 13, 20, 0.92);
+  backdrop-filter: blur(10px);
+  overflow: hidden; white-space: nowrap;
+}
+/* ⚠️ 마퀴는 JS(rAF)로 구동한다(TickerTape.tsx) — CSS 애니메이션은 macOS '동작 줄이기'
+   (prefers-reduced-motion) 등 환경 요인으로 멈춰 "고장"처럼 보이는 사례가 실제 있었음. */
+.track {
+  display: inline-flex; gap: 34px; padding: 8px 0;
+  will-change: transform;
+}
+.item { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; }
+.name { color: var(--text-sub); }

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:#0A0D14;color:#EDF0F6;font-family:'Pretendard',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:#9D90FF;text-decoration:none}a:hover{color:#B9AEFF}
+  @keyframes ck-spin{to{transform:rotate(360deg)}}
+  @keyframes ck-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+</style>
+</helmet>
+<div style="min-width:1100px;min-height:100vh;background:#0A0D14;padding:34px 40px 60px">
+  <div style="max-width:1080px;margin:0 auto">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+      <div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(150deg,#7C6CFF,#5a49d8);display:grid;place-items:center;color:#fff;font-weight:800;font-size:16px">P</div>
+      <span style="font-size:20px;font-weight:800;letter-spacing:.02em">PULSE 공통 컴포넌트</span>
+      <span style="font-size:11px;color:#5E6879;border:1px solid #1B2130;border-radius:6px;padding:3px 8px">Tailwind · framer-motion</span>
+      <div style="flex:1"></div>
+      <button onClick="{{ toggleMode }}" style="background:#141924;border:1px solid #1B2130;color:#8A93A6;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">색상 컨벤션 · {{ modeLabel }}</button>
+    </div>
+    <p style="margin:0 0 26px;font-size:13px;color:#8A93A6">각 페이지에서 재사용하는 기본 컴포넌트 세트. 코드는 <span style="font-family:'JetBrains Mono';color:#C7CEDB">handoff/common/</span> 에 있습니다.</p>
+
+    <!-- Buttons -->
+    <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:20px 22px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;letter-spacing:.04em;color:#EDF0F6;margin-bottom:4px">BUTTON</div>
+      <div style="font-size:11.5px;color:#5E6879;margin-bottom:16px">4 변형 × 3 크기 · loading · disabled · icon · block</div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="width:64px;font-size:11px;color:#5E6879">Primary</span>
+          <sc-for list="{{ btnSizes }}" as="z" hint-placeholder-count="3"><button style="{{ z.primary }}">거래하기</button></sc-for>
+          <button style="{{ btnLg.primary }}" disabled="{{ true }}">disabled</button>
+          <button style="{{ btnMd.primary }}"><span style="{{ spin14 }}"></span>저장 중</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="width:64px;font-size:11px;color:#5E6879">Subtle</span>
+          <sc-for list="{{ btnSizes }}" as="z" hint-placeholder-count="3"><button style="{{ z.subtle }}">관심추가</button></sc-for>
+          <button style="{{ btnMd.subtle }}"><span style="font-size:13px">＋</span>아이콘</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="width:64px;font-size:11px;color:#5E6879">Ghost</span>
+          <sc-for list="{{ btnSizes }}" as="z" hint-placeholder-count="3"><button style="{{ z.ghost }}">더보기</button></sc-for>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="width:64px;font-size:11px;color:#5E6879">Danger</span>
+          <sc-for list="{{ btnSizes }}" as="z" hint-placeholder-count="3"><button style="{{ z.danger }}">매도</button></sc-for>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="width:64px;font-size:11px;color:#5E6879">Block</span>
+          <div style="flex:1;max-width:420px"><button style="{{ btnBlock }}">전량 매수 주문</button></div>
+        </div>
+      </div>
+    </section>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <!-- Spinner -->
+      <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:20px 22px">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:4px">SPINNER · LOADING</div>
+        <div style="font-size:11.5px;color:#5E6879;margin-bottom:18px">인라인 스피너 / 패널 중앙 로딩</div>
+        <div style="display:flex;align-items:center;gap:26px">
+          <span style="{{ spin16 }}"></span>
+          <span style="{{ spin22 }}"></span>
+          <span style="{{ spin30 }}"></span>
+          <div style="flex:1;border-left:1px solid #1B2130;padding-left:22px;display:flex;flex-direction:column;align-items:center;gap:11px;color:#5E6879">
+            <span style="{{ spin26 }}"></span>
+            <span style="font-size:13px">시황 불러오는 중…</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Badge -->
+      <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:20px 22px">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:4px">BADGE</div>
+        <div style="font-size:11.5px;color:#5E6879;margin-bottom:18px">감성 · 투자의견 · 등락 (색 주입, {{ modeLabel }})</div>
+        <div style="display:flex;flex-direction:column;gap:13px">
+          <div style="display:flex;gap:8px;align-items:center"><span style="width:58px;font-size:11px;color:#5E6879">감성</span><sc-for list="{{ sentiments }}" as="b" hint-placeholder-count="3"><span style="{{ b.style }}">{{ b.label }}</span></sc-for></div>
+          <div style="display:flex;gap:8px;align-items:center"><span style="width:58px;font-size:11px;color:#5E6879">의견</span><sc-for list="{{ opinions }}" as="b" hint-placeholder-count="3"><span style="{{ b.style }}">{{ b.label }}</span></sc-for></div>
+          <div style="display:flex;gap:8px;align-items:center"><span style="width:58px;font-size:11px;color:#5E6879">등락</span><span style="{{ upBadge }}"><span style="{{ dotCur }}"></span>+2.34%</span><span style="{{ downBadge }}"><span style="{{ dotCur }}"></span>-1.08%</span><span style="{{ neuBadge }}">보합</span></div>
+        </div>
+      </section>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <!-- Segmented -->
+      <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:20px 22px">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:4px">SEGMENTED</div>
+        <div style="font-size:11.5px;color:#5E6879;margin-bottom:18px">활성 표시가 layoutId로 슬라이드 (클릭)</div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:52px;font-size:11px;color:#5E6879">기간</span>
+            <div style="{{ segWrap }}"><sc-for list="{{ periodOpts }}" as="o" hint-placeholder-count="4"><button onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</button></sc-for></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:52px;font-size:11px;color:#5E6879">감성</span>
+            <div style="{{ segWrap }}"><sc-for list="{{ filterOpts }}" as="o" hint-placeholder-count="4"><button onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</button></sc-for></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- EmptyState -->
+      <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:20px 22px">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:4px">EMPTY STATE</div>
+        <div style="font-size:11.5px;color:#5E6879;margin-bottom:8px">데이터 없음 / 미선택 안내</div>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:26px 24px 12px;text-align:center">
+          <div style="display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#141924;color:#5E6879;font-size:18px">◷</div>
+          <div style="font-size:13px;font-weight:700;color:#8A93A6">종목을 선택하세요</div>
+          <div style="max-width:280px;font-size:12px;line-height:1.5;color:#5E6879">좌측 관심종목에서 종목을 고르면 상세 정보가 표시됩니다.</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Chart -->
+    <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:20px 22px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:4px">CHART</div>
+      <div style="font-size:11.5px;color:#5E6879;margin-bottom:18px">Sparkline · AreaChart (의존성 없는 SVG)</div>
+      <div style="display:grid;grid-template-columns:280px 1fr;gap:26px;align-items:center">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:44px;font-size:11px;color:#5E6879">상승</span><svg width="120" height="30" viewBox="0 0 120 30" style="overflow:visible"><polyline points="{{ sparkUp }}" fill="none" stroke="{{ upColor }}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"></polyline></svg></div>
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:44px;font-size:11px;color:#5E6879">하락</span><svg width="120" height="30" viewBox="0 0 120 30" style="overflow:visible"><polyline points="{{ sparkDown }}" fill="none" stroke="{{ downColor }}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"></polyline></svg></div>
+        </div>
+        <div style="height:140px;border-left:1px solid #1B2130;padding-left:26px">
+          <svg viewBox="0 0 900 300" preserveAspectRatio="none" style="width:100%;height:100%;display:block">
+            <defs><linearGradient id="ckArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{{ upColor }}" stop-opacity="0.3"></stop><stop offset="1" stop-color="{{ upColor }}" stop-opacity="0"></stop></linearGradient></defs>
+            <line x1="0" y1="75" x2="900" y2="75" stroke="#1a2130"></line><line x1="0" y1="150" x2="900" y2="150" stroke="#1a2130"></line><line x1="0" y1="225" x2="900" y2="225" stroke="#1a2130"></line>
+            <polygon points="{{ areaFill }}" fill="url(#ckArea)"></polygon>
+            <polyline points="{{ areaLine }}" fill="none" stroke="{{ upColor }}" stroke-width="2.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+            <circle cx="{{ areaLastX }}" cy="{{ areaLastY }}" r="4.5" fill="{{ upColor }}"></circle>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <!-- Modal -->
+      <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:20px 22px;position:relative;overflow:hidden">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:4px">MODAL</div>
+        <div style="font-size:11.5px;color:#5E6879;margin-bottom:16px">포털 · ESC/바깥클릭 닫기 · 스케일 인</div>
+        <button onClick="{{ openModal }}" style="{{ btnMd.primary }}">주문 확인 열기</button>
+        <sc-if value="{{ modalOpen }}">
+          <div onClick="{{ closeModal }}" style="position:absolute;inset:0;z-index:50;display:grid;place-items:center;padding:16px;background:rgba(6,8,13,0.6);backdrop-filter:blur(4px)">
+            <div style="width:100%;max-width:380px;background:#0F131C;border:1px solid #1B2130;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5)">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid #1B2130"><span style="font-size:14px;font-weight:700">매수 주문 확인</span><span style="color:#5E6879;font-size:18px;cursor:pointer">×</span></div>
+              <div style="padding:16px 18px;font-size:13px;color:#8A93A6;line-height:1.6">NVDA 40주를 <span style="color:#EDF0F6;font-family:'JetBrains Mono'">$128.44</span>에 시장가로 매수합니다. 진행하시겠어요?</div>
+              <div style="display:flex;justify-content:flex-end;gap:8px;padding:14px 18px;border-top:1px solid #1B2130"><button onClick="{{ closeModal }}" style="{{ btnMd.ghost }}">취소</button><button onClick="{{ closeModal }}" style="{{ btnMd.primary }}">매수 확정</button></div>
+            </div>
+          </div>
+        </sc-if>
+      </section>
+
+      <!-- Toast -->
+      <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:20px 22px;position:relative;overflow:hidden">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:4px">TOAST</div>
+        <div style="font-size:11.5px;color:#5E6879;margin-bottom:16px">success · error · info · 자동 닫힘</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button onClick="{{ pushSuccess }}" style="{{ btnSm.subtle }}">success</button>
+          <button onClick="{{ pushError }}" style="{{ btnSm.subtle }}">error</button>
+          <button onClick="{{ pushInfo }}" style="{{ btnSm.subtle }}">info</button>
+        </div>
+        <div style="position:absolute;top:14px;right:14px;display:flex;flex-direction:column;gap:10px;width:230px">
+          <sc-for list="{{ toasts }}" as="t" hint-placeholder-count="0">
+            <div style="display:flex;gap:10px;padding:11px 13px;background:#141924;border:1px solid #1B2130;border-left:3px solid {{ t.accent }};border-radius:11px;box-shadow:0 10px 26px rgba(0,0,0,.4)">
+              <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#EDF0F6">{{ t.title }}</div><div style="font-size:11px;color:#8A93A6;margin-top:2px">{{ t.desc }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+    </div>
+
+    <!-- Skeleton -->
+    <section style="background:#0F131C;border:1px solid #1B2130;border-radius:14px;padding:20px 22px">
+      <div style="font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:4px">SKELETON</div>
+      <div style="font-size:11.5px;color:#5E6879;margin-bottom:18px">텍스트 · 카드 · 테이블 행 (shimmer)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:22px">
+        <div>
+          <div style="font-size:10.5px;color:#5E6879;margin-bottom:10px">Text</div>
+          <div style="display:flex;flex-direction:column;gap:8px"><span style="{{ skLine100 }}"></span><span style="{{ skLine100 }}"></span><span style="{{ skLine55 }}"></span></div>
+        </div>
+        <div>
+          <div style="font-size:10.5px;color:#5E6879;margin-bottom:10px">Card</div>
+          <div style="display:flex;flex-direction:column;gap:11px"><span style="{{ skRect }}"></span><span style="{{ skLine100 }}"></span><span style="{{ skLine55 }}"></span></div>
+        </div>
+        <div>
+          <div style="font-size:10.5px;color:#5E6879;margin-bottom:10px">Rows</div>
+          <div>
+            <sc-for list="{{ skRows }}" as="r" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #12161f">
+                <span style="{{ skCircle }}"></span>
+                <div style="flex:1;display:flex;flex-direction:column;gap:6px"><span style="{{ skLine100 }}"></span><span style="{{ skLine55 }}"></span></div>
+                <span style="{{ skTag }}"></span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1160,&quot;height&quot;:1000}}">
+class Component extends DCLogic {
+  state = { mode:'global', period:'1D', filter:'전체', modalOpen:false, toasts:[] };
+  _seq = 0;
+
+  toggle(k,v){ this.setState({[k]:v}); }
+  pushToast(type,title,desc){ const id=++this._seq; const accent={success:'#16C784',error:'#EA3943',info:'#7C6CFF'}[type]; this.setState(s=>({toasts:[...s.toasts,{id,title,desc,accent}]})); setTimeout(()=>this.setState(s=>({toasts:s.toasts.filter(t=>t.id!==id)})),3500); }
+
+  sppts(data,w,h,pad){ const min=Math.min(...data),max=Math.max(...data),span=(max-min)||1; const X=i=>pad+(w-2*pad)*i/(data.length-1),Y=v=>h-pad-(h-2*pad)*(v-min)/span; const pts=data.map((v,i)=>X(i).toFixed(1)+','+Y(v).toFixed(1)); return {line:pts.join(' '),area:pts.join(' ')+' '+X(data.length-1).toFixed(1)+','+h+' '+X(0).toFixed(1)+','+h,lastX:X(data.length-1).toFixed(1),lastY:Y(data[data.length-1]).toFixed(1)}; }
+
+  renderVals(){
+    const mode=this.state.mode;
+    const UP = mode==='global'?'#16C784':'#F6465D';
+    const DOWN = mode==='global'?'#EA3943':'#4C82FB';
+    const NEU='#8A93A6';
+    const mono="'JetBrains Mono', ui-monospace, monospace";
+
+    const spin=(size,color)=>({display:'inline-block',width:size+'px',height:size+'px',borderRadius:'50%',border:(size>=24?'3px':'2.5px')+' solid '+(color||'#7C6CFF')+'40',borderTopColor:color||'#7C6CFF',animation:'ck-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'});
+
+    const btnBase={display:'inline-flex',alignItems:'center',justifyContent:'center',gap:'7px',borderRadius:'9px',border:'1px solid transparent',fontWeight:600,fontFamily:'inherit',whiteSpace:'nowrap',cursor:'pointer'};
+    const sizePad={sm:{padding:'6px 11px',fontSize:'12px'},md:{padding:'8px 14px',fontSize:'13px'},lg:{padding:'11px 18px',fontSize:'14px'}};
+    const variant={
+      primary:{background:'#7C6CFF',color:'#fff'},
+      subtle:{background:'#141924',color:'#8A93A6',borderColor:'#1B2130'},
+      ghost:{background:'transparent',color:'#8A93A6'},
+      danger:{background:'rgba(234,57,67,0.14)',color:'#ff6b73',borderColor:'rgba(234,57,67,0.32)'}
+    };
+    const mkBtn=(sz)=>{ const o={}; for(const v in variant) o[v]={...btnBase,...sizePad[sz],...variant[v]}; return o; };
+    const btnSm=mkBtn('sm'), btnMd=mkBtn('md'), btnLg=mkBtn('lg');
+    const btnSizes=[btnSm,btnMd,btnLg];
+
+    const chip=(c)=>({display:'inline-flex',alignItems:'center',gap:'5px',padding:'2px 8px',borderRadius:'999px',fontSize:'11px',fontWeight:700,lineHeight:1.55,whiteSpace:'nowrap',color:c,background:c+'1E',border:'1px solid '+c+'44'});
+    const neuChip={display:'inline-flex',alignItems:'center',gap:'5px',padding:'2px 8px',borderRadius:'999px',fontSize:'11px',fontWeight:700,lineHeight:1.55,color:NEU,background:'rgba(138,147,166,0.12)',border:'1px solid rgba(138,147,166,0.28)'};
+    const dotCur={width:'6px',height:'6px',borderRadius:'50%',background:'currentColor'};
+
+    const segWrap={display:'inline-flex',gap:'3px',padding:'3px',background:'#12161f',border:'1px solid #1B2130',borderRadius:'10px'};
+    const segOpt=(active)=>({position:'relative',border:'none',background:active?'rgba(124,108,255,0.18)':'transparent',color:active?'#EDF0F6':'#8A93A6',padding:'5px 11px',borderRadius:'7px',fontSize:'12px',fontWeight:600,fontFamily:'inherit',cursor:'pointer',transition:'background .18s,color .18s'});
+    const periodOpts=['1D','1W','1M','1Y'].map(p=>({label:p,onClick:()=>this.toggle('period',p),style:segOpt(this.state.period===p)}));
+    const filterOpts=['전체','호재','악재','중립'].map(f=>({label:f,onClick:()=>this.toggle('filter',f),style:segOpt(this.state.filter===f)}));
+
+    const skBase={display:'block',position:'relative',overflow:'hidden',background:'linear-gradient(90deg,#141924 25%,#1f2636 50%,#141924 75%)',backgroundSize:'200% 100%',animation:'ck-shimmer 1.3s linear infinite',borderRadius:'6px'};
+    const skLine=(w)=>({...skBase,height:'12px',width:w});
+
+    const upData=[3,4,3.5,5,4.6,6,5.4,7,6.8,8.4], downData=[8,7.2,7.6,6,6.4,5,5.3,4,4.2,3];
+    const sUp=this.sppts(upData,120,30,2), sDown=this.sppts(downData,120,30,2);
+    const areaData=[0.35,0.4,0.32,0.5,0.44,0.42,0.55,0.6,0.52,0.68,0.62,0.72,0.66,0.8];
+    const area=this.sppts(areaData,900,300,6);
+
+    return {
+      modeLabel: mode==='global'?'국제식 ↑초록':'한국식 ↑빨강',
+      toggleMode:()=>this.setState({mode:mode==='global'?'korea':'global'}),
+      btnSizes, btnSm, btnMd, btnLg,
+      upColor:UP, downColor:DOWN,
+      sparkUp:sUp.line, sparkDown:sDown.line,
+      areaLine:area.line, areaFill:area.area, areaLastX:area.lastX, areaLastY:area.lastY,
+      modalOpen:this.state.modalOpen, openModal:()=>this.toggle('modalOpen',true), closeModal:()=>this.toggle('modalOpen',false),
+      toasts:this.state.toasts,
+      pushSuccess:()=>this.pushToast('success','주문 체결','NVDA 40주 매수 완료'),
+      pushError:()=>this.pushToast('error','주문 실패','잔고가 부족합니다'),
+      pushInfo:()=>this.pushToast('info','시세 알림','AAPL 목표가 도달'),
+      btnBlock:{...btnBase,...sizePad.md,...variant.primary,display:'flex',width:'100%'},
+      spin14:spin(14,'#fff'), spin16:spin(16), spin22:spin(22), spin26:spin(26), spin30:spin(30),
+      sentiments:[{label:'호재',style:chip(UP)},{label:'악재',style:chip(DOWN)},{label:'중립',style:neuChip}],
+      opinions:[{label:'매수',style:chip(UP)},{label:'중립',style:neuChip},{label:'매도',style:chip(DOWN)}],
+      upBadge:chip(UP), downBadge:chip(DOWN), neuBadge:neuChip, dotCur,
+      segWrap, periodOpts, filterOpts,
+      skLine100:skLine('100%'), skLine55:skLine('55%'),
+      skRect:{...skBase,height:'72px',borderRadius:'10px'},
+      skCircle:{...skBase,width:'22px',height:'22px',borderRadius:'50%',flexShrink:0},
+      skTag:{...skBase,width:'56px',height:'12px'},
+      skRows:[0,1,2]
+    };
+  }
+}
+</script>
+</body>
+</html>

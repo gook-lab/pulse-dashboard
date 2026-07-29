@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:#0A0D14;color:#EDF0F6;font-family:'Pretendard',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:#9D90FF;text-decoration:none}a:hover{color:#B9AEFF}
+  button{font-family:inherit}
+  :focus-visible{outline:2px solid #7C6CFF;outline-offset:2px}
+  ::-webkit-scrollbar{width:9px}
+  ::-webkit-scrollbar-thumb{background:#242c3b;border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+<div data-screen-label="부동산 탭 · 지도 연동" style="min-width:1360px;height:100vh;display:flex;flex-direction:column;background:#0A0D14;overflow:hidden">
+
+  <header style="flex-shrink:0;display:flex;align-items:center;gap:14px;padding:13px 18px;border-bottom:1px solid #1B2130;background:#0d111a">
+    <div style="display:flex;align-items:center;gap:9px">
+      <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(150deg,#7C6CFF,#5a49d8);display:grid;place-items:center;color:#fff;font-weight:800;font-size:14px">P</div>
+      <span style="font-size:15px;font-weight:800">부동산 스크리너</span>
+    </div>
+    <span style="font-size:11px;color:#5E6879;border:1px solid #1B2130;border-radius:6px;padding:3px 8px">지도 ↔ 리스트 연동 시안</span>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <sc-for list="{{ signals }}" as="g" hint-placeholder-count="3">
+        <button onClick="{{ g.onClick }}" style="{{ g.style }}">{{ g.label }}</button>
+      </sc-for>
+    </div>
+    <div style="width:1px;height:22px;background:#232B3A"></div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <sc-for list="{{ deals }}" as="g" hint-placeholder-count="2">
+        <button onClick="{{ g.onClick }}" style="{{ g.style }}">{{ g.label }}</button>
+      </sc-for>
+    </div>
+    <button onClick="{{ toggleMode }}" style="background:#141924;border:1px solid #1B2130;color:#8A93A6;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:600;cursor:pointer">{{ modeLabel }}</button>
+  </header>
+
+  <div style="flex-shrink:0;display:flex;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid #161B27;background:#0B0E16">
+    <span style="font-size:12.5px;color:#8A93A6">{{ headlinePre }}</span>
+    <div style="display:flex;gap:7px">
+      <sc-for list="{{ leaders }}" as="l" hint-placeholder-count="2">
+        <button onClick="{{ l.onClick }}" style="{{ l.style }}">{{ l.name }}</button>
+      </sc-for>
+    </div>
+    <span style="font-size:12.5px;color:#8A93A6">{{ headlinePost }}</span>
+    <sc-if value="{{ hasArea }}">
+      <div style="display:flex;align-items:center;gap:8px;margin-left:6px;padding:4px 6px 4px 11px;background:rgba(124,108,255,.14);border:1px solid rgba(124,108,255,.34);border-radius:999px">
+        <span style="font-size:11.5px;font-weight:700;color:#B9AEFF">{{ areaLabel }}</span>
+        <span style="font-family:'JetBrains Mono';font-size:10.5px;color:#8A93A6">단지 {{ areaCount }}</span>
+        <button onClick="{{ clearArea }}" aria-label="지역 필터 해제" style="width:18px;height:18px;display:grid;place-items:center;border:none;border-radius:50%;background:rgba(124,108,255,.24);color:#DCE1EA;font-size:12px;line-height:1;cursor:pointer">×</button>
+      </div>
+    </sc-if>
+    <div style="flex:1"></div>
+    <span style="font-family:'JetBrains Mono';font-size:10.5px;color:#5E6879">기준 2026.04 · 갱신 07.29 06:10</span>
+  </div>
+
+  <main style="flex:1;min-height:0;display:grid;grid-template-columns:520px minmax(0,1fr);gap:12px;padding:12px">
+
+    <!-- ── 리스트 (정규 조작면) ───────────────────────── -->
+    <section style="min-height:0;display:flex;flex-direction:column;background:#0F131C;border:1px solid #1B2130;border-radius:14px;overflow:hidden">
+      <div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #1B2130">
+        <div style="display:flex;align-items:center;gap:9px">
+          <span style="font-size:13px;font-weight:700">{{ listTitle }}</span>
+          <span style="font-family:'JetBrains Mono';font-size:11px;color:#5E6879">{{ rows.length }}</span>
+        </div>
+        <span style="font-size:10.5px;color:#5E6879">{{ signalDesc }}</span>
+      </div>
+      <div style="flex-shrink:0;display:grid;grid-template-columns:30px minmax(0,1fr) 92px 74px 30px;gap:9px;padding:7px 14px;border-bottom:1px solid #151A25;font-size:10px;color:#5E6879;font-weight:600">
+        <span style="text-align:center">#</span><span>단지</span><span style="text-align:right">{{ signalShort }}</span><span style="text-align:right">평당가</span><span></span>
+      </div>
+      <div role="listbox" aria-label="단지 순위" style="flex:1;overflow-y:auto;min-height:0">
+        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="12">
+          <div role="option" aria-selected="{{ r.sel }}" tabindex="0" onClick="{{ r.onClick }}" onMouseEnter="{{ r.onEnter }}" onMouseLeave="{{ r.onLeave }}" style="{{ r.rowStyle }}">
+            <span style="{{ r.rankStyle }}">{{ r.rank }}</span>
+            <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
+              <div style="display:flex;align-items:center;gap:7px;min-width:0">
+                <span style="font-size:13px;font-weight:600;color:#EDF0F6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</span>
+                <sc-if value="{{ r.noCoord }}">
+                  <span style="flex-shrink:0;font-size:9px;font-weight:700;color:#8A93A6;background:#1a2130;border:1px solid #2a3346;border-radius:4px;padding:1px 5px">좌표없음</span>
+                </sc-if>
+              </div>
+              <span style="font-size:10.5px;color:#5E6879">{{ r.sub }}</span>
+            </div>
+            <span style="{{ r.valStyle }}">{{ r.valStr }}</span>
+            <span style="text-align:right;font-family:'JetBrains Mono';font-size:11.5px;color:#8A93A6">{{ r.ppy }}</span>
+            <button onClick="{{ r.onStar }}" aria-label="관심 단지" style="{{ r.starStyle }}">★</button>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- ── 지도 (보조 뷰) ─────────────────────────────── -->
+    <section style="min-height:0;display:flex;flex-direction:column;background:#0F131C;border:1px solid #1B2130;border-radius:14px;overflow:hidden">
+      <div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #1B2130">
+        <div style="display:flex;align-items:center;gap:9px">
+          <span style="font-size:13px;font-weight:700">단지 지도</span>
+          <span style="font-size:10.5px;color:#5E6879">{{ mapHint }}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-family:'JetBrains Mono';font-size:10.5px;color:#8A93A6;margin-right:2px">{{ zoomLabel }}</span>
+          <button onClick="{{ zoomIn }}" aria-label="확대" style="{{ zBtn }}">＋</button>
+          <button onClick="{{ zoomOut }}" aria-label="축소" style="{{ zBtn }}">－</button>
+        </div>
+      </div>
+
+      <div style="flex:1;min-height:0;position:relative;overflow:hidden;background:#0b0f17">
+        <div aria-hidden="true" style="position:absolute;inset:0;background-image:linear-gradient(#141b28 1px,transparent 1px),linear-gradient(90deg,#141b28 1px,transparent 1px);background-size:64px 64px;opacity:.55"></div>
+        <div aria-hidden="true" style="position:absolute;inset:0">
+          <sc-for list="{{ roads }}" as="rd" hint-placeholder-count="4"><div style="{{ rd.style }}"></div></sc-for>
+          <div style="position:absolute;left:0;right:0;top:60%;height:10px;background:linear-gradient(#16263d,#101a2a);opacity:.85"></div>
+          <span style="position:absolute;left:16px;top:60.4%;font-size:9px;color:#3f4d66;letter-spacing:.14em">한강</span>
+        </div>
+
+        <sc-if value="{{ showDistricts }}">
+          <sc-for list="{{ districts }}" as="d" hint-placeholder-count="5">
+            <button onClick="{{ d.onClick }}" onMouseEnter="{{ d.onEnter }}" onMouseLeave="{{ d.onLeave }}" style="{{ d.style }}">
+              <span style="font-size:11px;font-weight:700;color:{{ d.fg }}">{{ d.name }}</span>
+              <span style="font-family:'JetBrains Mono';font-size:12.5px;font-weight:800;color:{{ d.fg }};line-height:1.05">{{ d.valStr }}</span>
+              <span style="font-family:'JetBrains Mono';font-size:9.5px;color:{{ d.dim }}">{{ d.count }}</span>
+            </button>
+          </sc-for>
+        </sc-if>
+
+        <sc-if value="{{ showMarkers }}">
+          <sc-for list="{{ pins }}" as="p" hint-placeholder-count="9">
+            <button onClick="{{ p.onClick }}" onMouseEnter="{{ p.onEnter }}" onMouseLeave="{{ p.onLeave }}" style="{{ p.style }}">
+              <span style="font-size:10.5px;font-weight:600;color:{{ p.fg }};opacity:.92">{{ p.name }}</span>
+              <span style="font-family:'JetBrains Mono';font-size:12px;font-weight:800;color:{{ p.fg }};line-height:1.05">{{ p.valStr }}</span>
+            </button>
+          </sc-for>
+        </sc-if>
+
+        <sc-if value="{{ camOn }}">
+          <div style="{{ camStyle }}">{{ camText }}</div>
+        </sc-if>
+      </div>
+
+      <div style="flex-shrink:0;display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid #1B2130">
+        <div style="display:flex;align-items:center;gap:7px">
+          <span style="font-size:10px;color:#5E6879">{{ legendLo }}</span>
+          <div style="{{ legendStyle }}"></div>
+          <span style="font-size:10px;color:#5E6879">{{ legendHi }}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="width:11px;height:11px;border-radius:3px;background:#5a6474"></span>
+          <span style="font-size:10.5px;color:#8A93A6">거래 3건 미만</span>
+        </div>
+        <div onMouseEnter="{{ infoOn }}" onMouseLeave="{{ infoOff }}" style="position:relative;display:flex;align-items:center;cursor:help">
+          <span style="width:15px;height:15px;display:grid;place-items:center;border-radius:50%;border:1px solid #2a3346;color:#8A93A6;font-size:9.5px;font-weight:700">i</span>
+          <sc-if value="{{ infoShow }}">
+            <div style="position:absolute;bottom:22px;left:-8px;width:238px;padding:9px 11px;background:rgba(19,24,36,.98);border:1px solid #2a3346;border-radius:9px;box-shadow:0 12px 28px rgba(0,0,0,.6);z-index:20">
+              <div style="font-size:11px;line-height:1.6;color:#C7CEDB">{{ infoText }}</div>
+            </div>
+          </sc-if>
+        </div>
+        <div style="flex:1"></div>
+        <sc-if value="{{ hasNoCoord }}">
+          <span style="font-size:10.5px;color:#8A93A6;background:#141924;border:1px solid #232b3a;border-radius:7px;padding:3px 9px;white-space:nowrap">지도 제외 {{ noCoordCount }}단지 · 좌표 없음</span>
+        </sc-if>
+      </div>
+    </section>
+  </main>
+
+  <sc-if value="{{ notesOn }}">
+    <div style="flex-shrink:0;display:flex;align-items:flex-start;gap:22px;padding:12px 18px 14px;border-top:1px solid #1B2130;background:#0B0E16">
+      <span style="font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#5E6879;padding-top:2px;white-space:nowrap">연동 규칙</span>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 26px;flex:1">
+        <sc-for list="{{ notes }}" as="n" hint-placeholder-count="6">
+          <div style="display:flex;align-items:flex-start;gap:8px">
+            <span style="flex-shrink:0;width:15px;height:15px;display:grid;place-items:center;border-radius:50%;background:rgba(124,108,255,.2);border:1px solid rgba(124,108,255,.42);color:#B9AEFF;font-family:'JetBrains Mono';font-size:9px;font-weight:800;margin-top:1px">{{ n.i }}</span>
+            <span style="font-size:11.5px;color:#8A93A6;line-height:1.5"><b style="color:#C7CEDB;font-weight:600">{{ n.t }}</b> {{ n.d }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;colorMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;korea&quot;,&quot;global&quot;],&quot;default&quot;:&quot;korea&quot;,&quot;tsType&quot;:&quot;'korea'|'global'&quot;,&quot;section&quot;:&quot;표시&quot;},&quot;showAnnotations&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;표시&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.state = {
+      mode: props.colorMode || 'korea',
+      signal:'momentum6', deal:'rent',
+      sel:null, hover:null, hoverSrc:'list',
+      area:null, level:8, cam:null, info:false,
+      stars:{'11680-3':true,'11710-1':true}
+    };
+    // gu, umd, 이름, 시그널값(%), 평당가(만), 지도 좌표(%), 거래건수
+    // 좌표 배치 규칙 — 캔버스가 가로로 길고 세로로 짧다(짧을 때 약 586×219).
+    // y 1%가 x 1%보다 훨씬 좁으므로 마커·동 박스를 모두 단일 행(약 80×26px)으로 낮추고
+    // x 16% / y 14% 그리드에 스냅한다. y는 14~84%로 제한해 상·하단 클리핑을 막는다.
+    // 같은 동에 단지가 2개면 세로로 스택해 centroid가 그리드 사이 반칸에 오게 한다.
+    // 서울 지리를 대략 반영: 북(위)–남(아래), 서(왼)–동(오른), 한강 60% 기준 북안 y≤56 / 남안 y≥70.
+    this.RAW=[
+      ['강남구','대치동','래미안대치팰리스', 8.4, 9820, 40, 70, 31],
+      ['강남구','대치동','은마아파트',       6.1, 7240, 40, 84, 44],
+      ['강남구','개포동','디에이치아너힐즈',  7.2, 9110, 24, 70, 12],
+      ['송파구','잠실동','리센츠',           9.6, 7890, 72, 70, 38],
+      ['송파구','잠실동','엘스',             8.8, 7610, 72, 84, 26],
+      ['송파구','가락동','헬리오시티',        7.8, 6890, 56, 70, 52],
+      ['송파구','문정동','올림픽훼밸리',      2.4, 5120, 56, 84, 9],
+      ['강동구','고덕동','고덕그라시움',     11.2, 6240, 88, 42, 41],
+      ['강동구','상일동','고덕아르테온',      9.9, 6010, 88, 56, 18],
+      ['마포구','아현동','마포래미안푸르지오', 4.6, 6980, 8, 28, 22],
+      ['마포구','공덕동','공덕자이',          3.1, 6350, 24, 42, 14],
+      ['용산구','한강로','센트럴파크',        6.9, 9450, 40, 28, 7],
+      ['용산구','이촌동','한가람',            5.8, 8240, 56, 42, 11],
+      ['노원구','상계동','상계주공7단지',     -1.8, 3120, 88, 28, 33],
+      ['노원구','중계동','중계그린',          -0.6, 2980, 72, 14, 19],
+      ['강남구','청담동','청담자이',          5.2, 11200, 0, 0, 2],
+      ['마포구','성산동','성산시영',          1.2, 4980, 0, 0, 4],
+      ['강동구','명일동','삼익그린',          3.9, 4620, 0, 0, 6]
+    ];
+    // 좌표 없는 단지(지도 제외 데모)
+    this.NOCOORD=new Set(['성산시영','삼익그린','청담자이']);
+  }
+
+  key(r){ return r[0]+'-'+r[2]; }
+
+  ramp(v, lo, hi, up, down){
+    if(v==null) return {bg:'#5a6474', fg:'#dfe4ec'};
+    const pos=v>=0, base=pos?up:down;
+    const t=Math.min(1, Math.abs(v)/(pos?hi:Math.abs(lo)));
+    const a=0.22+0.62*t;
+    return {bg:this.rgba(base,a), fg:t>0.5?'#ffffff':'rgba(237,240,246,.92)'};
+  }
+  rgba(hex,a){ const n=parseInt(hex.slice(1),16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a.toFixed(2)})`; }
+
+  flash(text){
+    this.setState({cam:text});
+    clearTimeout(this._ct);
+    this._ct=setTimeout(()=>this.setState({cam:null}),1600);
+  }
+  componentWillUnmount(){ clearTimeout(this._ct); }
+
+  pickList(k,name,gu,umd){
+    this.setState({sel:k, level:5});
+    this.flash(`리스트 선택 → 지도 이동 · ${name}`);
+  }
+  pickMap(k,name){
+    this.setState({sel:k});           // 지도발: 지도는 움직이지 않는다
+  }
+  pickDistrict(gu,umd,n){
+    this.setState({area:{gu,umd}, level:5, sel:null});
+    this.flash(`${gu} ${umd} · ${n}단지로 범위 맞춤`);
+  }
+  pickLeader(gu){
+    this.setState({area:{gu}, level:6, sel:null});
+    this.flash(`${gu}로 범위 맞춤`);
+  }
+
+  renderVals(){
+    const kr = this.state.mode==='korea';
+    const UP = kr?'#F6465D':'#16C784', DOWN = kr?'#4C82FB':'#EA3943';
+    const mono="'JetBrains Mono', ui-monospace, monospace";
+    const A=this.state.area, sel=this.state.sel, hov=this.state.hover;
+    const notesOn = this.props.showAnnotations !== false;
+
+    const SIG={
+      momentum6:{label:'6개월 모멘텀', short:'6M', desc:'전세 평당가 6개월 변화율', unit:'%'},
+      gap:{label:'전세가율 갭', short:'갭', desc:'매매 대비 전세가율 편차', unit:'%p'},
+      volume:{label:'거래 회전율', short:'회전', desc:'세대수 대비 6개월 거래건수', unit:'%'}
+    };
+    const S=SIG[this.state.signal];
+
+    const signals=Object.keys(SIG).map(k=>({label:SIG[k].label,onClick:()=>{ this.setState({signal:k}); this.flash(A?`${A.gu} 기준 재정렬`:'상위 50단지로 범위 맞춤'); },
+      style:{padding:'5px 11px',borderRadius:'8px',border:'1px solid '+(this.state.signal===k?'rgba(124,108,255,.34)':'transparent'),
+        background:this.state.signal===k?'rgba(124,108,255,.16)':'transparent',color:this.state.signal===k?'#EDF0F6':'#8A93A6',
+        fontSize:'12px',fontWeight:this.state.signal===k?700:500,cursor:'pointer'}}));
+
+    const DEAL={rent:'전세',trade:'매매'};
+    const deals=Object.keys(DEAL).map(k=>({label:DEAL[k],onClick:()=>{ this.setState({deal:k}); this.flash(A?`${A.gu} 기준 재정렬`:'상위 50단지로 범위 맞춤'); },
+      style:{padding:'5px 11px',borderRadius:'8px',border:'1px solid '+(this.state.deal===k?'#2a3346':'transparent'),
+        background:this.state.deal===k?'#1a2130':'transparent',color:this.state.deal===k?'#EDF0F6':'#8A93A6',
+        fontSize:'12px',fontWeight:this.state.deal===k?700:500,cursor:'pointer'}}));
+
+    // ── 데이터 가공 ──
+    const scale=this.state.deal==='trade'?2.35:1;
+    const all=this.RAW.map(r=>{
+      const [gu,umd,name,mom,ppy,x,y,deals2]=r;
+      const k=this.key(r);
+      const thin=deals2<3;
+      const v = this.state.signal==='momentum6' ? mom
+              : this.state.signal==='gap' ? (mom*0.62-1.4)
+              : (deals2/34*100-18);
+      return {k,gu,umd,name,x,y,deals:deals2,thin,
+        v: thin?null:Number((v*(this.state.signal==='volume'?1:1)).toFixed(1)),
+        ppy: Math.round(ppy*scale),
+        noCoord:this.NOCOORD.has(name)};
+    });
+
+    const inArea=o=> !A || (o.gu===A.gu && (!A.umd || o.umd===A.umd));
+    const scoped=all.filter(inArea);
+    const ranked=[...scoped].sort((a,b)=>(b.v??-999)-(a.v??-999));
+    const vals=all.map(o=>o.v).filter(v=>v!=null);
+    const hi=Math.max(...vals), lo=Math.min(...vals);
+    const fmtV=v=> v==null?'—':(v>0?'+':'')+v.toFixed(1)+S.unit;
+
+    const rows=ranked.map((o,i)=>{
+      const isSel=sel===o.k, isHov=hov===o.k;
+      const c=o.v==null?'#8A93A6':(o.v>=0?UP:DOWN);
+      return {
+        rank:i+1, name:o.name, sub:`${o.gu} ${o.umd} · 거래 ${o.deals}건`,
+        valStr:fmtV(o.v), ppy:o.ppy.toLocaleString()+'만',
+        noCoord:o.noCoord, sel:isSel,
+        onClick:()=>this.pickList(o.k,o.name,o.gu,o.umd),
+        onEnter:()=>this.setState({hover:o.k,hoverSrc:'list'}),
+        onLeave:()=>this.setState({hover:null}),
+        onStar:()=>this.setState(s=>({stars:{...s.stars,[o.k]:!s.stars[o.k]}})),
+        rowStyle:{display:'grid',gridTemplateColumns:'30px minmax(0,1fr) 92px 74px 30px',gap:'9px',alignItems:'center',
+          padding:'9px 14px',borderBottom:'1px solid #12161f',cursor:'pointer',
+          borderLeft:'2px solid '+(isSel?'#7C6CFF':'transparent'),
+          background:isSel?'rgba(124,108,255,.11)':(isHov?'#12172a':'transparent')},
+        rankStyle:{textAlign:'center',fontFamily:mono,fontSize:'11px',fontWeight:700,color:i<3?'#B9AEFF':'#5E6879'},
+        valStyle:{textAlign:'right',fontFamily:mono,fontSize:'12.5px',fontWeight:700,color:c},
+        starStyle:{width:'22px',height:'22px',border:'none',background:'transparent',cursor:'pointer',
+          fontSize:'13px',lineHeight:1,color:this.state.stars[o.k]?'#E9B44A':'#2f3849'}
+      };
+    });
+
+    // ── 동 집계 박스 (줌 아웃) ──
+    const byUmd={};
+    all.filter(o=>!o.noCoord).forEach(o=>{ const k=o.gu+'|'+o.umd; (byUmd[k]=byUmd[k]||[]).push(o); });
+    const districts=Object.keys(byUmd).map(k=>{
+      const g=byUmd[k], [gu,umd]=k.split('|');
+      const vv=g.map(o=>o.v).filter(v=>v!=null);
+      const avg=vv.length?vv.reduce((a,b)=>a+b,0)/vv.length:null;
+      const cx=g.reduce((a,o)=>a+o.x,0)/g.length, cy=g.reduce((a,o)=>a+o.y,0)/g.length;
+      const col=this.ramp(avg,lo,hi,UP,DOWN);
+      const isHov=hov==='D'+k;
+      return {name:umd, count:g.length, valStr:fmtV(avg==null?null:Number(avg.toFixed(1))),
+        fg:col.fg, dim:'rgba(237,240,246,.62)',
+        onClick:()=>this.pickDistrict(gu,umd,g.length),
+        onEnter:()=>this.setState({hover:'D'+k,hoverSrc:'map'}),
+        onLeave:()=>this.setState({hover:null}),
+        // 단일 행 — 세로 간격이 부족한 캔버스에서 박스 높이를 26px 수준으로 낮춘다
+        style:{position:'absolute',left:cx+'%',top:cy+'%',transform:'translate(-50%,-50%)',
+          display:'flex',flexDirection:'row',alignItems:'center',gap:'6px',whiteSpace:'nowrap',
+          padding:'5px 10px',borderRadius:'9px',cursor:'pointer',
+          background:col.bg, border:'1px solid '+(isHov?'#ffffff':'rgba(255,255,255,.18)'),
+          boxShadow:isHov?'0 8px 22px rgba(0,0,0,.55)':'0 4px 14px rgba(0,0,0,.4)',
+          zIndex:isHov?12:6, transition:'border-color .12s, box-shadow .12s'}};
+    });
+
+    // ── 단지 마커 (줌 인) ──
+    // 지역 필터가 있으면 그 지역이 뷰 중앙으로 오도록 좌표를 평행이동(실제 지도의 setBounds에 대응).
+    // 격자 간격은 유지하므로 겹침은 발생하지 않는다.
+    const focus=all.filter(o=>!o.noCoord && inArea(o));
+    let dx=0, dy=0;
+    if(A && focus.length){
+      const fx=focus.reduce((a,o)=>a+o.x,0)/focus.length;
+      const fy=focus.reduce((a,o)=>a+o.y,0)/focus.length;
+      dx=50-fx; dy=50-fy;
+    }
+    const pins=all.filter(o=>!o.noCoord).map(o=>{
+      const dim = A && !inArea(o);
+      const isSel=sel===o.k, isHov=hov===o.k;
+      const col=this.ramp(o.v,lo,hi,UP,DOWN);
+      return {name:o.name.length>5?o.name.slice(0,4)+'…':o.name, valStr:fmtV(o.v), fg:col.fg,
+        onClick:()=>this.pickMap(o.k,o.name),
+        onEnter:()=>this.setState({hover:o.k,hoverSrc:'map'}),
+        onLeave:()=>this.setState({hover:null}),
+        // 단일 행 — 세로 간격이 부족한 캔버스에서 높이를 26px 수준으로 유지
+        style:{position:'absolute',left:(o.x+dx)+'%',top:(o.y+dy)+'%',
+          transform:`translate(-50%,-50%) scale(${isSel?1.28:isHov?1.12:1})`,
+          transition:'left .42s cubic-bezier(.22,.61,.36,1), top .42s cubic-bezier(.22,.61,.36,1), transform .14s, opacity .14s, box-shadow .14s',
+          display:'flex',flexDirection:'row',alignItems:'center',gap:'5px',whiteSpace:'nowrap',
+          padding:'4px 8px',borderRadius:'9px',cursor:'pointer',
+          background:col.bg, opacity:dim?0.2:1,
+          border:'1px solid '+(isSel?'#ffffff':isHov?'rgba(255,255,255,.6)':'rgba(255,255,255,.16)'),
+          outline:isSel?'2px solid #7C6CFF':'none', outlineOffset:'2px',
+          boxShadow:isSel?'0 10px 26px rgba(124,108,255,.5)':'0 4px 12px rgba(0,0,0,.42)',
+          zIndex:isSel?14:isHov?11:5}};
+    });
+
+    const noCoordCount=all.filter(o=>o.noCoord && inArea(o)).length;
+    const roads=[[18,'v'],[46,'v'],[68,'h'],[30,'h']].map(([p,d])=>({
+      style:{position:'absolute',background:'#161f2e',
+        ...(d==='v'?{left:p+'%',top:0,bottom:0,width:'3px'}:{top:p+'%',left:0,right:0,height:'3px'})}}));
+
+    const zoomed=this.state.level<=6;
+    return {
+      modeLabel: kr?'한국식 ↑빨강':'국제식 ↑초록',
+      toggleMode:()=>this.setState({mode:kr?'global':'korea'}),
+      signals, deals,
+      headlinePre:`${S.label} —`,
+      headlinePost:'가 주도',
+      leaders:['강동구','송파구'].map(g=>({name:g.replace('구',''),onClick:()=>this.pickLeader(g),
+        style:{background:'transparent',border:'none',padding:0,cursor:'pointer',
+          fontSize:'12.5px',fontWeight:800,color:UP,textDecoration:'underline',textDecorationStyle:'dotted',textUnderlineOffset:'3px'}})),
+      hasArea:!!A, areaLabel: A? (A.umd? `${A.gu} ${A.umd}`:A.gu) : '',
+      areaCount: scoped.length, clearArea:()=>{ this.setState({area:null}); this.flash('필터 해제 · 현재 뷰 유지'); },
+
+      listTitle: A? (A.umd? `${A.umd} 단지`:`${A.gu} 단지`) : '서울 전역 순위',
+      signalDesc:S.desc, signalShort:S.short, rows,
+
+      mapHint: zoomed? '단지 마커 · 클릭해 선택' : '동 집계 · 클릭해 좁히기',
+      zoomLabel:'L'+this.state.level,
+      zoomIn:()=>this.setState(s=>({level:Math.max(3,s.level-1)})),
+      zoomOut:()=>this.setState(s=>({level:Math.min(11,s.level+1)})),
+      zBtn:{width:'26px',height:'26px',display:'grid',placeItems:'center',borderRadius:'7px',
+        border:'1px solid #232b3a',background:'#141924',color:'#8A93A6',fontSize:'11px',fontWeight:700,cursor:'pointer'},
+      showDistricts:!zoomed, showMarkers:zoomed,
+      districts, pins, roads,
+
+      camOn:!!this.state.cam, camText:this.state.cam,
+      camStyle:{position:'absolute',left:'50%',bottom:'14px',transform:'translateX(-50%)',
+        padding:'7px 14px',borderRadius:'999px',background:'rgba(124,108,255,.92)',
+        color:'#fff',fontSize:'11.5px',fontWeight:700,whiteSpace:'nowrap',
+        boxShadow:'0 10px 26px rgba(0,0,0,.5)',zIndex:22},
+
+      legendLo:fmtV(Number(lo.toFixed(1))), legendHi:fmtV(Number(hi.toFixed(1))),
+      legendStyle:{width:'104px',height:'8px',borderRadius:'3px',
+        background:`linear-gradient(90deg, ${this.rgba(DOWN,.84)}, #2b3444, ${this.rgba(UP,.84)})`},
+      infoShow:this.state.info, infoOn:()=>this.setState({info:true}), infoOff:()=>this.setState({info:false}),
+      infoText:`${DEAL[this.state.deal]} 평당가 중앙값 · 기준월 2026.04(신고지연 30일 보정) · 거래 3건 미만은 회색 처리`,
+      hasNoCoord:noCoordCount>0, noCoordCount,
+
+      notesOn,
+      notes:[
+        {i:'1',t:'리스트 → 지도',d:'선택 시 지도가 panTo + 링 강조. 마커가 캡 밖이어도 강제 생성.'},
+        {i:'2',t:'지도 → 리스트',d:'마커 클릭은 리스트만 이동 — 방금 누른 자리에서 지도를 빼앗지 않음.'},
+        {i:'3',t:'동 박스 클릭',d:'줌만 하지 않고 지역 필터 칩 생성 → 리스트를 그 동으로 좁힘.'},
+        {i:'4',t:'필터 변경',d:'지역 필터가 있으면 그 지역, 없으면 상위 50단지로 범위 재조정.'},
+        {i:'5',t:'접근성',d:'지도 캔버스만 aria-hidden. 줌 버튼·리스트는 포커스 링과 함께 트리에 남김.'},
+        {i:'6',t:'누락 표시',d:'좌표 없는 단지는 리스트 배지 + 지도 하단 제외 칩으로 명시.'}
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

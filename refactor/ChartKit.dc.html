@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:#0A0D14;color:#EDF0F6;font-family:'Pretendard',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:#9D90FF;text-decoration:none}a:hover{color:#B9AEFF}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#0A0D14;padding:32px 36px 56px">
+  <div style="max-width:1000px;margin:0 auto">
+
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:5px">
+      <span style="font-size:19px;font-weight:800;letter-spacing:.01em">차트 인터랙션 · 토스 스타일</span>
+      <span style="font-size:11px;color:#5E6879;border:1px solid #1B2130;border-radius:6px;padding:3px 8px">기간 탭 · 드래그 스크럽 · 크로스헤어</span>
+    </div>
+    <p style="margin:0 0 24px;font-size:13px;color:#8A93A6">차트 위에서 <b style="color:#C7CEDB">좌우로 드래그</b>하거나 마우스를 올려보세요. 상단 가격·등락이 그 시점 기준으로 바뀝니다.</p>
+
+    <!-- 차트 카드 -->
+    <section style="background:#0F131C;border:1px solid #1B2130;border-radius:16px;padding:20px 22px 16px;margin-bottom:18px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px">
+        <div>
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
+            <span style="font-size:15px;font-weight:700">삼성전자</span>
+            <span style="font-family:'JetBrains Mono';font-size:12px;color:#5E6879">005930</span>
+            <span style="{{ scrubTagStyle }}">{{ scrubTag }}</span>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:11px">
+            <span style="font-family:'JetBrains Mono';font-size:34px;font-weight:800;line-height:.92;letter-spacing:-.01em">{{ headPrice }}</span>
+            <span style="font-family:'JetBrains Mono';font-size:14px;font-weight:700;margin-bottom:3px;{{ headChgStyle }}">{{ headArrow }} {{ headChg }} ({{ headPct }})</span>
+          </div>
+          <div style="font-size:11.5px;color:#5E6879;margin-top:7px">{{ headLabel }}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:9px">
+          <button onClick="{{ toggleMode }}" style="background:#141924;border:1px solid #1B2130;color:#8A93A6;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer">{{ modeLabel }}</button>
+          <span style="font-size:10.5px;color:#5E6879">기준 {{ baseLabel }}</span>
+        </div>
+      </div>
+
+      <div ref="{{ wrapRef }}" style="position:relative;width:100%;touch-action:pan-y;cursor:crosshair;user-select:none"
+           onPointerDown="{{ onDown }}" onPointerMove="{{ onMove }}" onPointerUp="{{ onUp }}" onPointerLeave="{{ onLeave }}" onPointerCancel="{{ onUp }}">
+        {{ chart }}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:0 2px">
+          <span style="font-size:10.5px;color:#5E6879;font-weight:600">거래량</span>
+          <span style="font-family:'JetBrains Mono';font-size:10.5px;color:#8A93A6">{{ volLabel }}</span>
+        </div>
+        {{ volChart }}
+        <sc-if value="{{ tipOn }}">
+          <div style="{{ tipStyle }}">
+            <div style="font-size:10.5px;color:#8A93A6;margin-bottom:3px">{{ tipDate }}</div>
+            <div style="font-family:'JetBrains Mono';font-size:13.5px;font-weight:800;color:#EDF0F6">{{ tipPrice }}</div>
+            <div style="font-family:'JetBrains Mono';font-size:11px;font-weight:700;margin-top:2px;{{ tipChgStyle }}">{{ tipPct }}</div>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;margin-top:8px;padding:0 2px">
+        <sc-for list="{{ ticks }}" as="t" hint-placeholder-count="4">
+          <span style="font-size:10.5px;color:#5E6879;font-family:'JetBrains Mono'">{{ t.label }}</span>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px">
+        <span style="font-size:10.5px;color:#5E6879;font-weight:600">구간 선택 · 휠로 확대, 드래그로 이동</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-family:'JetBrains Mono';font-size:11px;color:#8A93A6;margin-right:2px">{{ zoomLabel }}</span>
+          <button onClick="{{ zoomOut }}" style="{{ zBtn }}" style-hover="color:#EDF0F6;border-color:#33415a">−</button>
+          <button onClick="{{ zoomIn }}" style="{{ zBtn }}" style-hover="color:#EDF0F6;border-color:#33415a">+</button>
+          <sc-if value="{{ isZoomed }}">
+            <button onClick="{{ resetZoom }}" style="height:26px;padding:0 10px;border-radius:7px;border:1px solid #232b3a;background:#141924;color:#9D90FF;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer">전체</button>
+          </sc-if>
+        </div>
+      </div>
+      {{ brush }}
+
+      <div style="display:flex;gap:3px;padding:4px;background:#12161f;border:1px solid #1B2130;border-radius:11px;margin-top:16px">
+        <sc-for list="{{ periods }}" as="p" hint-placeholder-count="6">
+          <button onClick="{{ p.onClick }}" style="{{ p.style }}">{{ p.label }}</button>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- 바 차트 -->
+    <div style="display:grid;grid-template-columns:1.45fr 1fr;gap:16px;margin-bottom:18px">
+      <section style="background:#0F131C;border:1px solid #1B2130;border-radius:16px;padding:18px 20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:12px;font-weight:700;letter-spacing:.04em">분기 실적 · 바 차트</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="display:flex;align-items:center;gap:5px;font-size:10.5px;color:#8A93A6"><span style="width:8px;height:8px;border-radius:2px;background:#7C6CFF"></span>당분기</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:10.5px;color:#5E6879"><span style="width:8px;height:8px;border-radius:2px;background:#232b3a"></span>전년동기</span>
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:#8A93A6;margin-bottom:14px">{{ qHead }}</div>
+        <div style="display:flex;align-items:flex-end;gap:10px;height:150px">
+          <sc-for list="{{ bars }}" as="b" hint-placeholder-count="8">
+            <div onMouseEnter="{{ b.onEnter }}" onMouseLeave="{{ b.onLeave }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;cursor:pointer;min-width:0">
+              <span style="{{ b.valStyle }}">{{ b.val }}</span>
+              <div style="display:flex;align-items:flex-end;gap:2px;width:100%;height:100%">
+                <div style="{{ b.prevH }}"></div>
+                <div style="{{ b.curH }}"></div>
+              </div>
+              <span style="font-size:9.5px;color:#5E6879;font-family:'JetBrains Mono';white-space:nowrap">{{ b.label }}</span>
+              <span style="{{ b.yoyStyle }}">{{ b.yoy }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+
+      <section style="background:#0F131C;border:1px solid #1B2130;border-radius:16px;padding:18px 20px">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:4px">섹터 비교 · 가로 바</div>
+        <div style="font-size:11.5px;color:#8A93A6;margin-bottom:16px">영업이익률 (%)</div>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <sc-for list="{{ cmp }}" as="c" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="{{ c.nameStyle }}">{{ c.name }}</span>
+              <div style="flex:1;height:9px;border-radius:4px;background:#141924;overflow:hidden"><div style="{{ c.barStyle }}"></div></div>
+              <span style="font-family:'JetBrains Mono';font-size:11.5px;font-weight:700;width:44px;text-align:right">{{ c.val }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+    </div>
+
+    <!-- 스펙 -->
+    <section style="background:#0F131C;border:1px solid #1B2130;border-radius:16px;padding:20px 22px">
+      <div style="font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:16px">인터랙션 스펙</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px 32px">
+        <sc-for list="{{ specs }}" as="sp" hint-placeholder-count="6">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+              <span style="width:5px;height:5px;border-radius:50%;background:#7C6CFF"></span>
+              <span style="font-size:12.5px;font-weight:700;color:#DCE1EA">{{ sp.t }}</span>
+            </div>
+            <div style="font-size:12px;color:#8A93A6;line-height:1.6;padding-left:13px">{{ sp.d }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1060,&quot;height&quot;:860},&quot;colorConvention&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;korea&quot;,&quot;global&quot;],&quot;default&quot;:&quot;korea&quot;,&quot;tsType&quot;:&quot;'korea'|'global'&quot;,&quot;section&quot;:&quot;표시&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.wrapRef = React.createRef();
+    this.state = { period:'1개월', idx:null, drag:false, w:900, qi:null, zoom:1, start:0, mode:(props.colorConvention||'korea') };
+    this.H = 250;
+    this._ptrs = new Map();
+    this._pinch = 0;
+    this._panX = null;
+  }
+
+  componentDidMount(){
+    const el=this.wrapRef.current; if(!el) return;
+    const set=()=>this.setState({w:Math.max(320, el.clientWidth)});
+    set();
+    this._ro=new ResizeObserver(set); this._ro.observe(el);
+    this._wheel=e=>this.onWheel(e);
+    el.addEventListener('wheel', this._wheel, {passive:false});
+  }
+  componentWillUnmount(){
+    this._ro && this._ro.disconnect();
+    const el=this.wrapRef.current;
+    if(el && this._wheel) el.removeEventListener('wheel', this._wheel);
+  }
+
+  /* ── 줌 / 팬 ─────────────────────────────── */
+  get N(){ return this.P.n; }
+  get cnt(){ return Math.max(14, Math.round(this.N/this.state.zoom)); }
+  clampStart(v){ return Math.max(0, Math.min(this.N-this.cnt, v)); }
+
+  setZoom(z, anchorT){
+    const N=this.N, prevCnt=this.cnt, prevStart=this.state.start;
+    const zoom=Math.max(1, Math.min(14, z));
+    const cnt=Math.max(14, Math.round(N/zoom));
+    const t=anchorT==null?0.5:Math.max(0,Math.min(1,anchorT));
+    const anchor=prevStart + t*prevCnt;
+    const start=Math.max(0, Math.min(N-cnt, anchor - t*cnt));
+    this.setState({zoom, start});
+  }
+  onWheel(e){
+    e.preventDefault();
+    const el=this.wrapRef.current; if(!el) return;
+    const b=el.getBoundingClientRect(), pad=this.pad();
+    const t=(e.clientX-b.left-pad.l)/Math.max(1,(b.width-pad.l-pad.r));
+    this.setZoom(this.state.zoom * (e.deltaY<0 ? 1.22 : 1/1.22), t);
+  }
+  resetZoom(){ this.setState({zoom:1, start:0, idx:null}); }
+
+  /* ── 기간 정의 ───────────────────────────── */
+  get PERIODS(){ return [
+    {k:'1일',   n:78,  base:80900, vol:0.0016, fmt:'time'},
+    {k:'1주',   n:120, base:79400, vol:0.0022, fmt:'day'},
+    {k:'1개월', n:132, base:76800, vol:0.0028, fmt:'day'},
+    {k:'3개월', n:150, base:72400, vol:0.0034, fmt:'month'},
+    {k:'1년',   n:170, base:66200, vol:0.0042, fmt:'month'},
+    {k:'5년',   n:180, base:48500, vol:0.0055, fmt:'year'}
+  ]; }
+  get P(){ return this.PERIODS.find(p=>p.k===this.state.period) || this.PERIODS[2]; }
+
+  rng(seed){ let a=seed>>>0; return ()=>{ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  hash(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; }
+
+  // 현재가에서 역방향으로 걸어 끝점 절벽 없이 자연스럽게 생성
+  series(){
+    const p=this.P, r=this.rng(this.hash(p.k)), n=p.n, out=new Array(n);
+    const end=81200, step=Math.pow(end/p.base, 1/(n-1));
+    out[n-1]=end;
+    for(let i=n-2;i>=0;i--) out[i]=Math.round(out[i+1]/(step*(1+(r()-0.5)*p.vol)));
+    return out;
+  }
+
+  volumes(n){
+    const r=this.rng(this.hash(this.P.k+'|vol')), out=[];
+    for(let i=0;i<n;i++){
+      const spike = r()>0.9 ? 1.9+r() : 1;
+      out.push(Math.round((320+r()*680)*spike));
+    }
+    return out;
+  }
+
+  labelAt(i,n){
+    const p=this.P;
+    if(p.fmt==='time'){ const m=540+Math.round(i/(n-1)*390); return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+    const days=p.k==='1주'?7:p.k==='1개월'?30:p.k==='3개월'?92:p.k==='1년'?365:1825;
+    const d=new Date(2026,6,27); d.setDate(d.getDate()-Math.round((1-i/(n-1))*days));
+    const y=d.getFullYear(), mo=d.getMonth()+1, da=d.getDate();
+    if(p.fmt==='year') return `${y}.${String(mo).padStart(2,'0')}`;
+    if(p.fmt==='month') return `${String(mo).padStart(2,'0')}.${String(da).padStart(2,'0')}`;
+    return `${String(mo).padStart(2,'0')}.${String(da).padStart(2,'0')}`;
+  }
+
+  /* ── 포인터 → 인덱스 ─────────────────────── */
+  pick(e){
+    const el=this.wrapRef.current; if(!el) return;
+    const b=el.getBoundingClientRect(), pad=this.pad(), cnt=this.cnt;
+    const t=(e.clientX-b.left-pad.l)/Math.max(1,(b.width-pad.l-pad.r));
+    const i=Math.max(0,Math.min(cnt-1, Math.round(t*(cnt-1))));
+    if(i!==this.state.idx) this.setState({idx:i});
+  }
+  pan(e){
+    const el=this.wrapRef.current; if(!el||this._panX==null) return;
+    const b=el.getBoundingClientRect();
+    const dx=e.clientX-this._panX; this._panX=e.clientX;
+    const perPx=this.cnt/Math.max(1,b.width);
+    this.setState({start:this.clampStart(this.state.start - dx*perPx)});
+  }
+  brushJump(e){
+    const b=e.currentTarget.getBoundingClientRect();
+    const t=(e.clientX-b.left)/Math.max(1,b.width);
+    this.setState({start:this.clampStart(t*this.N - this.cnt/2)});
+  }
+  pinch(){
+    if(this._ptrs.size<2) return;
+    const p=[...this._ptrs.values()];
+    const d=Math.hypot(p[0].x-p[1].x, p[0].y-p[1].y);
+    if(this._pinch){
+      const el=this.wrapRef.current, b=el.getBoundingClientRect(), pad=this.pad();
+      const midX=(p[0].x+p[1].x)/2;
+      const t=(midX-b.left-pad.l)/Math.max(1,(b.width-pad.l-pad.r));
+      this.setZoom(this.state.zoom*(d/this._pinch), t);
+    }
+    this._pinch=d;
+  }
+  pad(){ return {l:6,r:6,t:16,b:12}; }
+
+  renderVals(){
+    const kr = (this.state.mode==='korea');
+    const UP = kr?'#F6465D':'#16C784', DOWN = kr?'#4C82FB':'#EA3943';
+    const mono="'JetBrains Mono', ui-monospace, monospace";
+    const full=this.series(), N=full.length;
+    const cnt=this.cnt, s0=this.clampStart(Math.round(this.state.start));
+    const data=full.slice(s0, s0+cnt), n=data.length;
+    const atEnd = s0+cnt >= N;
+    const W=this.state.w, H=this.H, pad=this.pad();
+    const base=data[0], last=data[n-1];
+    const idx=this.state.idx;
+    const cur=idx==null?last:data[idx];
+    const col = cur>=base ? UP : DOWN;
+
+    const mn=Math.min(...data), mx=Math.max(...data), sp=(mx-mn)||1;
+    const X=i=>pad.l+(W-pad.l-pad.r)*i/(n-1);
+    const Y=v=>pad.t+(H-pad.t-pad.b)*(1-(v-mn)/sp);
+
+    let line='M '+X(0).toFixed(1)+' '+Y(data[0]).toFixed(1);
+    for(let i=1;i<n;i++) line+=' L '+X(i).toFixed(1)+' '+Y(data[i]).toFixed(1);
+    const area=line+` L ${X(n-1).toFixed(1)} ${H} L ${X(0).toFixed(1)} ${H} Z`;
+
+    const gid='cg'+(kr?'k':'g');
+    const E=React.createElement;
+    const kids=[
+      E('defs',{key:'d'},E('linearGradient',{id:gid,x1:'0',y1:'0',x2:'0',y2:'1'},
+        E('stop',{offset:'0',stopColor:col,stopOpacity:.26}),
+        E('stop',{offset:'1',stopColor:col,stopOpacity:0}))),
+      E('line',{key:'b',x1:pad.l,y1:Y(base),x2:W-pad.r,y2:Y(base),stroke:'#2a3346',strokeWidth:1,strokeDasharray:'4 4'}),
+      E('path',{key:'a',d:area,fill:`url(#${gid})`}),
+      E('path',{key:'l',d:line,fill:'none',stroke:col,strokeWidth:2.2,strokeLinejoin:'round',strokeLinecap:'round'})
+    ];
+    if(atEnd) kids.push(E('circle',{key:'e',cx:X(n-1),cy:Y(last),r:3.6,fill:col}));
+    if(idx!=null){
+      const cx=X(idx), cy=Y(cur);
+      kids.push(
+        E('line',{key:'cx',x1:cx,y1:pad.t-6,x2:cx,y2:H-pad.b+4,stroke:'#4a5568',strokeWidth:1,strokeDasharray:'3 3'}),
+        E('circle',{key:'o',cx,cy,r:8,fill:col,fillOpacity:.18}),
+        E('circle',{key:'c',cx,cy,r:4.6,fill:col,stroke:'#0A0D14',strokeWidth:2.4})
+      );
+    }
+    const chart=E('svg',{width:'100%',height:H,viewBox:`0 0 ${W} ${H}`,style:{display:'block',overflow:'visible'}},kids);
+
+    // 거래량 바 차트 (스크럽 연동)
+    const VH=58, vols=this.volumes(N).slice(s0,s0+cnt), vmax=Math.max(...vols);
+    const bw=Math.max(1.4, (W-pad.l-pad.r)/n*0.62);
+    const vkids=vols.map((v,i)=>{
+      const up = i===0 ? true : data[i]>=data[i-1];
+      const h=Math.max(1.5,(v/vmax)*(VH-10));
+      const on = idx===i;
+      return E('rect',{key:i,x:X(i)-bw/2,y:VH-h,width:bw,height:h,rx:Math.min(1.2,bw/2),
+        fill: up?UP:DOWN, fillOpacity: idx==null?0.42:(on?1:0.16)});
+    });
+    if(idx!=null) vkids.push(E('line',{key:'vc',x1:X(idx),y1:0,x2:X(idx),y2:VH,stroke:'#4a5568',strokeWidth:1,strokeDasharray:'3 3'}));
+    const volChart=E('svg',{width:'100%',height:VH,viewBox:`0 0 ${W} ${VH}`,style:{display:'block',marginTop:'6px'}},vkids);
+    const volLabel = idx==null ? `평균 ${Math.round(vols.reduce((a,b)=>a+b,0)/n).toLocaleString()}천주` : `${vols[idx].toLocaleString()}천주`;
+
+    const fmtW=v=>'₩'+Number(v).toLocaleString('en-US');
+    const chg=cur-base, pct=chg/base*100;
+
+    const tipX=idx==null?0:Math.max(0,Math.min(W-124, X(idx)-62));
+    const tipStyle={position:'absolute',left:tipX+'px',top:'-4px',width:'124px',padding:'8px 10px',background:'rgba(19,24,36,.97)',border:'1px solid #2a3346',borderRadius:'10px',boxShadow:'0 10px 26px rgba(0,0,0,.55)',pointerEvents:'none',zIndex:3};
+
+    const tickIdx=[0,Math.round((n-1)/3),Math.round((n-1)*2/3),n-1];
+    const ticks=tickIdx.map(i=>({label:this.labelAt(s0+i,N)}));
+
+    // 구간 미니맵(브러시)
+    const BH=36, fmn=Math.min(...full), fmx=Math.max(...full), fsp=(fmx-fmn)||1;
+    const BX=i=>6+(W-12)*i/(N-1), BY=v=>5+(BH-10)*(1-(v-fmn)/fsp);
+    const stepI=Math.max(1,Math.round(N/170));
+    let bline='M '+BX(0).toFixed(1)+' '+BY(full[0]).toFixed(1);
+    for(let i=stepI;i<N;i+=stepI) bline+=' L '+BX(i).toFixed(1)+' '+BY(full[i]).toFixed(1);
+    const wx0=BX(s0), wx1=BX(Math.min(N-1,s0+cnt-1));
+    const brush=E('svg',{width:'100%',height:BH,viewBox:`0 0 ${W} ${BH}`,
+      style:{display:'block',marginTop:'10px',cursor:'pointer',touchAction:'none'},
+      onPointerDown:ev=>this.brushJump(ev),
+      onPointerMove:ev=>{ if(ev.buttons) this.brushJump(ev); }},[
+      E('rect',{key:'bg',x:0,y:0,width:W,height:BH,rx:8,fill:'#0d1119',stroke:'#1B2130'}),
+      E('path',{key:'l',d:bline,fill:'none',stroke:'#33415a',strokeWidth:1.3,strokeLinejoin:'round'}),
+      E('rect',{key:'w',x:wx0,y:1,width:Math.max(7,wx1-wx0),height:BH-2,rx:6,
+        fill:'rgba(124,108,255,.15)',stroke:'#7C6CFF',strokeWidth:1.2})
+    ]);
+
+    const periods=this.PERIODS.map(p=>({label:p.k,onClick:()=>this.setState({period:p.k,idx:null}),
+      style:{flex:1,padding:'7px 0',borderRadius:'8px',border:'none',fontSize:'12.5px',fontWeight:700,fontFamily:'inherit',cursor:'pointer',transition:'background .15s,color .15s',
+        color:this.state.period===p.k?'#EDF0F6':'#8A93A6',background:this.state.period===p.k?'rgba(124,108,255,.18)':'transparent'}}));
+
+    // ── 분기 실적 바 차트 ────────────────────
+    const Q=[['24 Q3',18.2,14.9],['24 Q4',19.6,15.8],['25 Q1',21.4,16.2],['25 Q2',20.8,17.6],['25 Q3',23.1,18.4],['25 Q4',24.7,19.1],['26 Q1',26.3,20.8],['26 Q2',28.9,21.4]];
+    const qmax=Math.max(...Q.map(q=>q[1]));
+    const qi=this.state.qi;
+    const bars=Q.map(([label,cur2,prev],i)=>{
+      const on = qi===i, yoy=(cur2/prev-1)*100;
+      return { label, on, i,
+        onEnter:()=>this.setState({qi:i}), onLeave:()=>this.setState({qi:null}),
+        curH:{height:((cur2/qmax)*100).toFixed(1)+'%',background:on?'#7C6CFF':'rgba(124,108,255,.62)',borderRadius:'4px 4px 0 0',transition:'background .15s',width:'100%'},
+        prevH:{height:((prev/qmax)*100).toFixed(1)+'%',background:on?'#33415a':'#232b3a',borderRadius:'4px 4px 0 0',transition:'background .15s',width:'100%'},
+        valStyle:{fontSize:'10px',fontFamily:mono,fontWeight:700,color:on?'#EDF0F6':'#5E6879',transition:'color .15s'},
+        val:cur2.toFixed(1),
+        yoyStyle:{fontSize:'10px',fontFamily:mono,fontWeight:700,color:yoy>=0?UP:DOWN},
+        yoy:(yoy>=0?'+':'')+yoy.toFixed(1)+'%' };
+    });
+    const qsel = qi==null ? null : Q[qi];
+    const qHead = qsel ? `${qsel[0]} · 매출 ${qsel[1]}조` : '최근 8개 분기 · 매출 (조원)';
+
+    // ── 섹터 비교 가로 바 ────────────────────
+    const CMP=[['삼성전자',22.8],['SK하이닉스',31.4],['TSMC',26.1],['마이크론',18.6],['인텔',9.2]];
+    const cmax=Math.max(...CMP.map(c=>c[1]));
+    const cmp=CMP.map(([name,v],i)=>({ name, val:v.toFixed(1)+'%',
+      barStyle:{width:(v/cmax*100).toFixed(0)+'%',height:'100%',borderRadius:'4px',
+        background:i===0?'#7C6CFF':'rgba(124,108,255,.34)'},
+      nameStyle:{width:'86px',fontSize:'12px',flexShrink:0,color:i===0?'#EDF0F6':'#8A93A6',fontWeight:i===0?700:500} }));
+
+    return {
+      wrapRef:this.wrapRef, chart, volChart, volLabel,
+      bars, qHead, cmp,
+      headPrice:fmtW(cur), headArrow:chg>=0?'▲':'▼',
+      headChg:fmtW(Math.abs(chg)).replace('₩',''), headPct:(pct>=0?'+':'')+pct.toFixed(2)+'%',
+      headChgStyle:{color:col},
+      headLabel: idx==null ? `${this.state.period} 기준 · 오늘 15:30 종가` : this.labelAt(s0+idx,N)+' 시점',
+      baseLabel: fmtW(base),
+      scrubTag: idx==null?'실시간':'과거 시점',
+      scrubTagStyle:{fontSize:'10px',fontWeight:700,padding:'2px 7px',borderRadius:'999px',
+        color:idx==null?'#3fe0a0':'#9D90FF',background:idx==null?'rgba(22,199,132,.14)':'rgba(124,108,255,.16)',
+        border:'1px solid '+(idx==null?'rgba(22,199,132,.3)':'rgba(124,108,255,.3)')},
+      onDown:e=>{
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+        this._ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+        if(this._ptrs.size===2){ this._pinch=0; this.pinch(); return; }
+        if(e.pointerType==='mouse'){ this._panX=e.clientX; this.setState({drag:true,idx:null}); }
+        else { this.setState({drag:true}); this.pick(e); }
+      },
+      onMove:e=>{
+        if(this._ptrs.has(e.pointerId)) this._ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+        if(this._ptrs.size>=2){ this.pinch(); return; }
+        if(e.pointerType==='mouse') this.state.drag ? this.pan(e) : this.pick(e);
+        else if(this.state.drag) this.pick(e);
+      },
+      onUp:e=>{ this._ptrs.delete(e.pointerId); if(this._ptrs.size<2) this._pinch=0; this._panX=null; this.setState({drag:false}); },
+      onLeave:e=>{ this._ptrs.delete(e.pointerId); this._panX=null; this.setState({idx:null,drag:false}); },
+      brush,
+      zoomLabel: this.state.zoom<1.05 ? '전체' : this.state.zoom.toFixed(1)+'×',
+      isZoomed: this.state.zoom>1.05,
+      zoomIn:()=>this.setZoom(this.state.zoom*1.5),
+      zoomOut:()=>this.setZoom(this.state.zoom/1.5),
+      resetZoom:()=>this.resetZoom(),
+      zBtn:{width:'26px',height:'26px',display:'grid',placeItems:'center',borderRadius:'7px',border:'1px solid #232b3a',background:'#141924',color:'#8A93A6',fontSize:'14px',fontWeight:700,fontFamily:'inherit',cursor:'pointer',lineHeight:1},
+      tipOn: idx!=null, tipStyle, tipDate:idx==null?'':this.labelAt(s0+idx,N), tipPrice:fmtW(cur),
+      tipPct:(pct>=0?'+':'')+pct.toFixed(2)+'%', tipChgStyle:{color:col},
+      ticks, periods,
+      modeLabel: kr?'한국식 ↑빨강':'국제식 ↑초록',
+      toggleMode:()=>this.setState({mode:kr?'global':'korea'}),
+      specs:[
+        {t:'기간 탭 (일·주·월·년)', d:'1일 / 1주 / 1개월 / 3개월 / 1년 / 5년. 탭 전환 시 스크럽 상태는 해제하고 최신 시점으로 되돌립니다.'},
+        {t:'좌우 드래그 스크럽', d:'pointerdown 후 좌우 이동으로 시점 탐색. setPointerCapture로 차트 밖으로 나가도 추적하고, touch-action:pan-y로 세로 스크롤은 살립니다.'},
+        {t:'헤더 숫자 연동', d:'토스의 핵심. 스크럽 중에는 상단 대표 가격·등락률이 그 시점 값으로 바뀌고, 손을 떼면 현재가로 복귀합니다.'},
+        {t:'크로스헤어 + 툴팁', d:'세로 점선 + 이중 원(광원 링 + 본체). 툴팁은 좌우 끝에서 잘리지 않게 clamp하고 pointer-events:none으로 둡니다.'},
+        {t:'기준선', d:'시작 시점(전일 종가 또는 기간 첫 값)에 점선을 깔고, 그 위/아래 여부로 라인 색을 결정합니다.'},
+        {t:'색상 컨벤션', d:'국내 서비스는 상승 빨강·하락 파랑이 기본. 전역 colorMode에 연결해 차트·툴팁·헤더가 함께 바뀌게 합니다.'},
+        {t:'거래량 바 (스크럽 연동)', d:'라인 아래 얇은 막대. 전일 대비 상승/하락으로 색을 주고, 스크럽 중에는 선택 봉만 100%·나머지는 16%로 낮춰 초점을 만듭니다.'},
+        {t:'바 차트 (실적·비교)', d:'분기 실적은 당분기+전년동기 2줄 세로 바에 YoY를 붙이고, 경쟁사 비교는 가로 바로 자사만 강조합니다.'},
+        {t:'줌 · 팬 (입력 분리)', d:'마우스는 휠=확대, 드래그=이동, 호버=스크럽. 터치는 드래그=스크럽, 두 손가락=핀치 줌. 같은 제스처가 겹치지 않게 pointerType으로 분기합니다.'},
+        {t:'구간 미니맵', d:'전체 기간을 축소해 깔고 현재 보이는 구간을 박스로 표시. 클릭·드래그로 위치를 바로 옮길 수 있어 줌 상태에서 길을 잃지 않습니다.'}
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0a0d14;
+  --panel: #0f131c;
+  --panel-2: #141924;
+  --border: #1b2130;
+  --row: #12161f;
+  --text: #edf0f6;
+  --text-sub: #8a93a6;
+  --text-mut: #5e6879;
+  --brand: #7c6cff;
+  --warn: #F0B90B; /* 배치 신선도·관심 표시 등 경고/강조. src/lib/colors.ts WARN 과 동일값 */
+  --radius: 14px;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --sans: 'Pretendard Variable', Pretendard, system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; cursor: pointer; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* app frame */
+.app { min-height: 100%; display: flex; flex-direction: column; }
+.main { flex: 1; min-width: 0; }
+.wrap { max-width: 1440px; margin: 0 auto; padding: 18px 22px 40px; }
+@media (max-width: 640px) { .wrap { padding: 14px 12px 32px; } }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.card-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; }
+.card-h .t { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--text); }
+.card-h .tag {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-mut); border: 1px solid var(--border); border-radius: 6px; padding: 3px 7px;
+}
+
+/* 키보드 포커스 가시성 — 다크 배경에서 기본 아웃라인이 거의 안 보임 */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+:focus:not(:focus-visible) { outline: none; }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

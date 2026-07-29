@@ -1,0 +1,263 @@
+/* ComplexList — 부동산 스크리너 리스트 컴포넌트
+   디자인 D4(로딩 중도 행 유지), D5(키보드 네비), D7(지난 갱신), D9(와이어프레임)
+   절대 규칙: hex 색 금지 — var(--…) 토큰만. */
+
+.container { display: flex; flex-direction: column; gap: 10px; }
+
+/* ── 내 관심단지 섹션 ───────────────────────────────────────────────────────── */
+.watchSection {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0;
+  overflow: hidden;
+}
+
+.watchHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+
+.watchTitle {
+  color: var(--text);
+}
+
+.watchSubtitle {
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.watchRow {
+  /* 관심단지 행은 시각적으로 특별하게 처리 가능 */
+}
+
+/* ── 지역 필터 칩 (지도 동 박스·헤드라인 구 클릭) ─────────────────────────── */
+.areaChipRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px;
+}
+
+.areaChip {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text);
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+  border-radius: 7px;
+  padding: 3px 9px;
+}
+
+.areaClear {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-sub);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px 8px;
+}
+
+.areaClear:hover { color: var(--text); background: var(--panel-2); }
+
+/* ── 리스트 헤더 — 행과 같은 그리드(★열 포함)여야 열이 맞는다 ──────────────── */
+.headerRow {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) minmax(200px, 300px) 60px 28px;
+  gap: 8px;
+  align-items: center;
+  padding: 0 8px 6px;
+  font-size: 10.5px;
+  color: var(--text-mut);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+  margin-top: 2px;
+}
+.headDeals { text-align: right; }
+
+/* ── 리스트 래퍼 ───────────────────────────────────────────────────────────── */
+.listWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 2px;
+  transition: opacity 0.2s ease-out;
+}
+
+.listLoading {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* ── 행 (순위 또는 관심단지) ───────────────────────────────────────────────── */
+.row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) minmax(200px, 300px) 60px 28px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+  position: relative;
+  border-left: 3px solid transparent;
+}
+
+.row:hover,
+.rowHover {
+  background: var(--panel-2);
+  border-left-color: var(--brand);
+}
+
+.row:focus {
+  outline: none;
+  background: var(--panel-2);
+  border-left-color: var(--brand);
+}
+
+/* ── 순위 열 ───────────────────────────────────────────────────────────────── */
+.rank {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ── 단지명 + 구 ───────────────────────────────────────────────────────────── */
+.nameCol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gu {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.code {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-mut);
+  background: var(--panel-2);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+/* ── Bar + Value 셀 ───────────────────────────────────────────────────────── */
+.barCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* 바 자체는 공통 Bar 컴포넌트 — 여기서는 폭 하한만 잡는다 */
+.bar { min-width: 40px; }
+
+.value {
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 50px;
+  text-align: right;
+}
+
+.delta {
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+/* ── 거래건수 ───────────────────────────────────────────────────────────────── */
+.deals {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  text-align: right;
+  flex-shrink: 0;
+  min-width: 40px;
+}
+
+/* ── Watch ★ 버튼 ───────────────────────────────────────────────────────────── */
+.watchBtn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--text-mut);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: color 0.15s, background-color 0.15s;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.watchBtn:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.watchBtnActive {
+  /* 색상은 인라인 스타일로 WARN 적용 */
+}
+
+.watchBtnActive:hover {
+  background: var(--panel-2);
+}
+
+/* ── 좁은 리스트(1024~1280 의 440px 컬럼) — 바 열이 200px 을 고집하면 단지명이 0 이 된다 ── */
+@media (max-width: 1280px) {
+  .headerRow,
+  .row {
+    grid-template-columns: 32px minmax(90px, 1fr) minmax(110px, 170px) 44px 26px;
+    gap: 6px;
+  }
+}
+
+/* ── 반응형 <768px — 4열(순위·단지·값·★). 바·거래는 접지만 값은 남긴다 (D8) ── */
+@media (max-width: 767px) {
+  .headerRow,
+  .row {
+    grid-template-columns: 32px minmax(0, 1fr) 72px 24px;
+    gap: 6px;
+  }
+
+  .rank { font-size: 10.5px; }
+  .name { font-size: 12px; }
+  .gu { display: none; }
+  .bar { display: none; }
+  .deals, .headDeals { display: none; }
+  .value { min-width: 0; }
+
+  .watchBtn {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+  }
+
+  .row { padding: 8px 6px; }
+}

@@ -1,0 +1,72 @@
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 500px; gap: 20px; align-items: start; }
+.left { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.right { position: relative; }
+
+/* KPI 타일 */
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.kpi { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px; }
+.kpiK { font-size: 11px; color: var(--text-mut); }
+.kpiV { font-size: 19px; font-weight: 800; margin-top: 5px; letter-spacing: -.01em; }
+.kpiSub { font-size: 10.5px; color: var(--text-sub); margin-top: 3px; }
+
+/* 상승/하락 TOP */
+.movers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.moverCol { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.moverH { font-size: 11px; color: var(--text-sub); font-weight: 600; margin-bottom: 7px; }
+.moverRow { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.moverName { font-size: 12px; flex: 1; }
+.moverEok { font-size: 11.5px; color: var(--text-sub); }
+.moverChg { font-size: 12px; font-weight: 600; width: 52px; text-align: right; }
+
+/* 랭킹 */
+.rankH { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
+.rankH > span { font-size: 12px; font-weight: 700; color: var(--text); }
+.toggle { display: flex; gap: 3px; }
+.tBtn { background: var(--panel-2); border: 1px solid var(--border); color: var(--text-sub); border-radius: 7px; padding: 4px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+.tBtn:hover { color: var(--text); }
+.tOn { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+.rankHead { display: grid; grid-template-columns: 40px minmax(0, 1fr) 44px 46px; gap: 8px; padding: 0 6px 6px; font-size: 10px; color: var(--text-mut); border-bottom: 1px solid var(--border); }
+.ranks { display: flex; flex-direction: column; gap: 1px; margin-top: 2px; }
+.rankRow { display: grid; grid-template-columns: 40px minmax(0, 1fr) 44px 46px; gap: 8px; align-items: center; padding: 3px 6px; border-radius: 6px; cursor: default; }
+.rankRow:hover, .rankOn { background: var(--panel-2); }
+.rankName { font-size: 12px; color: var(--text-sub); }
+.rankBarCell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rankTrack { flex: 1; height: 12px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
+.rankFill { height: 100%; border-radius: 4px; min-width: 3px; }
+.rankVal { font-size: 11.5px; font-weight: 600; width: 42px; text-align: right; flex-shrink: 0; }
+.rankCnt { font-size: 11px; text-align: right; color: var(--text-sub); }
+.rankChg { font-size: 11px; text-align: right; }
+
+/* 히스토그램 */
+.hist { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
+.histBars { display: flex; align-items: flex-end; gap: 4px; height: 110px; padding: 0 4px; }
+.histCol { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; cursor: pointer; }
+.histCount { font-size: 10px; color: var(--text-sub); font-family: var(--mono); margin-bottom: 2px; height: 12px; }
+.histBar { width: 62%; min-height: 2px; background: linear-gradient(180deg, var(--brand), #5a49d8); border-radius: 3px 3px 0 0; transition: background .15s; }
+.histBarOn { background: linear-gradient(180deg, #a99cff, var(--brand)); }
+.histLabel { font-size: 9.5px; color: var(--text-mut); margin-top: 4px; font-family: var(--mono); }
+
+/* 지도 */
+.svg { width: 100%; height: auto; display: block; }
+.label { fill: rgba(255,255,255,.9); }
+.labelSub { fill: rgba(255,255,255,.6); }
+.tip { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 7px 15px; box-shadow: 0 4px 16px -4px rgba(0,0,0,.5); }
+.tipName { font-size: 13px; font-weight: 700; }
+.tipV { font-size: 13px; font-weight: 700; }
+.tipCnt { font-size: 11px; color: var(--text-mut); }
+.legend { display: flex; align-items: center; gap: 4px; justify-content: center; font-size: 10px; color: var(--text-mut); margin-top: 6px; }
+.lbox { width: 20px; height: 11px; border-radius: 3px; }
+.attr { margin-left: 10px; opacity: .75; }
+
+/* 사분면 산점도 */
+.quad { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
+.quadH { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.quadSvg { width: 100%; height: auto; display: block; }
+.qz { fill: var(--text-mut); font-size: 8px; opacity: .7; }
+.qax { fill: var(--text-mut); font-size: 8px; }
+.qlab { fill: rgba(255,255,255,.85); font-size: 8px; font-weight: 600; pointer-events: none; }
+.quadNote { font-size: 10px; color: var(--text-mut); text-align: center; margin-top: 4px; }
+
+@media (max-width: 1180px) { .layout { grid-template-columns: 1fr; } }

@@ -1,0 +1,33 @@
+.wrap { display: flex; flex-direction: column; gap: 16px; }
+.summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.sk { font-size: 12px; color: var(--text-sub); }
+.sv { font-size: 22px; font-weight: 800; margin-top: 8px; letter-spacing: -.01em; }
+.ssub { font-size: 13px; margin-top: 3px; }
+
+.body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+
+.thead, .trow { display: grid; grid-template-columns: 1.5fr 0.6fr 1fr 1fr 1.2fr 0.9fr 1.3fr; gap: 8px; align-items: center; }
+.thead { font-size: 10.5px; color: var(--text-mut); padding: 0 4px 10px; border-bottom: 1px solid var(--border); }
+.trow { padding: 11px 4px; border-bottom: 1px solid var(--row); font-size: 12.5px; }
+.trow:last-child { border-bottom: none; }
+.name { display: flex; align-items: center; gap: 7px; }
+.flag { font-size: 11px; }
+.cashChip {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 800; line-height: 1; letter-spacing: 0.3px;
+  padding: 1px 5px; border-radius: 5px;
+  color: #9aa4b5; background: rgba(91,102,122,0.16); border: 1px solid rgba(91,102,122,0.3);
+}
+.rt { text-align: right; }
+.wcol { display: flex; align-items: center; gap: 8px; }
+.wbar { flex: 1; height: 6px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
+.wfill { display: block; height: 100%; border-radius: 4px; }
+.wpct { font-size: 11px; color: var(--text-sub); width: 40px; text-align: right; }
+
+.donutWrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.donut { width: 160px; height: 160px; }
+.legend { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.lrow { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.ldot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.llabel { flex: 1; color: var(--text-sub); }
+.lpct { color: var(--text); }
