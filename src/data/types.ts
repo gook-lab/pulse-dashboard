@@ -305,6 +305,19 @@ export interface RankingItem {
   amount?: number;
 }
 
+/** 포트폴리오 수익률 이력 엔트리 — 매일 자동 기록(백엔드 배치). null 필드는 실패 지점(과거 미수집·현재 중단 등). */
+export interface PortfolioHistoryEntry {
+  date: string;         // YYYY-MM-DD
+  totalValue: number | null;  // 포트폴리오 총자산 (KRW)
+  principal: number | null;   // 투자원금 (KRW) — R15~R16에서는 미사용
+  kospi: number | null;       // KOSPI 지수 (비교용)
+  spx: number | null;         // S&P500 지수 (비교용)
+}
+
+export interface PortfolioHistoryResult {
+  entries: PortfolioHistoryEntry[];
+}
+
 /** M0 백엔드가 구현할 계약. 목/실백엔드 공통. */
 export interface MarketApi {
   getIndices(): Promise<IndexQuote[]>;
@@ -327,4 +340,6 @@ export interface MarketApi {
   getAptComplex(aptSeq: string): Promise<AptComplexDetail | null>;
   /** 국내주식 실시간 순위. kind: 'up'|'down'|'volume'|'amount', 10개 상한. */
   getRanking(kind: 'up' | 'down' | 'volume' | 'amount'): Promise<RankingItem[]>;
+  /** 포트폴리오 수익률 이력. days: 조회 일수(22/66/250/전체). */
+  getPortfolioHistory(days: number): Promise<PortfolioHistoryResult>;
 }

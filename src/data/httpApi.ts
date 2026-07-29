@@ -1,7 +1,7 @@
 // 실백엔드 소비 어댑터 (strangler): 백엔드가 준비된 엔드포인트만 HTTP로,
 // 나머지는 목에 위임. 엔드포인트가 늘면 여기서 하나씩 목→HTTP로 옮긴다.
 import type { MarketApi, FearGreed, CryptoFG, MacroItem, IndexQuote, SeoulRent, WatchItem, NewsItem, AiOpinion, Portfolio,
-  ScreenQuery, ScreenResult, ComplexesResult, AptComplexDetail, NeedsCollect, RankingItem } from './types';
+  ScreenQuery, ScreenResult, ComplexesResult, AptComplexDetail, NeedsCollect, RankingItem, PortfolioHistoryResult } from './types';
 import { mockApi } from './mockApi';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -187,6 +187,14 @@ export const httpApi: MarketApi = {
       return Array.isArray(items) ? items : [];
     } catch {
       return [];
+    }
+  },
+
+  getPortfolioHistory: async (days: number): Promise<PortfolioHistoryResult> => {
+    try {
+      return await getJson<PortfolioHistoryResult>(`/api/portfolio/history?days=${days}`);
+    } catch {
+      return { entries: [] };
     }
   },
 };

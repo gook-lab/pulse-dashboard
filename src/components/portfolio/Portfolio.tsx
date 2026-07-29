@@ -5,6 +5,7 @@ import { Skeleton, SkeletonRows, ErrorState, Badge, EmptyState } from '@/compone
 import MarketChip from '@/components/common/MarketChip';
 import { useKisTrade } from '../../lib/kisSocket';
 import type { Holding, PaperOrder } from '../../data/types';
+import ReturnChart from './ReturnChart';
 import s from './Portfolio.module.css';
 
 const DONUT_COLORS = ['#7c6cff', '#16c784', '#ea3943', '#e0a838', '#4c82fb', '#4bd0d0'];
@@ -97,6 +98,8 @@ export default function Portfolio() {
           <div className="card-h"><span className="t">자산 배분</span></div>
           <Donut rows={donutRows} />
         </section>
+
+        <ReturnChart />
 
         <section className="card">
           <div className="card-h"><span className="t">모의 주문 내역</span></div>
