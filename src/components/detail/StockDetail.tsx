@@ -66,6 +66,7 @@ export default function StockDetail() {
   const selectedCode = useStore((st) => st.selectedCode);
   const selectStock = useStore((st) => st.selectStock);
   const detail = useStore((st) => st.detail);
+  const portfolio = useStore((st) => st.portfolio);
   const loading = useStore((st) => st.detailLoading);
   const loadDetail = useStore((st) => st.loadDetail);
   const mode = useStore((st) => st.colorMode);
@@ -77,6 +78,10 @@ export default function StockDetail() {
   const lastClose = chartAll.daily[chartAll.daily.length - 1]?.c;
   const [liveTrades, setLiveTrades] = useState<TradeTick[]>([]);
   useEffect(() => { setLiveTrades([]); }, [selectedCode]);
+  /** 호가창 클릭 → 주문 티켓 지정가 채움. seq로 같은 가격 재클릭도 전달된다. */
+  const [pickedPrice, setPickedPrice] = useState<{ price: number; seq: number } | null>(null);
+  useEffect(() => { setPickedPrice(null); }, [selectedCode]);
+  const pickPrice = (price: number) => setPickedPrice((prev) => ({ price, seq: (prev?.seq ?? 0) + 1 }));
 
   // 모달
   const [alertModalOpen, setAlertModalOpen] = useState(false);
@@ -281,9 +286,9 @@ export default function StockDetail() {
                 {/* 소켓 불안정(KR 실시간 없음) 시 목 대신 "-" 표시 */}
                 {isKR
                   ? (krHasOb
-                      ? <Orderbook asks={rt.orderbook!.asks} bids={rt.orderbook!.bids} cur={detail.cur} dec={detail.dec} mode={mode} onPickPrice={() => {}} />
+                      ? <Orderbook asks={rt.orderbook!.asks} bids={rt.orderbook!.bids} cur={detail.cur} dec={detail.dec} mode={mode} onPickPrice={pickPrice} />
                       : <DashOrderbook />)
-                  : <Orderbook asks={detail.asks} bids={detail.bids} cur={detail.cur} dec={detail.dec} mode={mode} onPickPrice={() => {}} />}
+                  : <Orderbook asks={detail.asks} bids={detail.bids} cur={detail.cur} dec={detail.dec} mode={mode} onPickPrice={pickPrice} />}
               </section>
               <section className="card">
                 <div className="card-h"><span className="t">체결 내역</span><span className="tag">{isKR ? (krHasTrades ? '실시간' : '연결 대기') : '최근'}</span></div>
@@ -337,7 +342,8 @@ export default function StockDetail() {
               price={live || detail.price}
               orderbook={isKR ? rt.orderbook || undefined : undefined}
               lastTradePrice={lastClose || 0}
-              portfolio={useStore.getState().portfolio}
+              portfolio={portfolio}
+              picked={pickedPrice}
             />
             <section className="card">
               <div className="card-h"><span className="t">AI 투자의견</span><span className="tag">M4 · AI</span></div>

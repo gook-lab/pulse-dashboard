@@ -15,10 +15,12 @@ interface OrderTicketProps {
   orderbook?: Orderbook;
   lastTradePrice: number;
   portfolio: Portfolio | null;
+  /** 호가창 클릭으로 고른 가격. seq로 같은 가격 재클릭도 반영한다. */
+  picked?: { price: number; seq: number } | null;
 }
 
 export default function OrderTicket({
-  code, name, market, price, orderbook, lastTradePrice, portfolio,
+  code, name, market, price, orderbook, lastTradePrice, portfolio, picked,
 }: OrderTicketProps) {
   const mode = useStore((st) => st.colorMode);
   const paperOrders = useStore((st) => st.paperOrders);
@@ -30,6 +32,29 @@ export default function OrderTicket({
   const [qty, setQty] = useState<number>(1);
   const [limitPrice, setLimitPrice] = useState<number>(price);
   const [showModal, setShowModal] = useState(false);
+
+  // 훅은 전부 조기 return 이전에 — 조건부 훅은 포트폴리오 로드 전→후 전환에서 앱을 크래시시킨다(Rules of Hooks).
+  // 종목이 바뀔 때만 지정가를 현재가로 리셋 — tick마다 리셋하면 사용자 입력이 덮인다.
+  useEffect(() => {
+    setLimitPrice(price > 0 ? snapToTick(price) : 0);
+    setQty(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]);
+
+  // 진입 시 가격이 아직 0이었다가 늦게 도착하면 최초 1회만 채운다.
+  useEffect(() => {
+    if (limitPrice <= 0 && price > 0) setLimitPrice(snapToTick(price));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [price]);
+
+  // 호가 클릭 → 지정가 모드 전환 + 채움.
+  useEffect(() => {
+    if (picked && picked.price > 0) {
+      setType('limit');
+      setLimitPrice(snapToTick(picked.price));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picked?.seq]);
 
   // US 종목 처리
   if (market === 'US') {
@@ -72,11 +97,6 @@ export default function OrderTicket({
 
   // 칩 수량 계산 (도메인 로직 재사용)
   const chip = (pct: number) => chipQty(pct, side, orderPrice, code, portfolio, paperOrders);
-
-  // 한계가 스냅
-  useEffect(() => {
-    setLimitPrice(snapToTick(price));
-  }, [price]);
 
   const handleSetQty = (newQty: number) => {
     setQty(Math.max(1, newQty));
