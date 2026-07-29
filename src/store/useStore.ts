@@ -106,7 +106,7 @@ interface State {
   refreshIndices: () => Promise<void>;
   reloadPortfolio: () => Promise<void>;
   refreshNews: () => Promise<void>;
-  refreshRanking: (kind: 'up' | 'down' | 'volume' | 'amount') => Promise<RankingItem[]>;
+  refreshRanking: (kind: 'up' | 'down' | 'volume' | 'amount', market?: 'all' | 'kospi' | 'kosdaq') => Promise<RankingItem[]>;
   selectStock: (code: string, hint?: Omit<DetailHint, 'code'>) => void;
   loadDetail: (code: string) => Promise<void>;
   // ── 페이퍼 주문 ──
@@ -209,8 +209,8 @@ export const useStore = create<State>((set) => ({
     } catch { /* keep current */ }
     finally { set({ newsRefreshing: false }); }
   },
-  refreshRanking: async (kind) => {
-    return api.getRanking(kind);
+  refreshRanking: async (kind, market) => {
+    return api.getRanking(kind, market);
   },
   selectStock: (code, hint) => {
     set({ selectedCode: code, tab: 'detail', detailHint: hint ? { code, ...hint } : null });
