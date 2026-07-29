@@ -8,3 +8,5 @@ dist-ssr
 !.env.example
 .gstack/
 server/cache/
+.claude/worktrees/
+tsconfig.tsbuildinfo
