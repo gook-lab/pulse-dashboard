@@ -6,7 +6,9 @@ import toast from '@/lib/toast';
 import ScreenerFilters from './ScreenerFilters';
 import ComplexList from './ComplexList';
 import ComplexMap from './ComplexMap';
-import ComplexDetail from './ComplexDetail';
+import ComplexDetail, { ComplexDetailBody } from './ComplexDetail';
+import { httpApi } from '@/data/httpApi';
+import type { AptComplexDetail } from '@/data/types';
 import s from './RealEstate.module.css';
 
 /** 기준일 경과일수. 하루 안이면 0. */
@@ -14,8 +16,6 @@ const daysSince = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date
 
 /**
  * 헤드라인 "6개월 모멘텀 — 강동·송파가 주도" 에서 주도 지역만 등락색으로 강조.
- * 지역명은 클릭 가능 — 그 구로 리스트를 좁히고 지도를 맞춘다(탐색 진입점).
- * 서버 템플릿(headline())과 짝이다 — 형식이 바뀌면 그냥 통짜로 그린다.
  */
 function Headline({ text, detail }: { text: string; detail: string }) {
   const mode = useStore((st) => st.colorMode);
@@ -30,7 +30,6 @@ function Headline({ text, detail }: { text: string; detail: string }) {
             {m[2].split('·').map((name, i) => (
               <span key={name}>
                 {i > 0 && '·'}
-                {/* 헤드라인은 구 이름의 '구' 를 뗀다 — 되붙여야 마스터의 gu 와 일치 */}
                 <button className={s.hlLead} style={{ color: colors(mode).up }}
                   onClick={() => setAreaFilter({ gu: `${name}구` })}>
                   {name}
@@ -46,13 +45,11 @@ function Headline({ text, detail }: { text: string; detail: string }) {
   );
 }
 
-/** "지금 갱신" — POST 로 배치를 켜고 status 를 폴링한다 (설계 D12). */
+/** "지금 갱신" — POST 로 배치를 켜고 status 를 폴링한다. */
 function useCollect() {
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  // 타이머는 cleanup 으로 끊기지만 이미 나간 fetch 는 못 끊는다 —
-  // 언마운트 후 도착한 응답이 setState 를 부르지 않도록 게이트.
   const disposed = useRef(false);
 
   const stop = () => { if (timer.current) { clearInterval(timer.current); timer.current = null; } };
@@ -72,14 +69,13 @@ function useCollect() {
           stop(); setRunning(false); setMessage(null);
           if (st.ok) {
             toast.success({ message: '데이터 갱신 완료' });
-            // 마스터·순위 모두 새 배치 기준으로 다시 읽는다.
             useStore.setState({ aptComplexes: null, aptScreen: null });
             void useStore.getState().loadRealestate();
           } else {
             toast.error({ message: `갱신 실패: ${st.error ?? '수집 실패 — 이전 데이터 유지'}` });
           }
         }
-      } catch { /* 서버 재시작 등 — 다음 틱에 재시도 */ }
+      } catch { /* 서버 재시작 등 */ }
     }, 2000);
   };
 
@@ -98,7 +94,6 @@ function useCollect() {
     }
   };
 
-  // 탭 진입 시 이미 돌고 있던 배치가 있으면 이어서 폴링한다(중복 실행 방지와 짝).
   useEffect(() => {
     fetch('/api/realestate/collect/status').then((r) => r.json())
       .then((st) => {
@@ -106,10 +101,26 @@ function useCollect() {
         if (st.running) { setRunning(true); setMessage(st.message); poll(); }
       })
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { running, message, start };
+}
+
+/** 1440px 이상 감지 */
+function useWideViewport() {
+  const [isWide, setIsWide] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(min-width: 1440px)').matches;
+  });
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1440px)');
+    const handler = (e: MediaQueryListEvent) => setIsWide(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  return isWide;
 }
 
 export default function RealEstate() {
@@ -119,10 +130,27 @@ export default function RealEstate() {
   const mapFailed = useStore((st) => st.aptMapFailed);
   const mapFailReason = useStore((st) => st.aptMapFailReason);
   const loadRealestate = useStore((st) => st.loadRealestate);
-  const [showMap, setShowMap] = useState(false); // <1024px 에서 "지도 보기" 토글
+  const selectedComplexId = useStore((st) => st.selectedComplexId);
+  const selectComplex = useStore((st) => st.selectComplex);
+
+  const [showMap, setShowMap] = useState(false);
+  const [sheetDetail, setSheetDetail] = useState<AptComplexDetail | null>(null);
+  const [selectedArea, setSelectedArea] = useState<number | null>(null);
+  const isWide = useWideViewport();
   const collect = useCollect();
 
   useEffect(() => { void loadRealestate(); }, [loadRealestate]);
+
+  // 시트 데이터 로드
+  useEffect(() => {
+    if (!isWide || !selectedComplexId) {
+      setSheetDetail(null);
+      return;
+    }
+    httpApi.getAptComplex(selectedComplexId)
+      .then((d) => setSheetDetail(d))
+      .catch(() => setSheetDetail(null));
+  }, [isWide, selectedComplexId]);
 
   if (needsCollect) {
     return (
@@ -170,20 +198,33 @@ export default function RealEstate() {
 
       {screen?.headline && <Headline text={screen.headline.text} detail={screen.headline.detail} />}
 
-      <div className={[s.body, mapFailed && s.bodyFull, showMap && s.bodyMap].filter(Boolean).join(' ')}>
+      <div className={[s.body, mapFailed && s.bodyFull, showMap && s.bodyMap, isWide && sheetDetail && s.body3Col].filter(Boolean).join(' ')}>
         <div className={s.left}>
           <ScreenerFilters />
           <ComplexList />
         </div>
         {!mapFailed && (
           <div className={s.right}>
-            {/* complexes 가 아직이어도 지도는 뜬다 — 마커만 늦게 붙는다 */}
             <ComplexMap />
+          </div>
+        )}
+        {/* 1440px 이상: 시트 컬럼 */}
+        {isWide && sheetDetail && (
+          <div className={s.sheet}>
+            <button className={s.sheetClose} onClick={() => selectComplex(null)}>
+              ✕ 닫기
+            </button>
+            <ComplexDetailBody
+              detail={sheetDetail}
+              selectedArea={selectedArea}
+              onSelectArea={setSelectedArea}
+            />
           </div>
         )}
       </div>
 
-      <ComplexDetail />
+      {/* 1440px 미만: 모달 */}
+      {!isWide && <ComplexDetail />}
     </div>
   );
 }

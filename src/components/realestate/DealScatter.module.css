@@ -1,0 +1,89 @@
+.container {
+  padding: 16px 0;
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-panel);
+}
+
+.point {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.point:hover {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.label {
+  font-size: 11px;
+  fill: var(--color-text-sub);
+  font-family: var(--font-mono);
+}
+
+.error {
+  padding: 24px;
+  text-align: center;
+  color: var(--color-warn);
+  background: var(--color-bg-panel);
+  border-radius: var(--radius-card);
+}
+
+.retryBtn {
+  margin-top: 12px;
+  padding: 8px 16px;
+  background: var(--color-warn);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.retryBtn:hover {
+  opacity: 0.8;
+}
+
+.legend {
+  display: flex;
+  gap: 24px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--color-text-sub);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.lowFloor {
+  background: var(--color-up);
+}
+
+.midHighFloor {
+  background: var(--color-down);
+}
+
+.legendLine {
+  display: inline-block;
+  width: 12px;
+  height: 2px;
+  background: var(--color-text-sub);
+  opacity: 0.6;
+  border-radius: 1px;
+}

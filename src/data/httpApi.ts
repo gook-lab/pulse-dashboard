@@ -1,7 +1,7 @@
 // 실백엔드 소비 어댑터 (strangler): 백엔드가 준비된 엔드포인트만 HTTP로,
 // 나머지는 목에 위임. 엔드포인트가 늘면 여기서 하나씩 목→HTTP로 옮긴다.
 import type { MarketApi, FearGreed, CryptoFG, MacroItem, IndexQuote, SeoulRent, WatchItem, NewsItem, AiOpinion, Portfolio,
-  ScreenQuery, ScreenResult, ComplexesResult, AptComplexDetail, NeedsCollect, RankingItem, PortfolioHistoryResult } from './types';
+  ScreenQuery, ScreenResult, ComplexesResult, AptComplexDetail, ComplexDealsResult, NeedsCollect, RankingItem, PortfolioHistoryResult } from './types';
 import { mockApi } from './mockApi';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -178,6 +178,11 @@ export const httpApi: MarketApi = {
       const d = await mockApi.getAptComplex(aptSeq);
       return d ? { ...d, source: 'mock' } : null;
     }
+  },
+
+  getComplexDeals: async (aptSeq: string): Promise<ComplexDealsResult> => {
+    try { return await getJson<ComplexDealsResult>(`/api/realestate/complex/deals?id=${encodeURIComponent(aptSeq)}`); }
+    catch { return mockApi.getComplexDeals(aptSeq); }
   },
 
   // 국내 순위: KIS 급등/급락(by=up|down) + 거래량/대금(by=volume|amount). 30초 캐시(서버).

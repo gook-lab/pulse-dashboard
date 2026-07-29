@@ -318,6 +318,11 @@ export interface PortfolioHistoryResult {
   entries: PortfolioHistoryEntry[];
 }
 
+export interface ComplexDealsResult {
+  deals: AptDeal[];
+  stale?: boolean;  // 배치 재수집 필요 시 true
+}
+
 /** M0 백엔드가 구현할 계약. 목/실백엔드 공통. */
 export interface MarketApi {
   getIndices(): Promise<IndexQuote[]>;
@@ -338,6 +343,8 @@ export interface MarketApi {
   /** 시그널 순위만. 리스트는 상위 50개, 지도는 전체를 쓴다. */
   screenApartments(q: ScreenQuery): Promise<ScreenResult | NeedsCollect>;
   getAptComplex(aptSeq: string): Promise<AptComplexDetail | null>;
+  /** 단지별 거래 내역. 날짜 내림차순. */
+  getComplexDeals(aptSeq: string): Promise<ComplexDealsResult>;
   /** 국내주식 실시간 순위. kind: 'up'|'down'|'volume'|'amount', 10개 상한. */
   getRanking(kind: 'up' | 'down' | 'volume' | 'amount'): Promise<RankingItem[]>;
   /** 포트폴리오 수익률 이력. days: 조회 일수(22/66/250/전체). */

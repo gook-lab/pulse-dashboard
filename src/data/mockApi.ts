@@ -431,6 +431,7 @@ export const mockApi: MarketApi = {
   }),
   screenApartments: (q) => delay(mockScreen(q)),
   getAptComplex: (aptSeq) => delay(MOCK_COMPLEXES.find((c) => c.aptSeq === aptSeq) ?? null),
+  getComplexDeals: () => delay({ deals: [] }), // 목은 빈 deals
   getRanking: (): Promise<RankingItem[]> => delay([], 120), // unavailable — 목 생성 금지
   getPortfolioHistory: (): Promise<{ entries: any[] }> => delay({ entries: [] }), // 목 생성 금지
 };

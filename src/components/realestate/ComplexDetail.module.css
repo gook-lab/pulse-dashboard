@@ -225,3 +225,69 @@
 .tr:hover {
   background: var(--panel-2);
 }
+
+/* 시트용 래퍼 */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* 섹션 레이블 (공통) */
+.sectionLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* DealScatter 섹션 */
+.dealScatterSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* KB시세 섹션 */
+.kbSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kbDisabled {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text-sub) 5%, transparent);
+}
+
+.kbDisabled .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+.kbDisabled .row:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+.dash {
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+.note {
+  font-size: 11px;
+  color: var(--text-mut);
+}
+
+/* 대출 섹션 */
+.loanSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
