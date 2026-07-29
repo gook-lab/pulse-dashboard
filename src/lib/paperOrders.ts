@@ -99,6 +99,7 @@ export function chipQty(
   pct: number,
   side: 'buy' | 'sell',
   price: number,
+  code: string,
   portfolio: Portfolio,
   orders: PaperOrder[]
 ): number {
@@ -109,8 +110,8 @@ export function chipQty(
     const amount = (cash * pct) / 100;
     return Math.floor(amount / price);
   } else {
-    // 유효 보유의 pct% 기준
-    const effectiveQty = holdings.get(portfolio.holdings[0]?.code ?? '') ?? 0;
+    // 유효 보유(해당 종목)의 pct% 기준
+    const effectiveQty = holdings.get(code) ?? 0;
     return Math.floor(effectiveQty * (pct / 100));
   }
 }

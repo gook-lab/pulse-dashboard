@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useStore } from '@/store/useStore';
 import { evaluate } from './alertEngine';
+import type { PriceAlert } from '@/data/types';
 import toast from './toast';
 
 /**
@@ -9,30 +10,46 @@ import toast from './toast';
  * document.hidden이면 폴링을 중단한다.
  */
 export function useAlertEngine() {
-  const alerts = useStore((s) => s.alerts);
-
   useEffect(() => {
-    if (alerts.length === 0) return; // 알림이 없으면 폴링 불필요
-
     let intervalId: number | undefined;
+    let polling = false;
+    let failureCount = 0;
+    let failureToastShown = false;
 
     async function poll() {
+      // in-flight 가드: 이미 폴링 중이면 스킵
+      if (polling) return;
+
       // document.hidden이면 스킵 (탭이 비활성)
       if (document.hidden) return;
 
+      polling = true;
       try {
-        const krCodes = alerts.filter((a) => a.market === 'KR').map((a) => a.code);
-        const usSymbols = alerts.filter((a) => a.market === 'US').map((a) => a.code);
-
-        const [krQuotes, usQuotes] = await Promise.all([
-          krCodes.length ? fetch(`/api/kr/quotes?codes=${krCodes.join(',')}`).then((r) => r.json()) : Promise.resolve({}),
-          usSymbols.length ? fetch(`/api/us/quotes?symbols=${usSymbols.join(',')}`).then((r) => r.json()) : Promise.resolve({}),
-        ]) as [Record<string, { price: number; changePct: number } | null>, Record<string, { price: number; changePct: number } | null>];
-
-        // 현재 상태의 알림 다시 조회 (그 사이 removeAlert 될 수 있음)
+        // 폴링 시작 시점의 최신 알림 목록 조회
         const currentAlerts = useStore.getState().alerts;
 
-        for (const alert of currentAlerts) {
+        // 알림이 없으면 조기 return (인터벌은 유지)
+        if (currentAlerts.length === 0) return;
+
+        const krCodes = currentAlerts.filter((a) => a.market === 'KR').map((a) => a.code);
+        const usSymbols = currentAlerts.filter((a) => a.market === 'US').map((a) => a.code);
+
+        // AbortSignal.timeout(15_000) 적용
+        const abortSignal = AbortSignal.timeout(15_000);
+
+        const [krQuotes, usQuotes] = await Promise.all([
+          krCodes.length ? fetch(`/api/kr/quotes?codes=${krCodes.join(',')}`, { signal: abortSignal }).then((r) => r.json()) : Promise.resolve({}),
+          usSymbols.length ? fetch(`/api/us/quotes?symbols=${usSymbols.join(',')}`, { signal: abortSignal }).then((r) => r.json()) : Promise.resolve({}),
+        ]) as [Record<string, { price: number; changePct: number } | null>, Record<string, { price: number; changePct: number } | null>];
+
+        // 성공 시 실패 카운터 리셋
+        failureCount = 0;
+        failureToastShown = false;
+
+        // 현재 상태의 알림 다시 조회 (그 사이 removeAlert 될 수 있음)
+        const alertsNow = useStore.getState().alerts;
+
+        for (const alert of alertsNow) {
           const quote = alert.market === 'KR' ? krQuotes?.[alert.code] : usQuotes?.[alert.code];
           if (!quote) continue; // 시세 없으면 스킵
 
@@ -58,8 +75,20 @@ export function useAlertEngine() {
           }
         }
       } catch (err) {
-        // 폴링 실패는 조용히 무시 (스로틀 등 일시적 실패 가능)
+        // 연속 실패 카운터 증가
+        failureCount++;
+
+        // 3회 도달 시 딱 1번 toast 표시 (이후 성공 전까지 반복 금지)
+        if (failureCount >= 3 && !failureToastShown) {
+          failureToastShown = true;
+          toast.warning({
+            message: '가격 알림 시세 조회가 계속 실패하고 있습니다.',
+          });
+        }
+
         console.debug('[useAlertEngine] poll error:', err);
+      } finally {
+        polling = false;
       }
     }
 
@@ -84,10 +113,10 @@ export function useAlertEngine() {
       if (intervalId !== undefined) clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [alerts]);
+  }, []);
 }
 
-function getConditionDesc(alert: { kind: string; value: number; baseline?: number }, quote: { price: number; changePct: number }): string {
+function getConditionDesc(alert: PriceAlert, quote: { price: number; changePct: number }): string {
   switch (alert.kind) {
     case 'target-above':
       return `목표가 이상 도달 (${quote.price.toLocaleString()})`;

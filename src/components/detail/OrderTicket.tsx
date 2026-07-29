@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { signColor, fmt } from '../../lib/colors';
 import { snapToTick, tickSize } from '../../lib/krxTick';
-import { validateBuy, validateSell, fee, marketOrderPrice, effectiveBalance, type Orderbook } from '../../lib/paperOrders';
+import { validateBuy, validateSell, fee, marketOrderPrice, effectiveBalance, chipQty, type Orderbook } from '../../lib/paperOrders';
 import { Button, Segmented, Badge, Modal, EmptyState, ErrorState } from '@/components/common';
 import toast from '@/lib/toast';
 import type { Market, PaperOrder, Portfolio } from '@/data/types';
@@ -70,17 +70,8 @@ export default function OrderTicket({
   const isValid = validation.ok;
   const errorMsg = !validation.ok ? validation.error : '';
 
-  // 칩 수량 계산
-  const chip = (pct: number) => {
-    if (side === 'buy') {
-      // 유효 예수금의 pct% 기준
-      const amount = (cash * pct) / 100;
-      return Math.floor(amount / orderPrice);
-    } else {
-      // 유효 보유의 pct% 기준 (현재 종목)
-      return Math.floor(effectiveQty * (pct / 100));
-    }
-  };
+  // 칩 수량 계산 (도메인 로직 재사용)
+  const chip = (pct: number) => chipQty(pct, side, orderPrice, code, portfolio, paperOrders);
 
   // 한계가 스냅
   useEffect(() => {

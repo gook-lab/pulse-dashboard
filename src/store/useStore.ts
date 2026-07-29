@@ -38,6 +38,8 @@ const readJson = <T,>(key: string, fallback: T): T => {
 const writeJson = (key: string, v: unknown) => {
   try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* 시크릿 모드 등 — 영속만 포기 */ }
 };
+const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+let notifWarnShown = false; // pushNotification 저장 실패 경고 1회만 (30초 폴링 스팸 방지)
 
 /** 매매 API 미승인 상태에서 기본 매매를 주면 빈 화면이 뜬다 → 기본 전세. */
 const DEFAULT_QUERY: ScreenQuery = { signal: 'momentum6', dealType: 'rent', minDeals: 3, sortDir: 'desc' };
@@ -252,7 +254,7 @@ export const useStore = create<State>((set) => ({
         toast.warning({ message: '알림은 최대 50개까지만 저장할 수 있습니다.' });
         return {};
       }
-      const id = `alert-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const id = makeId('alert');
       const newAlert: PriceAlert = { ...alert, id, createdAt: Date.now() };
       const alerts = [...s.alerts, newAlert];
       try {
@@ -280,7 +282,7 @@ export const useStore = create<State>((set) => ({
 
   pushNotification: (n) => {
     set((s) => {
-      const notifications = [...s.notifications, { ...n, id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, at: Date.now() }];
+      const notifications = [...s.notifications, { ...n, id: makeId('notif'), at: Date.now() }];
       // 상한 50 — 초과 시 오래된 것 제거
       if (notifications.length > 50) {
         notifications.shift();
@@ -288,7 +290,11 @@ export const useStore = create<State>((set) => ({
       try {
         localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
       } catch {
-        // 영속 실패는 무시 — 사용자가 스크롤한 상태일 수 있음
+        // 영속 실패 — 새로고침 시 기록 소실 가능. 세션당 1회만 경고(폴링 스팸 방지).
+        if (!notifWarnShown) {
+          notifWarnShown = true;
+          toast.error({ message: '알림 기록 저장 실패. 저장소 상태를 확인하세요.' });
+        }
       }
       return { notifications };
     });
@@ -354,6 +360,14 @@ export const useStore = create<State>((set) => ({
         writeJson(`${APT_SNAP_KEY}.prev`, snap.prev);
       }
       set({ aptScreen: r, aptScreenLoading: false, aptNeedsCollect: false, aptSnapshot: snap });
+
+      // 오래 열린 탭 자가치유: 마스터와 순위가 서로 다른 배치 세대를 보면
+      // (예: 탭을 연 뒤에 지오코딩·수집이 돌았을 때) 좌표·이름이 어긋난다 — 마스터를 다시 받는다.
+      const master = useStore.getState().aptComplexes;
+      if (master && master.generatedAt !== r.generatedAt) {
+        set({ aptComplexes: null });
+        void useStore.getState().loadRealestate();
+      }
     } catch (e) {
       if (token !== screenToken) return;
       set({ aptError: String((e as Error)?.message || e), aptScreenLoading: false });

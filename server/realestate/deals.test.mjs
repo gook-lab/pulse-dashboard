@@ -82,6 +82,29 @@ describe('deals — 단지별 거래 이력', () => {
       const files = require('node:fs').readdirSync(tmpDir);
       expect(files).toContain('11680.json');
     });
+
+    it('sggCd 또는 aptSeq 없는 행은 skip하고 유효 행만 저장', async () => {
+      const rows = [
+        { aptSeq: '11680-1', sggCd: '11680', ym: '202604', day: 1, kind: 'rent', area: 84, floor: 5, price: 5000, monthlyRent: 0 },  // 유효
+        { aptSeq: null, sggCd: '11680', ym: '202604', day: 2, kind: 'rent', area: 60, floor: 3, price: 4000, monthlyRent: 0 },      // aptSeq 없음 (skip)
+        { aptSeq: '11140-1', sggCd: null, ym: '202604', day: 3, kind: 'rent', area: 72, floor: 2, price: 3500, monthlyRent: 0 },     // sggCd 없음 (skip)
+        { aptSeq: '11140-1', sggCd: '11140', ym: '202603', day: 15, kind: 'trade', area: 114, floor: 8, price: 80000, monthlyRent: null },  // 유효
+      ];
+
+      await writeDealShards(rows, tmpDir);
+
+      // 11680 파일: 유효 행 1개만
+      const sgg11680 = JSON.parse(readFileSync(join(tmpDir, '11680.json'), 'utf8'));
+      expect(sgg11680).toHaveProperty('11680-1');
+      expect(sgg11680['11680-1']).toHaveLength(1);
+      expect(sgg11680['11680-1'][0].day).toBe(1);
+
+      // 11140 파일: 유효 행 1개만
+      const sgg11140 = JSON.parse(readFileSync(join(tmpDir, '11140.json'), 'utf8'));
+      expect(sgg11140).toHaveProperty('11140-1');
+      expect(sgg11140['11140-1']).toHaveLength(1);
+      expect(sgg11140['11140-1'][0].day).toBe(15);
+    });
   });
 
   describe('readComplexDeals — 단지 거래 조회', () => {

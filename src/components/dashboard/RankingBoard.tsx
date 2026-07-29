@@ -22,8 +22,7 @@ const MARKETS: { value: KrMarket; label: string; disabled?: boolean }[] = [
   { value: 'kosdaq', label: '코스닥', disabled: true },
 ];
 
-const fmtVol = (v: number) => (v >= 1e8 ? `${(v / 1e8).toFixed(1)}억` : v >= 1e4 ? `${Math.round(v / 1e4)}만` : String(v));
-const fmtAmt = (v: number) => (v >= 1e12 ? `${(v / 1e12).toFixed(1)}조` : v >= 1e8 ? `${Math.round(v / 1e8)}억` : `${Math.round(v / 1e4)}만`);
+import { fmtVol, fmtAmt } from '../../lib/format';
 
 interface RankingState {
   items: RankingItem[] | null; // null=loading, []=error
@@ -154,9 +153,9 @@ interface RankingRowProps {
 function RankingRow({ item, colorMode, kind, onClick }: RankingRowProps) {
   const { rank, code, name, price, changePct, volume, amount } = item;
 
-  // 순위 1-3 강조
-  const rankBg = rank <= 3 ? `rgba(${rank === 1 ? '255,165,0' : rank === 2 ? '192,192,192' : '205,127,50'}, 0.1)` : 'transparent';
-  const rankColor = rank <= 3 ? `${rank === 1 ? '#FFA500' : rank === 2 ? '#C0C0C0' : '#CD7F32'}` : 'var(--text-sub)';
+  // 순위 1-3 강조 (브랜드 톤 통일)
+  const rankBg = rank <= 3 ? 'rgba(124, 108, 255, 0.12)' : 'transparent';
+  const rankColor = rank <= 3 ? 'var(--brand)' : 'var(--text-sub)';
 
   // 거래량/대금 표시
   const metric = kind === 'volume' ? (volume ? fmtVol(volume) : '-') : kind === 'amount' ? (amount ? fmtAmt(amount) : '-') : '-';

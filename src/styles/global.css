@@ -13,6 +13,7 @@
   --text-mut: #5e6879;
   --brand: #7c6cff;
   --warn: #F0B90B; /* 배치 신선도·관심 표시 등 경고/강조. src/lib/colors.ts WARN 과 동일값 */
+  --bad: #ea3943; /* 경고 배지·오류 강조. 알림 카운트 등. */
   --radius: 14px;
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --sans: 'Pretendard Variable', Pretendard, system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif;

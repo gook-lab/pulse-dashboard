@@ -116,4 +116,14 @@ describe('alertEngine - evaluate', () => {
       expect(evaluate(alert, { price: 75000, changePct: 0 })).toBe(true);
     });
   });
+
+  describe('switch default (알 수 없는 kind)', () => {
+    it('invalid kind로 evaluate하면 false 반환', () => {
+      const alert: PriceAlert = {
+        id: '1', code: '005930', name: 'Samsung', market: 'KR',
+        kind: 'invalid' as any, value: 100, createdAt: Date.now(),
+      };
+      expect(evaluate(alert, { price: 100, changePct: 0 })).toBe(false);
+    });
+  });
 });

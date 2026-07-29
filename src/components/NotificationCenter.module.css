@@ -58,7 +58,7 @@
 }
 
 .markAllReadBtn:hover {
-  color: #8b7cff;
+  color: var(--brand);
 }
 
 .markAllReadBtn:active {

@@ -182,7 +182,7 @@ export const httpApi: MarketApi = {
 
   getComplexDeals: async (aptSeq: string): Promise<ComplexDealsResult> => {
     try { return await getJson<ComplexDealsResult>(`/api/realestate/complex/deals?id=${encodeURIComponent(aptSeq)}`); }
-    catch { return mockApi.getComplexDeals(aptSeq); }
+    catch { return { deals: [], stale: true }; }
   },
 
   // 국내 순위: KIS 급등/급락(by=up|down) + 거래량/대금(by=volume|amount). 30초 캐시(서버).

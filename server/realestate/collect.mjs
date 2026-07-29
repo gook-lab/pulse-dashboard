@@ -48,7 +48,7 @@ export function normalizeRow(kind, r, ymd) {
     sggCd: str(r.sggCd),
     umdNm: str(r.umdNm),
     jibun: str(r.jibun),
-    roadnm: str(r.roadnm),                 // 지오코딩 입력
+    roadnm: str(r.roadnm ?? r.roadNm),     // 지오코딩 입력. 전월세는 roadnm, 매매(상세)는 roadNm — 실측으로 확인
     buildYear: Number(r.buildYear) || null,
     ym: ymd,
     day: Number(r.dealDay) || null,

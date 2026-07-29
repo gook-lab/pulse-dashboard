@@ -194,50 +194,50 @@ describe('종이 주문 로직', () => {
     it('매수 10%: 유효 예수금 / 10 / 현재가 = floor', () => {
       // 예수금: 5,000,000, 현재가: 70,000
       // 10% = 500,000 / 70,000 = 7.14... → 7
-      const result = chipQty(10, 'buy', 70000, mockPortfolio, []);
+      const result = chipQty(10, 'buy', 70000, '005930', mockPortfolio, []);
       expect(result).toBe(7);
     });
 
     it('매수 25%', () => {
       // 25% = 1,250,000 / 70,000 = 17.85... → 17
-      const result = chipQty(25, 'buy', 70000, mockPortfolio, []);
+      const result = chipQty(25, 'buy', 70000, '005930', mockPortfolio, []);
       expect(result).toBe(17);
     });
 
     it('매수 50%', () => {
       // 50% = 2,500,000 / 70,000 = 35.71... → 35
-      const result = chipQty(50, 'buy', 70000, mockPortfolio, []);
+      const result = chipQty(50, 'buy', 70000, '005930', mockPortfolio, []);
       expect(result).toBe(35);
     });
 
     it('매수 100%: 전량', () => {
       // 100% = 5,000,000 / 70,000 = 71.42... → 71
-      const result = chipQty(100, 'buy', 70000, mockPortfolio, []);
+      const result = chipQty(100, 'buy', 70000, '005930', mockPortfolio, []);
       expect(result).toBe(71);
     });
 
     it('매도 10%: 유효 보유 * 0.1 = floor', () => {
       // KIS: 10, 페이퍼: 0 → 유효: 10
       // 10% = 10 * 0.1 = 1
-      const result = chipQty(10, 'sell', 72000, mockPortfolio, []);
+      const result = chipQty(10, 'sell', 72000, '005930', mockPortfolio, []);
       expect(result).toBe(1);
     });
 
     it('매도 25%', () => {
       // 25% = 10 * 0.25 = 2.5 → 2
-      const result = chipQty(25, 'sell', 72000, mockPortfolio, []);
+      const result = chipQty(25, 'sell', 72000, '005930', mockPortfolio, []);
       expect(result).toBe(2);
     });
 
     it('매도 50%', () => {
       // 50% = 10 * 0.5 = 5
-      const result = chipQty(50, 'sell', 72000, mockPortfolio, []);
+      const result = chipQty(50, 'sell', 72000, '005930', mockPortfolio, []);
       expect(result).toBe(5);
     });
 
     it('매도 100%: 전량', () => {
       // 100% = 10 * 1.0 = 10
-      const result = chipQty(100, 'sell', 72000, mockPortfolio, []);
+      const result = chipQty(100, 'sell', 72000, '005930', mockPortfolio, []);
       expect(result).toBe(10);
     });
 
@@ -247,7 +247,7 @@ describe('종이 주문 로직', () => {
       ];
       // KIS: 10 + 페이퍼: 5 = 15
       // 50% = 15 * 0.5 = 7.5 → 7
-      const result = chipQty(50, 'sell', 72000, mockPortfolio, orders);
+      const result = chipQty(50, 'sell', 72000, '005930', mockPortfolio, orders);
       expect(result).toBe(7);
     });
   });
