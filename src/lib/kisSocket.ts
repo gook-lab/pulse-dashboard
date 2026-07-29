@@ -111,22 +111,24 @@ export function useKrChart(code: string | null, period: 'D' | 'W' | 'M') {
   return { candles, loading };
 }
 
-/** KR 일/주/월봉을 한 번에(1일~5년 탭용). code=null이면 비활성. */
+/** KR 일/주/월봉을 한 번에(1일~5년 탭용). code=null이면 비활성.
+ *  reload: 조회 실패 시 화면의 재시도 버튼이 다시 받아오게 한다(KIS 스로틀은 일시적). */
 export function useKrChartAll(code: string | null) {
   const [data, setData] = useState<{ daily: Candle[]; weekly: Candle[]; monthly: Candle[] }>({ daily: [], weekly: [], monthly: [] });
   const [loading, setLoading] = useState(false);
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     if (!code) { setData({ daily: [], weekly: [], monthly: [] }); return; }
     let alive = true;
     setLoading(true);
     fetch(`/api/kr/chart-all?code=${code}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (alive) setData({ daily: d?.daily ?? [], weekly: d?.weekly ?? [], monthly: d?.monthly ?? [] }); })
       .catch(() => { if (alive) setData({ daily: [], weekly: [], monthly: [] }); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [code]);
-  return { ...data, loading };
+  }, [code, tick]);
+  return { ...data, loading, reload: () => setTick((t) => t + 1) };
 }
 
 /** KR 당일 분봉(1일 탭). 실거래량이 담긴 유일한 소스 — 합성 분할은 막대가 전부 같아진다.

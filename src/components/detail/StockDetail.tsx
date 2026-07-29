@@ -3,7 +3,7 @@ import { Bell } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { signColor, fmt, type ColorMode } from '../../lib/colors';
 import type { Candle, Level, TradeTick } from '../../data/types';
-import { Loading, EmptyState, Badge, MarketChip, PriceChart, ReasonList, Segmented, SkeletonRows } from '@/components/common';
+import { Loading, EmptyState, ErrorState, Badge, MarketChip, PriceChart, ReasonList, Segmented, SkeletonRows } from '@/components/common';
 import { useKisRealtime, useKrChartAll, useKrIntraday } from '@/lib/kisSocket';
 import { densify, synthIntraday, fromIntraday, fmtM, type Densified } from '@/lib/chartSeries';
 import OrderTicket from './OrderTicket';
@@ -128,6 +128,10 @@ export default function StockDetail() {
       };
     }
 
+    // KR 인데 일봉이 없다 = 조회 실패(KIS 스로틀 등). 목 스케일 라인을 그리면
+    // 삼성전자에 ₩85,636 같은 값이 찍히고 X축은 인덱스가 된다 — 실패를 실패로 표시한다.
+    if (isKR) return { unavailable: true as const };
+
     // US: mock 스케일(끝점=현재가 — 단 갭 3% 이내일 때만, 절벽 방지)
     const scale = (arr: number[]) => {
       if (!arr?.length) return [] as number[];
@@ -216,7 +220,18 @@ export default function StockDetail() {
           </section>
         ) : (
           <>
-            {pc && (
+            {pc && 'unavailable' in pc ? (
+              <section className="card">
+                <div className="card-h"><span className="t">차트</span><span className="tag">일봉 없음</span></div>
+                {chartAll.loading
+                  ? <Loading label="일봉 불러오는 중…" />
+                  : <ErrorState
+                      title="일봉을 불러오지 못했습니다"
+                      desc="KIS 조회가 일시적으로 막힐 수 있습니다. 잠시 후 다시 시도하세요."
+                      onRetry={chartAll.reload}
+                    />}
+              </section>
+            ) : pc && (
               <PriceChart
                 key={detail.code}
                 name={detail.name} code={detail.code} cur={detail.cur} dec={detail.dec} mode={mode}
