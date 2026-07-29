@@ -19,6 +19,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { calcMinMax, CompareSeries } from './PriceChart.helpers';
 
 export type Period = '1일' | '1주' | '1개월' | '3개월' | '1년' | '5년';
 export const PERIODS: Period[] = ['1일', '1주', '1개월', '3개월', '1년', '5년'];
@@ -38,6 +39,8 @@ interface Props {
   candles?: Partial<Record<Period, Candle[]>>;
   /** 기간별 X축 라벨(선택). 없으면 인덱스 표시 */
   labels?: Partial<Record<Period, string[]>>;
+  /** 기간별 비교 시리즈(선택). 메인 시리즈와 같은 X축을 공유하고 min/max에 포함됨 */
+  compareSeries?: Partial<Record<Period, CompareSeries[]>>;
   mode?: 'korea' | 'global';
   defaultPeriod?: Period;
   height?: number;
@@ -55,7 +58,7 @@ const MAX_ZOOM = 14;
 
 export default function PriceChart({
   name, code, cur = '₩', dec = 0,
-  series, volumes, candles, labels,
+  series, volumes, candles, labels, compareSeries,
   mode = 'korea', defaultPeriod = '1개월', height = 250,
   dayChange, dayChangePct, provisionalFrom, liveBadge = '실시간',
 }: Props) {
@@ -127,10 +130,11 @@ export default function PriceChart({
   const atEnd = s0 + cnt >= N;
 
   const pad = { l: 6, r: 6, t: 16, b: 12 };
-  // null을 제외하고 min/max 계산
-  const validData = data.filter((v) => v != null) as number[];
-  const mn = validData.length ? Math.min(...validData) : 0;
-  const mx = validData.length ? Math.max(...validData) : 1;
+  // null을 제외하고 min/max 계산 (compareSeries 포함)
+  const cmpSeries = compareSeries?.[period] ?? [];
+  const minMaxResult = calcMinMax(data, cmpSeries);
+  const mn = minMaxResult.min;
+  const mx = minMaxResult.max;
   const span = mx - mn || 1;
   const X = (i: number) => pad.l + ((w - pad.l - pad.r) * i) / Math.max(1, n - 1);
   const Y = (v: number | null) => {
@@ -225,6 +229,22 @@ export default function PriceChart({
   const area = areaLine.length > 0
     ? `${areaLine} L ${X(lastConfirmed).toFixed(1)} ${height} L ${X(0).toFixed(1)} ${height} Z`
     : '';
+
+  // compareSeries 경로 생성 (메인 시리즈와 동일한 스케일 사용)
+  const comparePathOf = (cmpData: (number | null)[], from: number = 0, to: number = n): string => {
+    const parts: string[] = [];
+    for (let i = Math.max(0, from); i < Math.min(to, n); i++) {
+      const v = cmpData[i];
+      if (v == null) continue;
+      const resume = parts.length === 0 || i === from || cmpData[i - 1] == null;
+      parts.push(`${resume ? 'M' : 'L'} ${X(i).toFixed(1)} ${Y(v).toFixed(1)}`);
+    }
+    return parts.join(' ');
+  };
+  const comparePaths = cmpSeries.map((cs) => ({
+    ...cs,
+    path: comparePathOf(cs.data),
+  }));
 
   const gid = `pcg-${code}-${mode}`;
 
@@ -325,6 +345,9 @@ export default function PriceChart({
               {line && <path d={line} fill="none" stroke={color} strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" />}
               {provisionalLine && <path d={provisionalLine} fill="none" stroke="#5E6879" strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4 4" />}
               {atEnd && data[n - 1] != null && <circle cx={X(n - 1)} cy={Y(data[n - 1])} r={3.6} fill={color} />}
+              {comparePaths.map((cp, i) => (
+                cp.path && <path key={`compare-${i}`} d={cp.path} fill="none" stroke={cp.color} strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" />
+              ))}
             </>
           ) : (
             cds.map((c, i) => {
@@ -375,8 +398,8 @@ export default function PriceChart({
 
         {idx != null && (
           <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.12 }}
-            className="pointer-events-none absolute z-10 w-[124px] rounded-[10px] border border-[#2a3346] bg-[rgba(19,24,36,.97)] px-2.5 py-2 shadow-2xl"
-            style={{ left: tipX, top: -4 }}>
+            className="pointer-events-none absolute z-10 rounded-[10px] border border-[#2a3346] bg-[rgba(19,24,36,.97)] px-2.5 py-2 shadow-2xl"
+            style={{ left: tipX, top: -4, minWidth: '124px' }}>
             <div className="mb-0.5 text-[10.5px] text-sub">{label(s0 + idx)}</div>
             {data[idx] == null ? (
               <div className="font-mono text-[13.5px] font-bold text-mut">거래 없음</div>
@@ -388,6 +411,17 @@ export default function PriceChart({
                 </div>
               </>
             )}
+            {comparePaths.map((cp, i) => {
+              const v = cp.data[idx];
+              return (
+                <div key={`compare-tooltip-${i}`} className="mt-1.5 pt-1.5 border-t border-[#3a4454] text-[10px]">
+                  <div className="text-sub" style={{ color: cp.color }}>{cp.name}</div>
+                  <div className="font-mono text-[11px] font-bold text-fg">
+                    {v == null ? '—' : money(v)}
+                  </div>
+                </div>
+              );
+            })}
           </motion.div>
         )}
       </div>
