@@ -15,6 +15,11 @@ export const colors = (mode: ColorMode): UpDown => PALETTE[mode];
 export const signColor = (pct: number, mode: ColorMode): string =>
   pct >= 0 ? PALETTE[mode].up : PALETTE[mode].down;
 
+/** 브랜드 색에 투명도를 더한 RGBA. 순위 강조 배경 등에 쓴다. */
+export function brandWithAlpha(alpha: number): string {
+  return `rgba(124, 108, 255, ${alpha})`;
+}
+
 /** 히트맵 블록 배경색: -3%~+3%를 빨강↔중립↔초록으로 보간 (국제식 기준, korea면 반전). */
 export function heatColor(pct: number, mode: ColorMode): string {
   const c = Math.max(-3, Math.min(3, pct)) / 3; // -1..1
@@ -124,6 +129,17 @@ export function scaleColor(value: number | null | undefined, d: ColorDomain, mod
   }
   const t = (d.mid - value) / (d.mid - d.min || 1);
   return lerpHex(NEUTRAL, down, t);
+}
+
+/**
+ * 배경색 위에서 실제로 읽히는 텍스트 색.
+ * 시그널 색은 중립 회색부터 밝은 초록·노랑까지 폭이 넓어서 흰 글씨 고정으로는
+ * 상승 극단값(밝은 배경)에서 대비가 무너진다(측정 1.6:1). 휘도로 흑/백을 고른다.
+ */
+export function readableTextOn(bg: string): string {
+  const [r, g, b] = hex2rgb(bg);
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return lum > 150 ? 'rgba(10,13,20,.92)' : 'rgba(255,255,255,.96)';
 }
 
 /** 범례에 찍을 눈금 5개. 실제 숫자를 보여줘야 "이 파란색 = 전세가율 0.5" 가 읽힌다. */

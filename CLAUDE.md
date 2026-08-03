@@ -36,13 +36,47 @@ import toast from '@/lib/toast';
 - 등락색은 **절대 하드코딩 금지**. `src/lib/colors.ts`의 `signColor(pct, mode)` / `colors(mode)` 사용.
 - `colorMode`(global 초록↑/빨강↓ · korea 빨강↑/파랑↓)는 zustand 전역. 색은 컴포넌트가 정하지 않고 주입.
 - 토큰은 `src/styles/global.css`의 CSS 변수 단일 소스 → Tailwind는 `bg-panel` `text-sub` `border-line` `text-brand` `rounded-card` `font-mono` 등으로 매핑(`tailwind.config.ts`).
+- 화면별 팔레트도 전부 토큰이다. hex·rgba 리터럴을 컴포넌트에 쓰지 말 것:
+  `--map-*`(배치도 지면·라벨) · `--bld-*`(건물 압출, near/far × 톤3 + base/rim) · `--poi-*`(인프라 아이콘) · `--chart-*`(차트 눈금·축·미니맵·툴팁).
+  ⚠️ **등락색만은 토큰이 아니라 `colors(mode)`** — colorMode 토글로 바뀌어야 하므로 CSS 변수로 굳히면 안 된다.
 
 ## 데이터 연동 패턴
 - 새 실데이터: `server/index.mjs`에 라우트 추가(캐시 필수) → `httpApi`에서 소비. **실패 시 목 폴백 금지 — `unavailable`/"-"** (아래 RADIO 규약 #2).
 - 외부 API 교훈: **CNN·data.go.kr는 User-Agent 없으면 차단**, **data.go.kr 50콜 동시 시 throttle**(동시성 5+재시도), **KIS 토큰 1분 1회**(in-flight 중복 제거·캐시).
-- KIS는 검증 전까지 **모의(mock)** 계좌만 사용.
+- **모든 KIS HTTP 호출은 `kisFetch` 게이트를 통과한다** — 모의계좌 초당 상한이 낮아 라우트가 각자 던지면 서로를 밀어낸다(실측: 서로 다른 종목 연속 조회에서 6/10 실패). 전역 직렬 큐 + **적응형 간격**(5xx/429면 ×1.6, 성공하면 −15ms, 200~1600ms)으로 0/12까지 떨어뜨렸다. 고정 간격은 TR마다 상한이 달라 늘 틀린다. ⚠️ **게이트에서 자동 재시도하지 말 것** — 주문(`kisPost`)까지 재시도되면 중복 주문이다. 재시도는 호출자 책임.
+- **종목 기본정보는 `/api/kr/info`(KIS `inquire-price`)** — 시총(`hts_avls` 억원)·PER·PBR·EPS·BPS·거래량·52주를 다 준다. 목 `DETAIL_META`는 실제와 3배 이상 벌어진다(삼성전자 시총 468조 vs 1,552조 · PER 12.8 vs 40.5). **배당수익률은 이 TR에 없다** → 항상 "-". 미국은 무료 펀더멘털 소스가 없어 리서치 밸류에이션도 `fundamentalsReal:false` → "-".
+- KIS는 검증 전까지 **모의(mock)** 계좌만 사용. ⚠️ **장 시작 전에는 지수 등락이 안 온다** — `inquire-index-price`가 레벨(`bstp_nmix_prpr`)만 주고 `prdy_vrss`·`prdy_ctrt`·`oprc`·`acml_vol`을 전부 `0`으로 비워 보낸다(장중에는 정상). 그 0을 그대로 쓰면 "0.00% 보합"으로 찍혀 실제 보합과 구별되지 않으므로, 세 값이 모두 0이면 `changeUnavailable`로 표시해 등락만 "-" 처리한다.
+- **주문은 모의계좌에 실제로 들어간다**(`/api/kr/order` → `order-cash`, 모의 TR `VTTC0802U` 매수 / `VTTC0801U` 매도). 잔고·주문가능금액이 단일 진실 소스이므로 **로컬에서 예수금을 따로 계산하지 말 것**(과거 `effectiveBalance` 오버레이가 주문 티켓과 포트폴리오를 갈라놓았다). 모의계좌 API 가용성: 주문·잔고(`inquire-balance`)·주문가능금액(`inquire-psbl-order` `VTTC8908R`)은 **되고**, 당일 체결내역(`inquire-daily-ccld`)은 **빈 배열**, 미체결(`inquire-psbl-rvsecncl`)은 **"모의투자에서는 해당업무가 제공되지 않습니다"**. 그래서 주문 이력만 로컬에 남기고 KIS 주문번호(ODNO)를 함께 저장한다.
+- **장 시작 전엔 잔고의 일간 등락도 0으로 온다** — `inquire-balance`의 `fltt_rt`·`bfdy_cprs_icdc`가 둘 다 0(실측 08:41). 그대로 합치면 "일간손익 ₩0 / 0%"가 실제 보합처럼 찍히므로 `dayPnlUnavailable`로 "-" 처리한다. 평가손익(`evlu_pfls_rt`)은 장 전에도 정상이다.
+- **예수금은 `prvs_rcdl_excc_amt`(가수도정산금액)** — `dnca_tot_amt`는 D+2 결제 전이라 매수해도 안 줄어들어 "주문했는데 그대로"로 보인다. 매도 검증은 `ord_psbl_qty`(매도가능수량)로 — `hldg_qty`로 하면 미체결 매도가 걸린 주식을 또 팔 수 있다.
+- **1일 등락은 전일 종가 대비로 고정** — `PriceChart`의 기본 기준가는 "보이는 구간의 첫 점"이라 확대하면 기준이 따라 움직이고 한 점까지 좁히면 `base==현재가`가 되어 **+0.00%**가 된다. `baseValue={{ '1일': prevClose }}`로 못박고, `prevClose`는 실일봉에서 뽑는다(마지막 봉이 오늘이면 그 앞, 장 시작 전이면 마지막). 목 `detail.changePct`·`unavailable`인 관심종목 행의 `changePct`는 기준으로 쓰지 말 것 — 실제 +21%가 −2.20%로 찍힌다.
+- **분봉은 잘린 응답을 길게 캐시하지 말 것** — `kisMinutes`는 13페이지를 거슬러 올라가는데 한 페이지가 스로틀로 죽으면 다음 시각을 못 구해 순회가 끝난다(실측: 005930이 30행·유효 1행). `rows[0].date`가 09시대까지 내려갔는지로 완주를 판정해 잘렸으면 5초만 캐시(완주 60초). 프론트도 유효 캔들이 10개 미만이면 합성 라인으로 넘긴다.
+- **`PriceChart`는 주식·부동산 공용** — 도메인 문구를 컴포넌트에 하드코딩하면 새어나온다(주식 차트에 "거래가 한 달에만 있어…"가 떴다). 한 점 안내는 `singlePointNote`로 호출자가 준다.
+- **주문 단가에 목 가격을 쓰지 말 것** — `getStockDetail`이 아직 목이라 `detail.price`가 실가와 3배까지 벌어진다(005930: 목 78,400 vs 실 251,000). `referencePrice(orderbook, lastTradePrice)`로 실호가에서만 만들고, 실가가 없으면 0을 돌려 주문을 막는다.
+- **FRED는 `limit`으로 자르지 말 것** — `sort_order=asc`는 1947년부터 세므로 최근 분기가 잘려 나간다. 범위는 `observation_start`로 좁힌다.
+- **ECOS 환율은 정의가 두 가지** — `KeyStatisticList`의 "원/달러 환율(종가)"과 `731Y001/0000001` "원/미국달러(매매기준율)"은 같은 날에도 10원대로 벌어진다. 화면 여러 곳에 환율을 쓸 땐 **한 소스로 통일**(현재 전부 매매기준율). 섞으면 같은 화면에 두 값이 찍혀 버그로 읽힌다.
+- **항목별 폴백 묶음은 부분 실패를 긴 TTL로 캐시하지 말 것** — `cached(key, ttlMs, ...)`의 `ttlMs`에 `(data) => ms` 함수를 넘겨 일부가 `null`이면 짧게 잡는다(`/api/macro` 참고). 안 그러면 순간 실패가 한 시간짜리 "-"로 굳는다.
 - **TOP100은 Daum 금융 API**(`/api/kr/top100`, 무료·실시장 — KIS 랭킹류는 30건 하드캡). ⚠️ Daum `changeRate`는 부호 없음 — `change: FALL|RISE`가 방향. **목표주가는 기술적 산출**(`/api/kr/targets`, 볼린저 상단+60일 고가 클램프) — US는 무료 소스 없어 `targetReal:false` → "-".
+- 버핏지수(`/api/buffett`, 계산은 `server/buffett.mjs`): 코스피 = ECOS 시총(`802Y001/0183000` 일별·억원) ÷ GDP(`200Y105/1400` 분기·십억원, **최근 4분기 합**) · 미국 = FRED `NCBEILQ027S`(백만$) ÷ `GDP`(십억$·연율, **같은 분기끼리**). ⚠️ **나스닥 단독 버핏지수는 만들지 않는다** — 외국기업 포함·NYSE 제외로 분자·분모 모집단이 어긋나고 나스닥 시총 무료 소스도 없다. 미국은 표준 정의(전체 시장)로 계산하고 라벨도 "미국". 절대 임계값(<75% 저평가 …) 대신 **같은 시계열 10년 분포 위치**(백분위·중앙값)를 함께 보여준다.
+- **OSM/Overpass**(`server/realestate/osm.mjs`, 배치도 재료): 공용 무료 서버라 우리가 먼저 자제한다 — 분당 30콜 예산·미러 2개·재시도, 결과는 `server/cache/osm/`에 파일 캐시(`CACHE_VERSION` 올리면 전체 재수집).
+  질의는 **`out body geom(bbox)`** 여야 한다: `out geom tags`는 relation 멤버를 빼고(한강이 통째로 사라진다), bbox 가 없으면 way 를 안 잘라 준다(실측 한 way 8,188m).
 - 부동산(realestate): `server/realestate/`에서 배치 수집 → `apt-signals.json` 캐싱. 단지 키는 **`aptSeq`**(이름 매칭 금지 — 동명 단지 존재). 시그널은 **3개월 이동 중앙값** + 이상치 제외(`[0.4, 2.5]×단지중앙값`), 기준월 = 3개월 전(신고지연 보정). 지오코딩은 `KAKAO_REST_KEY` 필요. 상세는 `server/realestate/PROBE.md`.
+
+## 단지투어 3D 배치도
+
+`ComplexSiteMap.tsx` + 뷰 정책 `siteMapView.ts` + 좌표 `src/lib/iso.ts`. OSM 건물 외곽선을 SVG로 압출한다(three.js 없음).
+
+**조작 계약** — 드래그 회전 · `Shift`+드래그 이동 · 우클릭/`Alt`/`Ctrl`·`Cmd`+드래그 확대 · 휠 확대(클릭해 포커스 후 또는 `Ctrl`+휠) · 방향키 이동 · `[` `]` 방위 · `,` `.` 고도 · `0` 제자리. 확대는 **커서 기준**(팬 역산). 터치는 세로 스크롤을 지키려 `touch-action: pan-y` — 핀치 확대는 없고 HUD `±` 버튼으로 대신한다.
+
+**좌표계**(`iso.ts`) — 방위 yaw 0~360° 연속, 고도 pitch 8~85°(기본 30°). 지면 깊이는 `sinφ`, 높이는 `cosφ`로 눌린다. 회전은 좌표를 돌리는 것이라 렌더러가 필요 없다.
+- **깊이 정렬 축은 yaw와 함께 돌아야 한다** — 월드 `x+y`로 정렬하면 180°에서 순서가 뒤집혀 뒷건물이 앞을 덮는다.
+- **OSM 링 방향은 보장되지 않는다**(실측 CCW 451 / CW 209) — 벽 법선을 링 방향으로만 구하면 32%가 명암 반전. `ringIsCCW`로 먼저 잰다.
+
+**LOD** — 축소하면 덜 그린다(`levelOfDetail`). 그림자 0.75× · 보행로 0.7× · 층 구분선 1.1×(주변 건물 1.8×) · 외곽선 1.5× · 층수 라벨 0.9× · 인프라 아이콘 0.45×. 최소 건물 면적은 0/150/400m².
+
+**주변 스트리밍** — `/api/realestate/area`(일반 fetch, SSE 아님). 200m 격자 칸 단위로 화면을 채우고, 칸 캐시는 원점과 무관하게 구워 `shiftCell`로 옮기므로 **단지끼리 공유**된다. 동시 3개·칸당 18초 상한·줌에 따라 예산 확대. 단지를 바꾸면 진행 중 요청을 끊고 응답의 `seq`를 대조한다(늦게 온 응답이 새 좌표계에 섞이면 건물이 엉뚱한 곳에 선다).
+
+**주변 인프라** — 역·학교·병원·마트·공원만(편의점·버스정류장은 아이콘이 지도를 덮는다). 지하철역은 대부분 터널이라 **`isHidden`(지오메트리 규칙)을 표시에 적용하면 역세권이 통째로 사라진다**. 도로명은 `residential`까지 포함해야 한다 — 간선도로만 걸면 주택가에서 0개다.
 
 ## RADIO 규약 (FE 아키텍처 — `docs/ARCHITECTURE-FE.md`가 단일 소스)
 새 기능·수정은 R→A→D→I→O 순서로 판단한다. **불변식 5개는 절대 규칙**:

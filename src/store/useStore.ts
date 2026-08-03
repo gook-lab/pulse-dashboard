@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type {
   IndexQuote, HeatmapNode, FearGreed, CryptoFG, MacroItem, WatchItem, NewsItem, AiOpinion, StockDetail,
   Portfolio, Report, SeoulRent, Market, ScreenQuery, ScreenResult, ComplexesResult, PaperOrder, RankingItem,
-  PriceAlert, AppNotification,
+  PriceAlert, AppNotification, BuffettData, OrderRequest, OrderResult, Orderable, StockInfo,
 } from '../data/types';
 
 export interface DetailHint { code: string; name: string; market?: Market; cur?: string; dec?: number; changePct?: number }
@@ -27,6 +27,7 @@ const NOTIFICATIONS_KEY = 'pulse.notifications';
 /** 워치리스트 + "지난 갱신 대비" 스냅샷 localStorage 영속. */
 const APT_WATCH_KEY = 'pulse.apt-watchlist';
 const APT_SNAP_KEY = 'pulse.apt-watch-snapshot';
+const APT_VIEWPORT_KEY = 'pulse.apt-viewport-sync';
 
 /** generatedAt 세대별 시그널 값 스냅샷. 배치가 갱신되면 prev ← cur 로 민다.
  *  signal/dealType 을 함께 기록 — 다른 시그널의 값끼리 Δ 를 내면 안 된다. */
@@ -41,8 +42,10 @@ const writeJson = (key: string, v: unknown) => {
 const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 let notifWarnShown = false; // pushNotification 저장 실패 경고 1회만 (30초 폴링 스팸 방지)
 
-/** 매매 API 미승인 상태에서 기본 매매를 주면 빈 화면이 뜬다 → 기본 전세. */
-const DEFAULT_QUERY: ScreenQuery = { signal: 'momentum6', dealType: 'rent', minDeals: 3, sortDir: 'desc' };
+/** 기본 매매 — 설계 원안(와이어프레임). 매매 미수집 환경은 리스트 EmptyState 가 --with-trade 를 안내한다.
+ *  minDeals 5: 실측에서 3→10 시 TOP10 절반이 교체됨(설계 게이트 "절반 이상이면 3건은 노이즈 구간 → 5나 10으로").
+ *  3→5는 3건만 교체되는 완만한 상향이고, 3건은 Segmented 로 여전히 선택 가능. */
+const DEFAULT_QUERY: ScreenQuery = { signal: 'momentum6', dealType: 'trade', minDeals: 5, sortDir: 'desc' };
 
 let screenToken = 0; // 연타 시 stale 응답 무시용
 
@@ -90,6 +93,10 @@ interface State {
   selectionSource: 'list' | 'map';
   /** 지도 동 박스·헤드라인 지역 클릭 → 리스트를 좁히는 클라이언트 필터. 전역 순위는 유지한다. */
   areaFilter: { gu: string; umdNm?: string } | null;
+  /** 지도 뷰포트 — 리스트를 화면 안 단지로 좁히는 데 쓴다(지도앱 감각). 순위·전체 카운트는 전역 유지. */
+  viewportBounds: { swLat: number; swLng: number; neLat: number; neLng: number } | null;
+  /** 뷰포트 연동 on/off. 끄면 설계 원안대로 리스트가 항상 서울 전역이다. */
+  viewportSync: boolean;
   aptWatchlist: string[];
   /** 지난 갱신 대비 (디자인 D7). cur=이번 배치, prev=직전 배치의 관심단지 시그널 값. */
   aptSnapshot: { cur: AptSnapshot | null; prev: AptSnapshot | null };
@@ -107,6 +114,14 @@ interface State {
   reloadPortfolio: () => Promise<void>;
   refreshNews: () => Promise<void>;
   refreshRanking: (kind: 'up' | 'down' | 'volume' | 'amount', market?: 'all' | 'kospi' | 'kosdaq') => Promise<RankingItem[]>;
+  /** 버핏지수. 6시간 캐시라 일괄 로딩에 넣지 않고 카드가 직접 당겨간다. */
+  refreshBuffett: () => Promise<BuffettData>;
+  /** KIS 모의계좌에 주문 전송. 성공 시 잔고를 자동 재조회한다. */
+  submitOrder: (req: OrderRequest) => Promise<OrderResult>;
+  /** 주문가능금액(KIS 기준). null이면 조회 실패 → 주문 불가. */
+  fetchOrderable: (code: string, ordType: 'limit' | 'market', price?: number) => Promise<Orderable | null>;
+  /** 종목 기본정보(KIS). 실패 시 null → 화면은 "-". */
+  getStockInfo: (code: string) => Promise<StockInfo | null>;
   selectStock: (code: string, hint?: Omit<DetailHint, 'code'>) => void;
   loadDetail: (code: string) => Promise<void>;
   // ── 페이퍼 주문 ──
@@ -124,11 +139,13 @@ interface State {
   setHoveredComplex: (id: string | null, source?: 'list' | 'map') => void;
   selectComplex: (id: string | null, source?: 'list' | 'map') => void;
   setAreaFilter: (f: { gu: string; umdNm?: string } | null) => void;
+  setViewportBounds: (b: { swLat: number; swLng: number; neLat: number; neLng: number } | null) => void;
+  setViewportSync: (v: boolean) => void;
   toggleAptWatch: (aptSeq: string) => void;
   setAptMapFailed: (v: boolean, reason?: string) => void;
 }
 
-export const useStore = create<State>((set) => ({
+export const useStore = create<State>((set, get) => ({
   tab: 'dashboard',
   colorMode: 'global',
   loaded: false,
@@ -164,6 +181,8 @@ export const useStore = create<State>((set) => ({
   selectedComplexId: null,
   selectionSource: 'list',
   areaFilter: null,
+  viewportBounds: null,
+  viewportSync: readJson<boolean>(APT_VIEWPORT_KEY, true),
   aptWatchlist: readJson<string[]>(APT_WATCH_KEY, []),
   aptSnapshot: {
     cur: readJson<AptSnapshot | null>(APT_SNAP_KEY, null),
@@ -212,6 +231,20 @@ export const useStore = create<State>((set) => ({
   refreshRanking: async (kind, market) => {
     return api.getRanking(kind, market);
   },
+  refreshBuffett: async () => api.getBuffett(),
+  // 주문은 KIS 모의계좌가 단일 진실 소스 — 성공하면 잔고를 다시 읽어 화면을 계좌에 맞춘다.
+  submitOrder: async (req) => {
+    const r = await api.placeOrder(req);
+    if (r.ok) {
+      // 체결이 잔고에 반영될 틈을 준다. 바로 때리면 KIS 초당 제한에 걸리고(주문+조회 연타)
+      // 반영 전 잔고를 읽어 "주문했는데 그대로"로 보인다.
+      await new Promise((res) => setTimeout(res, 700));
+      await get().reloadPortfolio();
+    }
+    return r;
+  },
+  fetchOrderable: async (code, ordType, price) => api.getOrderable(code, ordType, price),
+  getStockInfo: async (code) => api.getStockInfo(code),
   selectStock: (code, hint) => {
     set({ selectedCode: code, tab: 'detail', detailHint: hint ? { code, ...hint } : null });
     void useStore.getState().loadDetail(code);
@@ -378,6 +411,8 @@ export const useStore = create<State>((set) => ({
   },
   selectComplex: (id, source = 'list') => set({ selectedComplexId: id, selectionSource: source }),
   setAreaFilter: (f) => set({ areaFilter: f }),
+  setViewportBounds: (b) => set({ viewportBounds: b }),
+  setViewportSync: (v) => { writeJson(APT_VIEWPORT_KEY, v); set({ viewportSync: v }); },
   toggleAptWatch: (aptSeq) => {
     set((s) => {
       const has = s.aptWatchlist.includes(aptSeq);

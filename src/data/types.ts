@@ -13,6 +13,8 @@ export interface IndexQuote {
   dec: number;         // 표시 소수 자리수
   spark: number[];     // 인트라데이 스파크라인 포인트
   unavailable?: boolean; // 실데이터 실패 → 값 "-"
+  /** 지수 레벨은 있으나 전일 대비를 소스가 주지 않음(KIS 모의) → 등락만 "-". */
+  changeUnavailable?: boolean;
 }
 
 export type HeatmapMarket = 'SP500' | 'NASDAQ' | 'KOSPI';
@@ -89,6 +91,11 @@ export interface Holding {
   price: number;      // 현재가(해당 통화)
   cur: string;
   dec: number;
+  /**
+   * 매도가능수량(KIS `ord_psbl_qty`). 미체결 매도가 걸려 있으면 보유수량보다 작다.
+   * 매도 검증은 이 값을 쓴다 — qty로 검증하면 이미 팔기로 걸어둔 주식을 또 팔 수 있다.
+   */
+  sellableQty?: number;
 }
 
 export interface Portfolio {
@@ -97,7 +104,12 @@ export interface Portfolio {
   unavailable?: boolean;             // 실데이터 연결 실패 → 값 "-"로 표시
   cash?: number;                      // 예수금(현금, KRW). 실계좌만 제공.
   // 요약은 모두 원화(KRW) 환산 기준. totalValue=총자산(현금+유가), securities=유가평가액.
-  summary: { totalValue: number; securities?: number; pnl: number; pnlPct: number; dayPnl: number; dayPnlPct: number; principal: number };
+  summary: {
+    totalValue: number; securities?: number; pnl: number; pnlPct: number;
+    dayPnl: number; dayPnlPct: number; principal: number;
+    /** 소스가 일간 등락을 안 줌(KIS 장 시작 전) → 화면은 "-". 0%(보합)와 구별해야 한다. */
+    dayPnlUnavailable?: boolean;
+  };
   holdings: Holding[];
 }
 
@@ -121,6 +133,13 @@ export interface Report {
   unavailable?: boolean;
   /** true = 목표주가가 실데이터 기반(기술적 산출). false/미정 = 소스 없음 → 표시는 '-'. */
   targetReal?: boolean;
+  /**
+   * true = PER·PBR·시총이 KIS 실데이터. false/미정 = 목값이므로 화면에서 '-'.
+   * 미국은 무료 펀더멘털 소스가 없어 항상 false다.
+   */
+  fundamentalsReal?: boolean;
+  /** 실 시가총액(억원, 국내만). fundamentalsReal 일 때만 유효. */
+  marketCapEok?: number | null;
 }
 
 export interface AiOpinion {
@@ -156,6 +175,27 @@ export interface StockDetail {
   trades: TradeTick[];
   ai: { score: number; target: number; upsidePct: number; bull: string[]; bear: string[] };
   info: { marketCap: string; per: number; pbr: number; eps: number; div: string; volume: string };
+}
+
+/**
+ * 종목 기본정보(KIS `inquire-price`). 목 `DETAIL_META`를 대체한다 —
+ * 목값은 실제와 3배 넘게 벌어진다(삼성전자 시총 468조 vs 실제 1,546조).
+ * 값이 없으면 null: 화면은 "-"로 표시하고 목으로 메우지 않는다.
+ */
+export interface StockInfo {
+  code: string;
+  /** 시가총액(억원) */
+  marketCapEok: number | null;
+  per: number | null;
+  pbr: number | null;
+  eps: number | null;
+  bps: number | null;
+  /** 누적 거래량(주) */
+  volume: number | null;
+  w52High: number | null;
+  w52Low: number | null;
+  /** KIS 미제공 — 항상 null */
+  div: null;
 }
 
 export interface SeoulDistrict {
@@ -222,6 +262,12 @@ export interface AptComplexDetail extends AptComplex {
   areaTier: AreaTier | null;
   /** [평당가중앙값, 건수] × 개월. 과거→현재. 거래 없는 달은 [null, 0] */
   series: { t: [number | null, number][]; r: [number | null, number][] };
+  /**
+   * 3개월 이동 중앙값 × 개월 — 차트 추세선. 시그널이 쓰는 값과 같은 정의(창 안의 모든 거래).
+   * 상세 요청 시점에 거래 샤드에서 계산한다(배치 payload 에 상주하면 메모리가 커진다).
+   * 샤드가 없으면 null — 추세선만 빠지고 화면은 정상 동작한다.
+   */
+  smoothed?: { t: (number | null)[]; r: (number | null)[] } | null;
   signals: {
     trade: KindSignals;
     rent: KindSignals;
@@ -235,6 +281,14 @@ export interface AptComplexDetail extends AptComplex {
   tiers: Partial<Record<AreaTier, { t: [number | null, number]; r: [number | null, number] }>>;
   /** 최근 거래 10건, 최신순. */
   recent: AptDeal[];
+  /**
+   * 층 프로필 — 단지투어의 '층' 축. 저·중·고 구간은 그 단지 최고층 대비 비율로 나눈다.
+   * 실거래의 aptDong 은 사실상 비어 있어(강남 60건 중 59건 공백) 동 단위는 만들 수 없다.
+   */
+  floors?: {
+    t: FloorProfile | null;
+    r: FloorProfile | null;
+  };
   /** 'mock' 이면 상세 모달에 목 배지 강제 — 폴백 상세를 진짜로 오해하면 안 된다. */
   source?: 'live' | 'mock';
 }
@@ -257,6 +311,10 @@ export interface ScreenRank {
   rank: number;
   /** 기준월(신고지연 보정) 평당가 중앙값, 만원. 해당 유형 거래가 전혀 없으면 null. */
   price?: number | null;
+  /** 대표 거래 총액(만원) — 지도 라벨 "매 15.5억". 대표 평형 = 최다 거래 면적. */
+  amount?: number | null;
+  /** 대표 거래 전용면적(㎡) — 지도 라벨 "59㎡". */
+  area?: number | null;
 }
 
 export interface ScreenResult {
@@ -299,6 +357,38 @@ export interface PaperOrder {
   qty: number;
   fee: number;
   at: number; // timestamp
+  /**
+   * KIS 주문번호(ODNO). 실제로 모의계좌에 접수된 주문이라는 증거.
+   * 모의계좌는 당일 주문·체결 조회를 제공하지 않아(`inquire-daily-ccld` 빈 응답,
+   * `inquire-psbl-rvsecncl` 미제공) 이력만 로컬에 남긴다 — 금액 계산에는 쓰지 않는다.
+   */
+  orderNo?: string;
+}
+
+/* ── KIS 주문 ──────────────────────────────────────────────────────────────── */
+
+export interface OrderRequest {
+  code: string;
+  side: 'buy' | 'sell';
+  qty: number;
+  /** 지정가일 때 필수. */
+  price?: number;
+  ordType: 'limit' | 'market';
+}
+
+export interface OrderResult {
+  ok: boolean;
+  orderNo: string | null;
+  orderTime: string | null;
+  /** KIS 원문 메시지. 거부 사유(장 시간 외·잔고 부족 등)를 그대로 보여준다. */
+  message: string;
+}
+
+/** KIS 주문가능금액 — 미체결분이 이미 차감된 값. 로컬에서 다시 빼면 이중 차감이다. */
+export interface Orderable {
+  cash: number;
+  maxQty: number;
+  maxAmount: number;
 }
 
 export interface RankingItem {
@@ -325,9 +415,27 @@ export interface PortfolioHistoryResult {
   entries: PortfolioHistoryEntry[];
 }
 
+/** 층 구간 하나 — 평당가 중앙값과 표본 수. */
+export interface FloorBand { ppy: number; count: number }
+
+export interface FloorProfile {
+  /** 실거래에서 관측된 최고층 — 단지의 실제 층수 근사 */
+  max: number;
+  /** false = 최고 5층 이하라 저·중·고 구분이 무의미 */
+  banded: boolean;
+  low: FloorBand | null;
+  mid: FloorBand | null;
+  high: FloorBand | null;
+}
+
 export interface ComplexDealsResult {
   deals: AptDeal[];
-  stale?: boolean;  // 배치 재수집 필요 시 true
+  /**
+   * true = 구버전 캐시(샤드 부재)나 배치 미실행 → 재수집 필요.
+   * 조회 실패와는 구분된다 — 실패는 reject 로 올라온다(빈 배열로 뭉개면
+   * "거래 없는 단지"와 "조회 실패"를 화면이 같은 것으로 보여준다).
+   */
+  stale?: boolean;
 }
 
 /** M0 백엔드가 구현할 계약. 목/실백엔드 공통. */
@@ -337,6 +445,14 @@ export interface MarketApi {
   getFearGreed(): Promise<FearGreed>;
   getCryptoFearGreed(): Promise<CryptoFG>;
   getMacro(): Promise<MacroItem[]>;
+  /** 버핏지수(시가총액÷GDP). 소스 실패 시 해당 시장은 null. */
+  getBuffett(): Promise<BuffettData>;
+  /** KIS 모의계좌에 실제 주문을 넣는다. 거부 시 ok:false + KIS 메시지. */
+  placeOrder(req: OrderRequest): Promise<OrderResult>;
+  /** 주문가능금액(KIS 기준). 조회 실패 시 null → 화면은 주문 불가로 처리. */
+  getOrderable(code: string, ordType: 'limit' | 'market', price?: number): Promise<Orderable | null>;
+  /** 종목 기본정보(시총·PER·PBR 등). 국내만. 실패 시 null → 화면은 "-". */
+  getStockInfo(code: string): Promise<StockInfo | null>;
   getWatchlist(): Promise<WatchItem[]>;
   getNews(): Promise<NewsItem[]>;
   getAiOpinion(): Promise<AiOpinion>;
@@ -356,6 +472,41 @@ export interface MarketApi {
   getRanking(kind: 'up' | 'down' | 'volume' | 'amount', market?: 'all' | 'kospi' | 'kosdaq'): Promise<RankingItem[]>;
   /** 포트폴리오 수익률 이력. days: 조회 일수(22/66/250/전체). */
   getPortfolioHistory(days: number): Promise<PortfolioHistoryResult>;
+}
+
+/* ── 버핏지수 ──────────────────────────────────────────────────────────────── */
+
+/**
+ * 버핏지수 = 주식시장 시가총액 ÷ 명목 GDP.
+ * 절대 임계값 대신 같은 시계열의 최근 10년 분포(min·median·max·백분위)와 함께 읽는다.
+ */
+export interface BuffettMarket {
+  /** '코스피' | '미국' — 나스닥 단독 버핏지수는 성립하지 않는다(server/buffett.mjs 주석 참고). */
+  label: string;
+  /** 산식 설명 한 줄. */
+  note: string;
+  currency: 'KRW' | 'USD';
+  /** 퍼센트. 예: 165.6 */
+  ratio: number;
+  /** 시가총액 — 조원 또는 조달러. */
+  cap: number;
+  /** 명목 GDP — 조원 또는 조달러. */
+  gdp: number;
+  /** 시총 기준일. KR은 'YYYYMMDD', US는 'YYYY-MM-DD'. */
+  asOf: string;
+  /** GDP 기준 분기. */
+  gdpAsOf: string;
+  min: number | null;
+  max: number | null;
+  median: number | null;
+  /** 10년 분포에서의 위치(0~100). */
+  percentile: number | null;
+  history: { t: string; ratio: number }[];
+}
+
+export interface BuffettData {
+  kr: BuffettMarket | null;
+  us: BuffettMarket | null;
 }
 
 /* ── 가격 알림 (S4/C1) ─────────────────────────────────────────────────────── */

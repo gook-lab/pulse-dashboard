@@ -1,178 +1,70 @@
 import { describe, it, expect } from 'vitest';
 import {
-  effectiveBalance, validateBuy, validateSell, fee, chipQty, marketOrderPrice, appendOrder,
+  validateBuy, validateSell, fee, chipQty, marketOrderPrice, referencePrice, appendOrder,
   type PaperOrder,
 } from './paperOrders';
-import type { Portfolio } from '@/data/types';
 
 describe('종이 주문 로직', () => {
-  const mockPortfolio: Portfolio = {
-    fxUsdKrw: 1300,
-    source: 'kis-mock',
-    cash: 5000000, // 500만원
-    summary: { totalValue: 10000000, securities: 5000000, pnl: 0, pnlPct: 0, dayPnl: 0, dayPnlPct: 0, principal: 5000000 },
-    holdings: [
-      { code: '005930', name: '삼성전자', market: 'KR', qty: 10, avg: 70000, price: 72000, cur: '₩', dec: 0 },
-    ],
-  };
-
-  describe('effectiveBalance', () => {
-    it('주문이 없으면 portfolio 값을 그대로 반환', () => {
-      const result = effectiveBalance(mockPortfolio, []);
-      expect(result.cash).toBe(5000000);
-      expect(result.holdings.get('005930')).toBe(10);
-    });
-
-    it('매수 주문 1건: 예수금 감소 + 수수료 포함', () => {
-      const orders: PaperOrder[] = [
-        {
-          id: '1', code: '005930', name: '삼성전자', market: 'KR', side: 'buy', type: 'market',
-          price: 70000, qty: 10, fee: 105, at: Date.now(),
-        },
-      ];
-      const result = effectiveBalance(mockPortfolio, orders);
-      // 700,000 + 수수료 105 = 700,105 감소
-      expect(result.cash).toBe(5000000 - 700000 - 105);
-      expect(result.holdings.get('005930')).toBe(10 + 10);
-    });
-
-    it('매도 주문: 예수금 증가 + 수수료 차감', () => {
-      const orders: PaperOrder[] = [
-        {
-          id: '1', code: '005930', name: '삼성전자', market: 'KR', side: 'sell', type: 'market',
-          price: 72000, qty: 5, fee: 54, at: Date.now(),
-        },
-      ];
-      const result = effectiveBalance(mockPortfolio, orders);
-      // 360,000 - 수수료 54 = 359,946 증가
-      expect(result.cash).toBe(5000000 + 360000 - 54);
-      expect(result.holdings.get('005930')).toBe(10 - 5);
-    });
-
-    it('매수 2건 후 매도 1건: 합산이 정확함', () => {
-      const orders: PaperOrder[] = [
-        { id: '1', code: '005930', name: '삼성전자', market: 'KR', side: 'buy', type: 'market', price: 70000, qty: 5, fee: 53, at: Date.now() },
-        { id: '2', code: '005930', name: '삼성전자', market: 'KR', side: 'buy', type: 'market', price: 71000, qty: 3, fee: 32, at: Date.now() },
-        { id: '3', code: '005930', name: '삼성전자', market: 'KR', side: 'sell', type: 'market', price: 72000, qty: 2, fee: 29, at: Date.now() },
-      ];
-      const result = effectiveBalance(mockPortfolio, orders);
-      // 매수: (70000*5 + 53) + (71000*3 + 32) = 350,085
-      // 매도: (72000*2 - 29) = 143,971
-      // 예수금: 5,000,000 - 350,085 + 143,971 = 4,793,886
-      expect(result.cash).toBe(5000000 - 350000 - 53 - 213000 - 32 + 144000 - 29);
-      expect(result.holdings.get('005930')).toBe(10 + 5 + 3 - 2);
-    });
-
-    it('보유하지 않은 종목 매수: holdings에 새로 추가', () => {
-      const orders: PaperOrder[] = [
-        { id: '1', code: '000660', name: 'SK하이닉스', market: 'KR', side: 'buy', type: 'market', price: 100000, qty: 1, fee: 15, at: Date.now() },
-      ];
-      const result = effectiveBalance(mockPortfolio, orders);
-      expect(result.holdings.get('000660')).toBe(1);
-    });
-  });
-
   describe('validateSell', () => {
-    it('매도 가능: 보유 수량 > 매도 수량', () => {
-      const result = validateSell('005930', 5, mockPortfolio, []);
-      expect(result.ok).toBe(true);
+    it('보유 수량 이내면 통과', () => {
+      expect(validateSell(5, 10).ok).toBe(true);
+      expect(validateSell(10, 10).ok).toBe(true);
     });
 
-    it('매도 불가: 보유 수량 < 매도 수량', () => {
-      const result = validateSell('005930', 15, mockPortfolio, []);
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error).toContain('보유');
+    it('보유 수량을 넘으면 거부', () => {
+      const r = validateSell(15, 10);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error).toContain('보유');
     });
 
-    it('매도 불가: 보유하지 않은 종목', () => {
-      const result = validateSell('000660', 1, mockPortfolio, []);
-      expect(result.ok).toBe(false);
+    it('미보유(0주)는 거부', () => {
+      expect(validateSell(1, 0).ok).toBe(false);
     });
 
-    it('페이퍼 매수 중인 종목: 유효 보유 = KIS + 페이퍼', () => {
-      const orders: PaperOrder[] = [
-        { id: '1', code: '005930', name: '삼성전자', market: 'KR', side: 'buy', type: 'market', price: 70000, qty: 5, fee: 53, at: Date.now() },
-      ];
-      // KIS: 10, 페이퍼 매수: 5 → 유효: 15
-      const result = validateSell('005930', 15, mockPortfolio, orders);
-      expect(result.ok).toBe(true);
-
-      const result2 = validateSell('005930', 16, mockPortfolio, orders);
-      expect(result2.ok).toBe(false);
-    });
-
-    it('페이퍼 매도 중: 유효 보유 = KIS + 페이퍼 매수 - 페이퍼 매도', () => {
-      const orders: PaperOrder[] = [
-        { id: '1', code: '005930', name: '삼성전자', market: 'KR', side: 'buy', type: 'market', price: 70000, qty: 5, fee: 53, at: Date.now() },
-        { id: '2', code: '005930', name: '삼성전자', market: 'KR', side: 'sell', type: 'market', price: 72000, qty: 3, fee: 29, at: Date.now() },
-      ];
-      // KIS: 10, 매수: +5, 매도: -3 → 유효: 12
-      const result = validateSell('005930', 12, mockPortfolio, orders);
-      expect(result.ok).toBe(true);
-
-      const result2 = validateSell('005930', 13, mockPortfolio, orders);
-      expect(result2.ok).toBe(false);
-    });
-
-    it('portfolio.unavailable일 때 주문 불가', () => {
-      const unavailablePortfolio = { ...mockPortfolio, unavailable: true };
-      const result = validateSell('005930', 1, unavailablePortfolio, []);
-      expect(result.ok).toBe(false);
+    it('수량은 KIS 보유수량만 본다 — 로컬 주문으로 부풀리지 않는다', () => {
+      // 예전 구조는 로컬 페이퍼 매수분을 더해 15주까지 매도를 허용했다(계좌엔 10주뿐).
+      expect(validateSell(15, 10).ok).toBe(false);
     });
   });
 
   describe('validateBuy', () => {
-    it('매수 가능: 예수금 >= 필요액(가격*수량+수수료)', () => {
-      const result = validateBuy(10, 70000, mockPortfolio, []);
-      // 필요액: 700,000 + fee(700,000) = 700,105
-      expect(result.ok).toBe(true);
+    it('주문가능금액이 충분하면 통과', () => {
+      // 필요액: 700,000 + fee(700,000)=105 → 700,105
+      expect(validateBuy(10, 70000, 5_000_000).ok).toBe(true);
+      expect(validateBuy(10, 70000, 700_105).ok).toBe(true);
     });
 
-    it('매수 불가: 예수금 부족', () => {
-      const result = validateBuy(100, 70000, mockPortfolio, []);
-      // 필요액: 7,000,000 > 5,000,000
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error).toContain('부족');
+    it('1원이라도 모자라면 거부', () => {
+      const r = validateBuy(10, 70000, 700_104);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error).toContain('주문가능금액');
     });
 
-    it('portfolio.unavailable일 때 주문 불가', () => {
-      const unavailablePortfolio = { ...mockPortfolio, unavailable: true };
-      const result = validateBuy(10, 70000, unavailablePortfolio, []);
-      expect(result.ok).toBe(false);
+    it('수수료를 빼먹지 않는다', () => {
+      // 원금만 딱 맞으면 수수료 때문에 부족해야 한다
+      expect(validateBuy(10, 70000, 700_000).ok).toBe(false);
+    });
+  });
+
+  describe('chipQty', () => {
+    it('매수는 주문가능금액의 pct%를 단가로 나눈 수량', () => {
+      expect(chipQty(100, 'buy', 70000, 700_000, 0)).toBe(10);
+      expect(chipQty(50, 'buy', 70000, 700_000, 0)).toBe(5);
+      expect(chipQty(10, 'buy', 70000, 700_000, 0)).toBe(1);
     });
 
-    it('페이퍼 매수 중: 유효 예수금 감소', () => {
-      const orders: PaperOrder[] = [
-        { id: '1', code: '005930', name: '삼성전자', market: 'KR', side: 'buy', type: 'market', price: 70000, qty: 30, fee: 315, at: Date.now() },
-      ];
-      // 유효 예수금: 5,000,000 - 2,100,315 = 2,899,685
-      // 새 매수: 10 * 70000 + fee = 700,105 필요
-      const result = validateBuy(10, 70000, mockPortfolio, orders);
-      expect(result.ok).toBe(true);
-
-      // 40개를 더 사려면 2,800,420 필요인데 2,899,685 > 2,800,420이므로 가능... 계산 다시
-      // 유효 예수금: 5,000,000 - (70000*30 + 315) = 5,000,000 - 2,100,315 = 2,899,685
-      // 40 * 70000 + fee(2,800,000) = 2,800,000 + 42,000 = 2,842,000 < 2,899,685 가능
-      const result2 = validateBuy(40, 70000, mockPortfolio, orders);
-      expect(result2.ok).toBe(true);
-
-      // 41개: 2,870,000 + 42,000 = 2,912,000 > 2,899,685 불가능
-      // 아 계산이 복잡하다. 정확히 계산하자.
-      // 41 * 70000 = 2,870,000, fee(2,870,000) = 430.5 ≈ 431
-      // 2,870,431 > 2,899,685... 아니다 2,870,431 < 2,899,685이므로 가능
-      // 50개: 3,500,000 + 525 = 3,500,525 > 2,899,685이므로 불가능
-      const result3 = validateBuy(50, 70000, mockPortfolio, orders);
-      expect(result3.ok).toBe(false);
+    it('매수 수량은 내림 — 예수금을 넘기지 않는다', () => {
+      expect(chipQty(100, 'buy', 70000, 699_999, 0)).toBe(9);
     });
 
-    it('페이퍼 매도로 인해 실질적으로 유효 예수금 증가', () => {
-      const orders: PaperOrder[] = [
-        { id: '1', code: '005930', name: '삼성전자', market: 'KR', side: 'sell', type: 'market', price: 72000, qty: 5, fee: 54, at: Date.now() },
-      ];
-      // 유효 예수금: 5,000,000 + (72000*5 - 54) = 5,000,000 + 359,946 = 5,359,946
-      const result = validateBuy(70, 70000, mockPortfolio, orders);
-      // 70 * 70000 + fee = 4,900,000 + 735 = 4,900,735 < 5,359,946
-      expect(result.ok).toBe(true);
+    it('매도는 보유수량의 pct%', () => {
+      expect(chipQty(100, 'sell', 0, 0, 10)).toBe(10);
+      expect(chipQty(50, 'sell', 0, 0, 10)).toBe(5);
+      expect(chipQty(25, 'sell', 0, 0, 10)).toBe(2); // 2.5 → 내림
+    });
+
+    it('단가 0에 나누지 않는다', () => {
+      expect(chipQty(100, 'buy', 0, 1_000_000, 0)).toBe(0);
     });
   });
 
@@ -190,65 +82,26 @@ describe('종이 주문 로직', () => {
     });
   });
 
-  describe('chipQty', () => {
-    it('매수 10%: 유효 예수금 / 10 / 현재가 = floor', () => {
-      // 예수금: 5,000,000, 현재가: 70,000
-      // 10% = 500,000 / 70,000 = 7.14... → 7
-      const result = chipQty(10, 'buy', 70000, '005930', mockPortfolio, []);
-      expect(result).toBe(7);
+  describe('referencePrice', () => {
+    it('양쪽 호가가 있으면 중간값', () => {
+      expect(referencePrice({ asks: [{ price: 253000, qty: 5 }], bids: [{ price: 252500, qty: 5 }] }, 0))
+        .toBe(252750);
     });
 
-    it('매수 25%', () => {
-      // 25% = 1,250,000 / 70,000 = 17.85... → 17
-      const result = chipQty(25, 'buy', 70000, '005930', mockPortfolio, []);
-      expect(result).toBe(17);
+    it('한쪽만 있으면 그 호가', () => {
+      expect(referencePrice({ asks: [{ price: 253000, qty: 5 }], bids: [] }, 0)).toBe(253000);
+      expect(referencePrice({ asks: [], bids: [{ price: 252500, qty: 5 }] }, 0)).toBe(252500);
     });
 
-    it('매수 50%', () => {
-      // 50% = 2,500,000 / 70,000 = 35.71... → 35
-      const result = chipQty(50, 'buy', 70000, '005930', mockPortfolio, []);
-      expect(result).toBe(35);
+    it('상한가처럼 가격 0인 호가는 무시하고 체결가로 내려간다', () => {
+      expect(referencePrice({ asks: [{ price: 0, qty: 0 }], bids: [{ price: 0, qty: 0 }] }, 251000))
+        .toBe(251000);
     });
 
-    it('매수 100%: 전량', () => {
-      // 100% = 5,000,000 / 70,000 = 71.42... → 71
-      const result = chipQty(100, 'buy', 70000, '005930', mockPortfolio, []);
-      expect(result).toBe(71);
-    });
-
-    it('매도 10%: 유효 보유 * 0.1 = floor', () => {
-      // KIS: 10, 페이퍼: 0 → 유효: 10
-      // 10% = 10 * 0.1 = 1
-      const result = chipQty(10, 'sell', 72000, '005930', mockPortfolio, []);
-      expect(result).toBe(1);
-    });
-
-    it('매도 25%', () => {
-      // 25% = 10 * 0.25 = 2.5 → 2
-      const result = chipQty(25, 'sell', 72000, '005930', mockPortfolio, []);
-      expect(result).toBe(2);
-    });
-
-    it('매도 50%', () => {
-      // 50% = 10 * 0.5 = 5
-      const result = chipQty(50, 'sell', 72000, '005930', mockPortfolio, []);
-      expect(result).toBe(5);
-    });
-
-    it('매도 100%: 전량', () => {
-      // 100% = 10 * 1.0 = 10
-      const result = chipQty(100, 'sell', 72000, '005930', mockPortfolio, []);
-      expect(result).toBe(10);
-    });
-
-    it('페이퍼 매수 후 매도 칩: 유효 보유 기준', () => {
-      const orders: PaperOrder[] = [
-        { id: '1', code: '005930', name: '삼성전자', market: 'KR', side: 'buy', type: 'market', price: 70000, qty: 5, fee: 53, at: Date.now() },
-      ];
-      // KIS: 10 + 페이퍼: 5 = 15
-      // 50% = 15 * 0.5 = 7.5 → 7
-      const result = chipQty(50, 'sell', 72000, '005930', mockPortfolio, orders);
-      expect(result).toBe(7);
+    it('호가·체결가가 전부 없으면 0 — 목 가격으로 폴백하지 않는다', () => {
+      // getStockDetail이 목이라 25만원 종목에 7.8만원이 채워지는 사고를 막는다.
+      expect(referencePrice(undefined, 0)).toBe(0);
+      expect(referencePrice({ asks: [], bids: [] }, 0)).toBe(0);
     });
   });
 

@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Bell } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { signColor, fmt, type ColorMode } from '../../lib/colors';
-import type { Candle, Level, TradeTick } from '../../data/types';
+import type { Candle, Level, TradeTick, StockInfo } from '../../data/types';
 import { Loading, EmptyState, ErrorState, Badge, MarketChip, PriceChart, ReasonList, Segmented, SkeletonRows } from '@/components/common';
 import { useKisRealtime, useKrChartAll, useKrIntraday } from '@/lib/kisSocket';
 import { densify, synthIntraday, fromIntraday, fmtM, type Densified } from '@/lib/chartSeries';
+import { fmtVol, fmtMarketCapEok } from '@/lib/format';
 import OrderTicket from './OrderTicket';
 import PriceAlertModal from './PriceAlertModal';
 import s from './StockDetail.module.css';
@@ -27,6 +28,16 @@ export default function StockDetail() {
   const rt = useKisRealtime(isKR ? selectedCode : null);
   const chartAll = useKrChartAll(isKR ? selectedCode : null); // 일/주/월봉(1일~5년 탭)
   const intraday = useKrIntraday(isKR ? selectedCode : null); // 1일 탭 실분봉(실거래량 유일 소스)
+  // 종목 기본정보(시총·PER·PBR·EPS·거래량) — KIS 실데이터. 목 DETAIL_META는 실제와 3배 이상 벌어진다.
+  const getStockInfo = useStore((st) => st.getStockInfo);
+  const [info, setInfo] = useState<StockInfo | null>(null);
+  useEffect(() => {
+    setInfo(null);
+    if (!isKR) return;
+    let alive = true;
+    getStockInfo(selectedCode).then((d) => { if (alive) setInfo(d); });
+    return () => { alive = false; };
+  }, [selectedCode, isKR, getStockInfo]);
   const lastClose = chartAll.daily[chartAll.daily.length - 1]?.c;
   const [liveTrades, setLiveTrades] = useState<TradeTick[]>([]);
   useEffect(() => { setLiveTrades([]); }, [selectedCode]);
@@ -67,10 +78,25 @@ export default function StockDetail() {
   //  US: KIS 데이터 없어 mock 워크(≈50 정규화)를 실가격 스케일로 변환.
   //  소켓 불안정(체결 없음) 시엔 마지막 실제 종가로 폴백(목 금지).
   const live = rt.trade?.price ?? (isKR ? lastClose : undefined) ?? detail?.price ?? 0;
-  // 전일 대비(기본 헤더용) — 좌측 관심종목과 동일 소스(REST 등락률)로 일치.
-  const wlPct = watchlist.find((w) => w.code === selectedCode)?.changePct;
-  const dayPct = wlPct ?? detail?.changePct ?? 0;
-  const dayChg = live * dayPct / (100 + dayPct || 1);
+  // 전일 종가 — 1일 등락의 기준. 실일봉에서만 뽑는다.
+  // 마지막 봉이 오늘이면 그 앞이 전일이고, 장 시작 전이면 마지막 봉이 곧 전일이다.
+  const prevClose = (() => {
+    const d = chartAll.daily.filter((c) => Number.isFinite(c.c) && c.c > 0);
+    if (!d.length) return 0;
+    const today = new Date().toLocaleDateString('sv-SE').replace(/-/g, ''); // 로컬 날짜 YYYYMMDD
+    const lastIsToday = d[d.length - 1].date?.slice(0, 8) === today;
+    const prev = lastIsToday ? d[d.length - 2] : d[d.length - 1];
+    return prev?.c ?? 0;
+  })();
+  // 전일 대비 — 실일봉 기준을 우선한다. 목 `detail.changePct`는 실시세와 스케일이 달라
+  // SK하이닉스가 실제 +25%인데 화면에 +0.00%로 찍히던 원인이었다.
+  const wl = watchlist.find((w) => w.code === selectedCode);
+  const wlPct = wl && !wl.unavailable ? wl.changePct : undefined;   // 실패한 행의 목값은 쓰지 않는다
+  const realDay = isKR && prevClose > 0 && live > 0
+    ? { chg: live - prevClose, pct: ((live - prevClose) / prevClose) * 100 }
+    : null;
+  const dayPct = realDay ? +realDay.pct.toFixed(2) : (wlPct ?? detail?.changePct ?? 0);
+  const dayChg = realDay ? realDay.chg : live * dayPct / (100 + dayPct || 1);
   // 소켓 실시간 데이터 유무(KR) — 없으면 호가/체결을 "-"로.
   const krHasOb = isKR && rt.connected && !!rt.orderbook && (rt.orderbook.asks.some((a) => a.price > 0) || rt.orderbook.bids.some((b) => b.price > 0));
   const krHasTrades = isKR && rt.connected && liveTrades.length > 0;
@@ -115,7 +141,12 @@ export default function StockDetail() {
       const dPer = (nDays: number, k: number) => cap(densify(daily.slice(-nDays), k));
       const mPer = (nM: number, k: number) => cap(densify(monthly.slice(-nM), k, fmtM));
       // 1일: 실분봉이 있으면 실데이터(라인·캔들·거래량 전부 실측), 없으면 합성 라인 + 거래량 미표시.
-      const d1 = cap(intraday.candles.length ? fromIntraday(intraday.candles) : synthIntraday(daily[daily.length - 1], 78));
+      // ⚠️ 분봉이 스로틀로 잘려 유효 캔들이 몇 개뿐이면 점 하나짜리 차트가 된다 —
+      //    추세로 읽을 수 없으니 그때는 합성 라인으로 넘긴다(거래량은 자동으로 숨는다).
+      const d1real = intraday.candles.length ? fromIntraday(intraday.candles) : null;
+      const d1 = cap(d1real && d1real.closes.length >= 10
+        ? d1real
+        : synthIntraday(daily[daily.length - 1], 78));
       const wk = dPer(5, 9), mo = dPer(22, 4), q = dPer(Math.min(66, daily.length), 2);
       const yr = monthly.length ? mPer(12, 8) : dPer(daily.length, 2);         // 1년: 월봉 12
       const yr5 = monthly.length ? mPer(monthly.length, 2) : { closes: [], cds: [], vols: [], labels: [] }; // 5년: 전체 월봉
@@ -186,8 +217,13 @@ export default function StockDetail() {
                 onClick={() => selectStock(w.code)}
               >
                 <span className={s.liName}><MarketChip market={w.market} /> {w.name}</span>
-                <span className="mono" style={{ color: signColor(w.changePct, mode), fontSize: 12 }}>
-                  {w.changePct >= 0 ? '+' : ''}{w.changePct.toFixed(2)}%
+                {/* 실시세 실패 시 changePct는 목값이 남아 있다 — 그대로 찍으면 실제 +25%인 종목이
+                    -2.20%로 보인다(대시보드 Watchlist와 같은 규칙으로 "-" 처리). */}
+                <span
+                  className="mono"
+                  style={{ color: w.unavailable ? 'var(--text-mut)' : signColor(w.changePct, mode), fontSize: 12 }}
+                >
+                  {w.unavailable ? '-' : `${w.changePct >= 0 ? '+' : ''}${w.changePct.toFixed(2)}%`}
                 </span>
               </button>
             ))
@@ -235,12 +271,15 @@ export default function StockDetail() {
                     />}
               </section>
             ) : pc && (
+              /* baseValue: 1일 등락은 전일 종가 대비로 고정 — 구간을 좁혀도 기준이 따라 움직이면 안 된다. */
               <PriceChart
                 key={detail.code}
                 name={detail.name} code={detail.code} cur={detail.cur} dec={detail.dec} mode={mode}
                 series={pc.series} candles={pc.candles} volumes={pc.volumes} labels={pc.labels}
                 defaultPeriod={pc.defaultPeriod} height={236}
                 dayChange={dayChg} dayChangePct={dayPct}
+                baseValue={prevClose > 0 ? { '1일': prevClose } : undefined}
+                singlePointNote="이 구간에 표시할 점이 하나뿐입니다 · 구간을 넓히면 추세가 보입니다"
                 liveBadge={pc.liveBadge} liveBadgeTone={pc.liveBadgeTone}
               />
             )}
@@ -341,14 +380,19 @@ export default function StockDetail() {
               </div>
             </section>
             <section className="card">
-              <div className="card-h"><span className="t">종목 정보</span></div>
+              <div className="card-h">
+                <span className="t">종목 정보</span>
+                {isKR && <span className="tag">{info ? 'KIS 실데이터' : '조회 중'}</span>}
+              </div>
+              {/* 국내는 KIS 실값만 쓴다. 없으면 "-" — 목 DETAIL_META(시총 468조·PER 12.8)를
+                  실제(1,552조·40.45)처럼 보여주던 자리다. 배당은 KIS가 안 줘서 항상 "-". */}
               <div className={s.info}>
-                <Info k="시가총액" v={detail.info.marketCap} />
-                <Info k="PER" v={detail.info.per.toFixed(1)} />
-                <Info k="PBR" v={detail.info.pbr.toFixed(2)} />
-                <Info k="EPS" v={fmt(detail.info.eps, 0)} />
-                <Info k="배당" v={detail.info.div} />
-                <Info k="거래량" v={detail.info.volume} />
+                <Info k="시가총액" v={isKR ? fmtMarketCapEok(info?.marketCapEok) : detail.info.marketCap} />
+                <Info k="PER" v={isKR ? num1(info?.per) : detail.info.per.toFixed(1)} />
+                <Info k="PBR" v={isKR ? num2(info?.pbr) : detail.info.pbr.toFixed(2)} />
+                <Info k="EPS" v={isKR ? (info?.eps != null ? fmt(info.eps, 0) : '-') : fmt(detail.info.eps, 0)} />
+                <Info k="배당" v={isKR ? '-' : detail.info.div} />
+                <Info k="거래량" v={isKR ? (info?.volume != null ? fmtVol(info.volume) : '-') : detail.info.volume} />
               </div>
             </section>
           </>
@@ -357,6 +401,9 @@ export default function StockDetail() {
     </div>
   );
 }
+
+const num1 = (v: number | null | undefined) => (v != null && Number.isFinite(v) ? v.toFixed(1) : '-');
+const num2 = (v: number | null | undefined) => (v != null && Number.isFinite(v) ? v.toFixed(2) : '-');
 
 function Info({ k, v }: { k: string; v: string }) {
   return <div className={s.infoRow}><span className={s.infoK}>{k}</span><span className={`${s.infoV} mono`}>{v}</span></div>;

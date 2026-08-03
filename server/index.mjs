@@ -8,6 +8,7 @@ import { SEOUL_GU, ymOffset } from './realestate/lawd.mjs';
 import { fetchDeals, jeonseAgg } from './realestate/collect.mjs';
 import { routes as realestateRoutes } from './realestate/index.mjs';
 import { createPortfolioHistory } from './portfolioHistory.mjs';
+import { buildKr as buffettKr, buildUs as buffettUs } from './buffett.mjs';
 
 // server/.env 로드 (없어도 무시 — 키 없는 라우트는 그대로 동작)
 // ※ collect.mjs 도 자체적으로 로드한다(단독 `pnpm collect` 실행 대비). 중복 호출은 무해.
@@ -24,6 +25,10 @@ let portfolioHistory = null;
 // --- 작은 TTL 캐시 -----------------------------------------------------------
 const cache = new Map(); // key -> { at, ttl, data }
 const inflight = new Map(); // key -> Promise (동시 요청 중복 producer 방지: StrictMode 2회 호출 등)
+/**
+ * @param ttlMs 밀리초, 또는 `(data) => 밀리초`. 함수를 쓰면 결과에 따라 TTL을 줄일 수 있다 —
+ *   항목별 폴백으로 일부가 null인 묶음을 정상 TTL만큼 붙잡아두면 순간 실패가 오래 굳는다.
+ */
 async function cached(key, ttlMs, producer) {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < hit.ttl) return { data: hit.data, stale: false };
@@ -31,7 +36,7 @@ async function cached(key, ttlMs, producer) {
   const p = (async () => {
     try {
       const data = await producer();
-      cache.set(key, { at: Date.now(), ttl: ttlMs, data });
+      cache.set(key, { at: Date.now(), ttl: typeof ttlMs === 'function' ? ttlMs(data) : ttlMs, data });
       return { data, stale: false };
     } catch (err) {
       if (hit) return { data: hit.data, stale: true }; // 실패 시 마지막 값이라도
@@ -146,6 +151,7 @@ async function econKey() {
     gb3y: find(/국고채수익률\(3년\)/),
     gb5y: find(/국고채수익률\(5년\)/),
     corp3y: find(/회사채수익률/),
+    kospi: find(/코스피지수/),
     usdkrw: find(/원\/달러 환율/),
     jpykrw: find(/원\/엔/),
     eurkrw: find(/원\/유로/),
@@ -255,13 +261,51 @@ const KIS = (() => {
   };
 })();
 
+/** 지연 헬퍼 — KIS 게이트/페이지 간격에서 쓴다. */
+const nap = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * KIS 전역 호출 게이트.
+ *
+ * 모의계좌는 초당 호출 상한이 낮아, 라우트가 각자 요청을 던지면 서로를 밀어낸다
+ * (실측: 서로 다른 종목 6건 연속 조회에서 1건이 502). 그동안 라우트마다 재시도·짧은 TTL로
+ * 땜질해 왔지만 원인은 하나였다 — 동시성 제어가 없다는 것.
+ *
+ * 모든 KIS HTTP 호출을 한 줄로 세우고 최소 간격을 강제한다. 개별 재시도는 그대로 두되
+ * (게이트는 순서만 보장하고 실패를 되돌리지는 않는다) 애초에 밀리는 빈도를 없앤다.
+ * ⚠️ 실시간 ws 게이트웨이(kisGateway)는 별도 채널이라 여기 해당 없음.
+ */
+const kisFetch = (() => {
+  const MIN = 200, MAX = 1600;
+  let gap = 250;              // 적응형 — 고정값은 늘 틀린다(TR별로 상한이 다르다)
+  let chain = Promise.resolve();
+  let lastAt = 0;
+  return (url, init) => {
+    const run = async () => {
+      const wait = lastAt + gap - Date.now();
+      if (wait > 0) await nap(wait);
+      lastAt = Date.now();
+      const res = await fetch(url, init);
+      // 스로틀은 5xx/429로 온다 → 간격을 벌리고, 성공이 이어지면 천천히 좁힌다.
+      // ⚠️ 여기서 자동 재시도하지 않는다 — 주문(kisPost)까지 재시도하면 중복 주문이 된다.
+      if (res.status >= 500 || res.status === 429) gap = Math.min(MAX, Math.round(gap * 1.6));
+      else gap = Math.max(MIN, gap - 15);
+      return res;
+    };
+    // 성공·실패 모두 다음 호출로 이어지게 한다(한 건 실패로 큐가 멈추면 안 된다).
+    const p = chain.then(run, run);
+    chain = p.then(() => {}, () => {});
+    return p;
+  };
+})();
+
 let _kisTok = null;         // {token, exp} — 24h 유효 + 발급 1회/분 제한 → 반드시 캐시
 let _kisTokPromise = null;  // 동시 발급 방지(1분당 1회 제한 회피)
 async function kisToken() {
   if (_kisTok && Date.now() < _kisTok.exp) return _kisTok.token;
   if (_kisTokPromise) return _kisTokPromise;
   _kisTokPromise = (async () => {
-    const res = await fetch(`${KIS.base}/oauth2/tokenP`, {
+    const res = await kisFetch(`${KIS.base}/oauth2/tokenP`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ grant_type: 'client_credentials', appkey: KIS.key, appsecret: KIS.secret }),
     });
@@ -277,7 +321,7 @@ async function kisToken() {
 let _kisApproval = null;
 async function kisApprovalKey() {
   if (_kisApproval && Date.now() < _kisApproval.exp) return _kisApproval.key;
-  const res = await fetch(`${KIS.base}/oauth2/Approval`, {
+  const res = await kisFetch(`${KIS.base}/oauth2/Approval`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ grant_type: 'client_credentials', appkey: KIS.key, secretkey: KIS.secret }),
   });
@@ -290,7 +334,7 @@ async function kisApprovalKey() {
 async function kisGet(path, trId, params) {
   const token = await kisToken();
   const qs = new URLSearchParams(params).toString();
-  const res = await fetch(`${KIS.base}${path}?${qs}`, {
+  const res = await kisFetch(`${KIS.base}${path}?${qs}`, {
     headers: { authorization: `Bearer ${token}`, appkey: KIS.key, appsecret: KIS.secret, tr_id: trId, 'content-type': 'application/json' },
   });
   if (!res.ok) throw new Error(`KIS ${path} ${res.status}`);
@@ -302,6 +346,29 @@ async function kisQuote(code) {
     { FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: code });
   const o = j.output || {};
   return { code, price: +o.stck_prpr, change: +o.prdy_vrss, changePct: +o.prdy_ctrt };
+}
+
+/**
+ * 종목 기본정보(시총·PER·PBR·EPS·거래량·52주). inquire-price가 시세와 함께 다 준다.
+ * ⚠️ 배당수익률은 이 TR에 없다 — 목값으로 채우지 말고 null로 두고 화면에서 "-".
+ */
+async function kisInfo(code) {
+  const j = await kisGet('/uapi/domestic-stock/v1/quotations/inquire-price', 'FHKST01010100',
+    { FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: code });
+  const o = j.output || {};
+  const num = (v) => (Number.isFinite(+v) && v !== '' ? +v : null);
+  return {
+    code,
+    marketCapEok: num(o.hts_avls),   // 억원
+    per: num(o.per),
+    pbr: num(o.pbr),
+    eps: num(o.eps),
+    bps: num(o.bps),
+    volume: num(o.acml_vol),
+    w52High: num(o.w52_hgpr),
+    w52Low: num(o.w52_lwpr),
+    div: null,                        // KIS 미제공
+  };
 }
 
 async function kisChart(code, period) {
@@ -322,7 +389,15 @@ async function kisIndex(iscd) {
   const j = await kisGet('/uapi/domestic-stock/v1/quotations/inquire-index-price', 'FHPUP02100000',
     { FID_COND_MRKT_DIV_CODE: 'U', FID_INPUT_ISCD: iscd });
   const o = j.output || {};
-  return { price: +o.bstp_nmix_prpr, change: +o.bstp_nmix_prdy_vrss, changePct: +o.bstp_nmix_prdy_ctrt };
+  // KIS 모의는 지수 레벨만 주고 등락·시가·거래량을 전부 0으로 비워 보낸다. 그 0을 그대로
+  // 넘기면 화면에 "0.00% 보합"으로 찍혀 실제 보합과 구별되지 않는다 → 없음을 명시한다.
+  const noChange = +o.acml_vol === 0 && +o.bstp_nmix_oprc === 0 && +o.bstp_nmix_prdy_vrss === 0;
+  return {
+    price: +o.bstp_nmix_prpr,
+    change: +o.bstp_nmix_prdy_vrss,
+    changePct: +o.bstp_nmix_prdy_ctrt,
+    ...(noChange && { changeUnavailable: true }),
+  };
 }
 
 // 시장 코드: all/코스피/코스닥
@@ -337,7 +412,7 @@ async function kisRank({ market = 'all', by = 'volume', limit = 100 } = {}) {
     FID_DIV_CLS_CODE: '0', FID_BLNG_CLS_CODE: by === 'amount' ? '3' : '0', FID_TRGT_CLS_CODE: '111111111',
     FID_TRGT_EXLS_CLS_CODE: '0000000000', FID_INPUT_PRICE_1: '', FID_INPUT_PRICE_2: '', FID_VOL_CNT: '', FID_INPUT_DATE_1: '',
   });
-  const res = await fetch(`${KIS.base}/uapi/domestic-stock/v1/quotations/volume-rank?${params}`, { headers: rankHeaders(token, 'FHPST01710000') });
+  const res = await kisFetch(`${KIS.base}/uapi/domestic-stock/v1/quotations/volume-rank?${params}`, { headers: rankHeaders(token, 'FHPST01710000') });
   const j = await res.json().catch(() => ({}));
   if (!res.ok || (j.rt_cd && j.rt_cd !== '0')) throw new Error(`KIS rank: ${j.msg1 || res.status}`);
   return (j.output || []).slice(0, limit).map((r, i) => ({
@@ -355,7 +430,7 @@ async function kisFluctuation({ market = 'all', dir = 'up', limit = 100 } = {}) 
     fid_input_price_1: '', fid_input_price_2: '', fid_vol_cnt: '', fid_trgt_cls_code: '0',
     fid_trgt_exls_cls_code: '0', fid_div_cls_code: '0', fid_rsfl_rate1: '', fid_rsfl_rate2: '',
   });
-  const res = await fetch(`${KIS.base}/uapi/domestic-stock/v1/ranking/fluctuation?${params}`, { headers: rankHeaders(token, 'FHPST01700000') });
+  const res = await kisFetch(`${KIS.base}/uapi/domestic-stock/v1/ranking/fluctuation?${params}`, { headers: rankHeaders(token, 'FHPST01700000') });
   const j = await res.json().catch(() => ({}));
   if (!res.ok || (j.rt_cd && j.rt_cd !== '0')) throw new Error(`KIS fluctuation: ${j.msg1 || res.status}`);
   return (j.output || []).slice(0, limit).map((r, i) => ({
@@ -390,7 +465,6 @@ async function daumTop100(market = 'KOSPI', by = 'cap') {
 }
 
 // 당일 분봉(장중 촘촘한 차트용). 30개/호출 → 뒤로 페이지네이션해 하루치(~수백) 수집.
-const nap = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function kisMinutes(code, pages = 13) {
   const out = [];
@@ -404,7 +478,9 @@ async function kisMinutes(code, pages = 13) {
   for (let p = 0; p < pages; p++) {
     if (p > 0) await nap(120);
     let j = await page(hour);
-    if (!j) { await nap(500); j = await page(hour); } // 스로틀 한 번은 넘긴다
+    // 스로틀은 두 번까지 넘긴다. 한 페이지가 죽으면 다음 시각을 알 수 없어 순회가 끝나므로
+    // (= 하루가 최근 몇십 분으로 잘린다) 여기서 포기하는 비용이 크다.
+    for (let r = 0; !j && r < 2; r++) { await nap(400 + r * 600); j = await page(hour); }
     const rows = (j?.output2 || []).filter((r) => r && r.stck_prpr);
     if (!rows.length) break;
     for (const r of rows) out.push({ date: r.stck_bsop_date, time: r.stck_cntg_hour, o: +r.stck_oprc, h: +r.stck_hgpr, l: +r.stck_lwpr, c: +r.stck_prpr, v: +r.cntg_vol });
@@ -426,6 +502,164 @@ function kisAccount() {
   return { cano: m[1], acnt: m[2] };
 }
 
+// --- KIS 주문 (국내주식 현금) --------------------------------------------------
+// 주문은 KIS 모의계좌가 단일 진실 소스다. 로컬에 예수금을 따로 계산해 두면 화면과
+// 계좌가 갈라진다(이전 구조의 버그) — 주문 후에는 반드시 잔고를 다시 읽는다.
+/** 상태코드를 실은 에러 — 라우터가 err.status를 그대로 응답한다. */
+function httpError(status, message) {
+  const e = new Error(message);
+  e.status = status;
+  return e;
+}
+
+/** POST 본문 JSON 파싱. 본문 상한 64KB(주문 페이로드는 수백 바이트). */
+async function readJsonBody(req) {
+  let raw = '';
+  for await (const chunk of req) {
+    raw += chunk;
+    if (raw.length > 65_536) throw httpError(413, '본문이 너무 큽니다');
+  }
+  try { return raw ? JSON.parse(raw) : {}; }
+  catch { throw httpError(400, 'JSON 본문 파싱 실패'); }
+}
+
+const ORDER_TR = {
+  mock: { buy: 'VTTC0802U', sell: 'VTTC0801U' },
+  real: { buy: 'TTTC0802U', sell: 'TTTC0801U' },
+};
+
+/**
+ * 거래(trading) GET 공통. 시세용 `kisGet`과 달리 `custtype`이 필수이고 rt_cd도 봐야 한다
+ * (HTTP 200 + rt_cd!=0 으로 거부가 오므로 !res.ok 검사만으로는 실패를 놓친다).
+ */
+async function kisGetTrading(path, trId, params) {
+  const token = await kisToken();
+  const res = await kisFetch(`${KIS.base}${path}?${new URLSearchParams(params)}`, {
+    headers: {
+      authorization: `Bearer ${token}`, appkey: KIS.key, appsecret: KIS.secret,
+      tr_id: trId, custtype: 'P', 'content-type': 'application/json',
+    },
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || (j.rt_cd && j.rt_cd !== '0')) throw new Error(`KIS ${path}: ${j.msg1 || res.status}`);
+  return j;
+}
+
+/** KIS POST 공통. 주문류는 hashkey 없이도 통과하지만 tr_id·custtype은 필수. */
+async function kisPost(path, trId, body) {
+  const token = await kisToken();
+  const res = await kisFetch(`${KIS.base}${path}`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${token}`, appkey: KIS.key, appsecret: KIS.secret,
+      tr_id: trId, custtype: 'P', 'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const j = await res.json().catch(() => ({}));
+  return { ok: res.ok && j.rt_cd === '0', status: res.status, json: j };
+}
+
+/**
+ * 현금 주문. ordType 'limit'이면 지정가(ORD_DVSN '00')로 price 필수, 'market'이면 시장가('01').
+ * KIS가 거부하면 거부 사유(msg1)를 그대로 올려보낸다 — "장 시간이 아닙니다" 같은 메시지가
+ * 사용자에게 그대로 보여야 한다(임의 문구로 덮으면 원인을 못 찾는다).
+ */
+async function kisOrder({ code, side, qty, price, ordType }) {
+  const { cano, acnt } = kisAccount();
+  const trId = ORDER_TR[KIS.mock ? 'mock' : 'real'][side];
+  if (!trId) throw new Error(`side는 buy|sell만 허용: ${side}`);
+  const limit = ordType === 'limit';
+  const { ok, status, json } = await kisPost('/uapi/domestic-stock/v1/trading/order-cash', trId, {
+    CANO: cano, ACNT_PRDT_CD: acnt, PDNO: code,
+    ORD_DVSN: limit ? '00' : '01',
+    ORD_QTY: String(qty),
+    ORD_UNPR: limit ? String(Math.round(price)) : '0',
+  });
+  const o = json.output || {};
+  return {
+    ok,
+    orderNo: o.ODNO || null,
+    orderTime: o.ORD_TMD || null,
+    // rt_cd!=0 이면 msg1이 거부 사유. 성공도 msg1에 "정상처리" 류가 온다.
+    message: json.msg1 || (ok ? '주문 접수' : `KIS 응답 ${status}`),
+    code: json.msg_cd || null,
+  };
+}
+
+/** 주문가능금액. 미체결 주문분이 이미 빠진 값이라 로컬 차감이 필요 없다. */
+async function kisOrderable({ code, price, ordType }) {
+  const { cano, acnt } = kisAccount();
+  const j = await kisGetTrading('/uapi/domestic-stock/v1/trading/inquire-psbl-order',
+    KIS.mock ? 'VTTC8908R' : 'TTTC8908R', {
+      CANO: cano, ACNT_PRDT_CD: acnt, PDNO: code,
+      ORD_UNPR: ordType === 'limit' ? String(Math.round(price || 0)) : '0',
+      ORD_DVSN: ordType === 'limit' ? '00' : '01',
+      CMA_EVLU_AMT_ICLD_YN: 'N', OVRS_ICLD_YN: 'N',
+    });
+  const o = j.output || {};
+  return {
+    cash: +o.ord_psbl_cash || 0,            // 주문가능현금
+    maxQty: +o.nrcvb_buy_qty || 0,          // 미수없는 매수가능수량
+    maxAmount: +o.nrcvb_buy_amt || 0,
+  };
+}
+
+/**
+ * 미체결(정정·취소 가능) 주문.
+ * ⚠️ 모의계좌에서는 KIS가 "모의투자에서는 해당업무가 제공되지 않습니다"로 거부한다(실측).
+ *    실전 전환 시에만 값이 온다. 프론트는 실패를 빈 목록으로 흘려보내고 로컬 이력을 쓴다.
+ */
+async function kisOpenOrders() {
+  const { cano, acnt } = kisAccount();
+  const j = await kisGetTrading('/uapi/domestic-stock/v1/trading/inquire-psbl-rvsecncl',
+    KIS.mock ? 'VTTC8036R' : 'TTTC8036R', {
+      CANO: cano, ACNT_PRDT_CD: acnt, CTX_AREA_FK100: '', CTX_AREA_NK100: '',
+      INQR_DVSN_1: '0', INQR_DVSN_2: '0',
+    });
+  return (j.output || []).map((r) => ({
+    orderNo: r.odno,
+    code: r.pdno,
+    name: r.prdt_name,
+    side: r.sll_buy_dvsn_cd === '02' ? 'buy' : 'sell',
+    qty: +r.ord_qty || 0,
+    remainQty: +r.psbl_qty || 0,      // 정정·취소 가능수량 = 미체결 잔량
+    price: +r.ord_unpr || 0,
+    time: r.ord_tmd || '',
+    state: 'open',
+  }));
+}
+
+/** 당일 주문·체결 내역. 체결/미체결을 한 번에 본다. */
+async function kisTodayOrders() {
+  const { cano, acnt } = kisAccount();
+  const d = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const j = await kisGetTrading('/uapi/domestic-stock/v1/trading/inquire-daily-ccld',
+    KIS.mock ? 'VTTC8001R' : 'TTTC8001R', {
+      CANO: cano, ACNT_PRDT_CD: acnt, INQR_STRT_DT: d, INQR_END_DT: d,
+      SLL_BUY_DVSN_CD: '00', INQR_DVSN: '00', PDNO: '', CCLD_DVSN: '00',
+      ORD_GNO_BRNO: '', ODNO: '', INQR_DVSN_3: '00', INQR_DVSN_1: '',
+      CTX_AREA_FK100: '', CTX_AREA_NK100: '',
+    });
+  return (j.output1 || []).map((r) => {
+    const qty = +r.ord_qty || 0, filled = +r.tot_ccld_qty || 0;
+    return {
+      orderNo: r.odno,
+      code: r.pdno,
+      name: r.prdt_name,
+      side: r.sll_buy_dvsn_cd === '02' ? 'buy' : 'sell',   // 01=매도, 02=매수
+      qty,
+      filledQty: filled,
+      price: +r.ord_unpr || 0,
+      filledPrice: +r.avg_prvs || 0,
+      amount: +r.tot_ccld_amt || 0,
+      time: r.ord_tmd || '',
+      /** filled=0 미체결 · filled<qty 부분체결 · 그 외 체결 */
+      state: filled === 0 ? 'open' : filled < qty ? 'partial' : 'filled',
+    };
+  });
+}
+
 // KIS 잔고조회(포트폴리오). 모의=VTTC8434R / 실전=TTTC8434R. 국내주식 기준.
 async function kisBalance() {
   const { cano, acnt } = kisAccount();
@@ -436,7 +670,7 @@ async function kisBalance() {
     UNPR_DVSN: '01', FUND_STTL_ICLD_YN: 'N', FNCG_AMT_AUTO_RDPT_YN: 'N',
     PRCS_DVSN: '01', CTX_AREA_FK100: '', CTX_AREA_NK100: '',
   });
-  const res = await fetch(`${KIS.base}/uapi/domestic-stock/v1/trading/inquire-balance?${params}`, {
+  const res = await kisFetch(`${KIS.base}/uapi/domestic-stock/v1/trading/inquire-balance?${params}`, {
     headers: { authorization: `Bearer ${token}`, appkey: KIS.key, appsecret: KIS.secret, tr_id: trId, custtype: 'P', 'content-type': 'application/json' },
   });
   const j = await res.json().catch(() => ({}));
@@ -444,28 +678,41 @@ async function kisBalance() {
   const sum = (j.output2 || [])[0] || {};
   const holdings = (j.output1 || []).filter((r) => +r.hldg_qty > 0).map((r) => {
     const evlu = +r.evlu_amt, dayPct = +r.fltt_rt || 0;
+    // KIS는 장 시작 전 일간 등락을 안 준다(fltt_rt·bfdy_cprs_icdc 모두 0). 그 0을 그대로 더하면
+    // "일간손익 ₩0 / 0%"가 실제 보합처럼 찍힌다 — 없음과 보합은 구별돼야 한다.
+    const dayMissing = +r.fltt_rt === 0 && +r.bfdy_cprs_icdc === 0;
     return {
       code: r.pdno, name: r.prdt_name, market: 'KR', qty: +r.hldg_qty,
+      // 매도가능수량 — 미체결 매도가 걸려 있으면 보유수량보다 작다.
+      sellableQty: +r.ord_psbl_qty || 0,
       avg: Math.round(+r.pchs_avg_pric), price: +r.prpr, cur: '₩', dec: 0,
-      dayPnl: evlu * (dayPct / (100 + dayPct || 1)),
+      dayPnl: dayMissing ? 0 : evlu * (dayPct / (100 + dayPct || 1)),
+      dayMissing,
     };
   });
   const fx = await ecosLatest('731Y001', 'D', '0000001', 20 * DAY).then((r) => r.value).catch(() => 1400);
-  const cash = Math.round(+sum.dnca_tot_amt || 0);                       // 예수금(현금)
+  // 예수금은 `prvs_rcdl_excc_amt`(가수도정산금액 = D+2 정산 반영)를 쓴다.
+  // `dnca_tot_amt`(예수금총금액)는 D+2 결제 전이라 매수해도 그대로여서, 주문했는데 예수금이
+  // 안 줄어드는 것처럼 보인다. 실측: 1,000만 계좌에서 24.9만 매수 후
+  // dnca=10,000,000 / prvs_rcdl=9,750,970(= 매수금 249,000 + 제비용 30 차감).
+  const cash = Math.round(+sum.prvs_rcdl_excc_amt || +sum.dnca_tot_amt || 0);
   const securities = Math.round(+sum.evlu_amt_smtl_amt || holdings.reduce((a, h) => a + h.price * h.qty, 0)); // 유가증권 평가액
   const totalValue = Math.round(+sum.tot_evlu_amt || (cash + securities)); // 총자산(현금+유가)
   const principal = Math.round(+sum.pchs_amt_smtl_amt || 0);
   const pnl = Math.round(+sum.evlu_pfls_smtl_amt || (securities - principal));
   const dayPnl = Math.round(holdings.reduce((a, h) => a + h.dayPnl, 0));
+  // 보유가 있는데 전부 일간 등락 미제공이면 합계도 의미가 없다 → 화면에서 "-".
+  const dayPnlUnavailable = holdings.length > 0 && holdings.every((h) => h.dayMissing);
   return {
     fxUsdKrw: fx, source: KIS.mock ? 'kis-mock' : 'kis-real', cash,
     summary: {
       totalValue, securities, pnl,
       pnlPct: principal ? +((pnl / principal) * 100).toFixed(2) : 0,
       dayPnl, dayPnlPct: securities ? +((dayPnl / securities) * 100).toFixed(2) : 0,
+      ...(dayPnlUnavailable && { dayPnlUnavailable: true }),
       principal,
     },
-    holdings: holdings.map(({ dayPnl: _d, ...h }) => h),
+    holdings: holdings.map(({ dayPnl: _d, dayMissing: _m, ...h }) => h),
   };
 }
 
@@ -517,6 +764,63 @@ async function macroBundle() {
     finnhubQuote('GLD').catch(() => null),
   ]);
   return { us10y, oil, vix, gold };
+}
+
+// --- 버핏지수 : ECOS 시총·GDP + FRED 법인주식·GDP (계산은 buffett.mjs) --------
+/** ECOS 시계열 전체를 오름차순 [{time, value}]로. 비수치 행은 버린다. */
+async function ecosRows(stat, cycle, item, start, end) {
+  const u = `https://ecos.bok.or.kr/api/StatisticSearch/${ECOS_API_KEY}/json/kr/1/1000/${stat}/${cycle}/${start}/${end}/${item}`;
+  const res = await fetch(u);
+  if (!res.ok) throw new Error(`ECOS ${stat} ${res.status}`);
+  const rows = (await res.json()).StatisticSearch?.row || [];
+  return rows
+    .map((r) => ({ time: r.TIME, value: +r.DATA_VALUE }))
+    .filter((r) => Number.isFinite(r.value));
+}
+
+/**
+ * FRED 관측치를 오름차순 [{date, value}]로. 결측('.')은 버린다.
+ * ⚠️ limit으로 자르면 안 된다 — asc는 1947년부터 세므로 최근 분기가 잘려 나간다.
+ *    반드시 observation_start로 범위를 좁힌다.
+ */
+async function fredRows(series, start) {
+  const u = `https://api.stlouisfed.org/fred/series/observations?series_id=${series}&api_key=${FRED_API_KEY}&file_type=json&sort_order=asc&observation_start=${start}`;
+  const res = await fetch(u);
+  if (!res.ok) throw new Error(`FRED ${series} ${res.status}`);
+  return (await res.json()).observations
+    .map((o) => ({ date: o.date, value: +o.value }))
+    .filter((o) => Number.isFinite(o.value));
+}
+
+async function buffettBundle() {
+  const now = new Date();
+  const yEnd = now.getFullYear() + 1;
+  const yStart = now.getFullYear() - 10;          // 분포 비교용 10년치
+  const dStart = new Date(Date.now() - 40 * DAY).toISOString().slice(0, 10).replace(/-/g, '');
+  const dEnd = now.toISOString().slice(0, 10).replace(/-/g, '');
+
+  const kr = (async () => {
+    const [gdpQ, capM, capD] = await Promise.all([
+      ecosRows('200Y105', 'Q', '1400', `${yStart - 1}Q1`, `${yEnd}Q4`),   // 국내총생산(명목, 십억원)
+      ecosRows('901Y014', 'M', '1040000', `${yStart}01`, `${yEnd}12`),    // KOSPI 시가총액(천원)
+      ecosRows('802Y001', 'D', '0183000', dStart, dEnd),                  // 시가총액 유가증권시장(억원)
+    ]);
+    return buffettKr({ gdpQ, capM, capD });
+  })();
+
+  const us = (async () => {
+    const cut = `${yStart}-01-01`;
+    const [gdpQ, capQ] = await Promise.all([
+      fredRows('GDP', cut),            // 명목 GDP, 십억$ 연율
+      fredRows('NCBEILQ027S', cut),    // 비금융법인 주식 발행잔액, 백만$
+    ]);
+    return buffettUs({ gdpQ, capQ });
+  })();
+
+  // 한쪽이 죽어도 나머지는 보여준다. 목값은 만들지 않는다 — 실패는 null.
+  const [krR, usR] = await Promise.all([kr.catch(() => null), us.catch(() => null)]);
+  if (!krR && !usR) throw new Error('버핏지수 소스 전부 실패 — 캐시 저장 회피');
+  return { kr: krR, us: usR };
 }
 
 async function aiOpinion() {
@@ -583,7 +887,11 @@ const routes = {
   // ECOS 100대 경제지표 (환율·금리 스냅샷, 한 콜)
   '/api/econ/key': () => cached('econkey', 60 * 60_000, econKey),
   // 매크로: 한국 기준금리(ECOS) + 미 국채10Y(FRED) + WTI 유가(FRED)
-  '/api/macro': () => cached('macro', 60 * 60_000, macroBundle),
+  // 한 항목이라도 빠졌으면 1분만 붙잡는다 — FRED 일시 실패가 1시간짜리 '-'로 굳지 않게.
+  '/api/macro': () => cached('macro', (d) => (Object.values(d).some((v) => v == null) ? 60_000 : 60 * 60_000), macroBundle),
+
+  // 시총은 일별·GDP는 분기별 갱신 → 6시간 캐시로 충분
+  '/api/buffett': () => cached('buffett', 6 * 60 * 60_000, buffettBundle),
   // 서울 25구 전세 실거래 집계 (12시간 캐시 — 50콜)
   '/api/realestate/seoul': () => cached('seoul', 12 * 60 * 60_000, seoulJeonse),
   // KIS 국내 지수 (KOSPI 0001 / KOSDAQ 1001)
@@ -591,11 +899,9 @@ const routes = {
   // AI 종합 투자의견 (규칙 기반: F&G + 지수 모멘텀 + 뉴스 감성). LLM 키 있으면 교체 가능.
   '/api/ai/opinion': () => cached('ai', 5 * 60_000, aiOpinion),
   // KIS WebSocket 접속키 + ws url (프론트가 직접 KIS ws에 연결)
-  '/api/kis/approval': async () => ({
-    approvalKey: await kisApprovalKey(),
-    wsUrl: KIS.mock ? 'ws://ops.koreainvestment.com:31000' : 'ws://ops.koreainvestment.com:21000',
-    mock: KIS.mock,
-  }),
+  // '/api/kis/approval' 제거됨 — 브라우저가 KIS에 직결하지 않는다(RADIO 불변식 #1).
+  // 실시간은 서버 게이트웨이(ws 1개) → SSE 팬아웃뿐이라 프론트에 소비자가 없었고,
+  // 남겨두면 접속키를 아무에게나 내주는 창구가 된다. approval_key는 게이트웨이 내부에서만 쓴다.
   // KIS 국내 일/주/월봉 (code=005930&period=D|W|M)
   '/api/kr/chart': (q) => {
     const code = (q?.get('code') || '').trim();
@@ -667,25 +973,81 @@ const routes = {
   // cached() 는 실패 시 직전 성공값을 stale 로 돌려주므로, 한 번이라도 받았으면 화면이 유지된다.
   '/api/kr/intraday': (q) => {
     const code = (q?.get('code') || '').trim();
-    return cached(`intra:${code}`, 60_000, async () => {
+    // 잘린 응답을 60초 캐시하면 1일 차트가 점 하나로 남는다(실측: 005930이 30행·유효 1행으로
+    // 굳어 "15:30 · +0.00%"만 그려졌다). 페이지 순회가 09시대까지 내려갔는지로 완주를 판정하고
+    // 잘렸으면 짧게만 잡아 다음 폴링에서 스스로 회복시킨다. rows는 시간 오름차순.
+    const complete = (rows) => (rows[0]?.date?.slice(8, 12) ?? '9999') <= '0901';
+    return cached(`intra:${code}`, (rows) => (complete(rows) ? 60_000 : 5_000), async () => {
       const rows = await kisMinutes(code);
       if (!rows.length) throw new Error('분봉 응답 없음(KIS 스로틀 가능) — 캐시 저장 회피');
       return rows;
     });
   },
+  // 종목 기본정보(시총·PER·PBR·EPS·거래량·52주). 목 DETAIL_META를 대체한다.
+  '/api/kr/info': (q) => {
+    const code = (q?.get('code') || '').trim();
+    if (!isKrCode(code)) throw httpError(400, '국내 6자리 종목코드 필요');
+    return cached(`info:${code}`, 60_000, () => kisInfo(code));
+  },
   // KIS 국내 종목 시세 (codes=005930,000660)
   '/api/kr/quotes': (q) => {
     const codes = (q?.get('codes') || '').split(',').map((c) => c.trim()).filter(Boolean);
-    return cached('krq:' + codes.join(','), 15_000, async () => {
+    // 일부 종목이 null이면 짧게만 잡는다 — 스로틀 한 번이 15초짜리 "-"(또는 목값 잔류)로 굳는다.
+    const allOk = (out) => codes.length > 0 && codes.every((c) => out[c]);
+    return cached('krq:' + codes.join(','), (out) => (allOk(out) ? 15_000 : 3_000), async () => {
       const out = {};
       for (const c of codes) out[c] = await kisQuote(c).catch(() => null);
       return out;
     });
   },
   // KIS 모의투자 잔고 → 포트폴리오 (15초 캐시). 계좌 미설정/실패 시 200 + holdings:[] → 프론트가 목으로 폴백(콘솔 에러 0 유지).
+  // 주문 전송. POST 본문 {code, side:'buy'|'sell', qty, price, ordType:'limit'|'market'}.
+  // 캐시하지 않는다(부수효과가 있는 요청). 성공 시 잔고 캐시를 비워 다음 조회가 KIS를 다시 읽게 한다.
+  '/api/kr/order': async (_q, req) => {
+    if (req.method !== 'POST') throw httpError(405, 'POST만 허용');
+    const body = await readJsonBody(req);
+    const code = String(body.code || '').trim();
+    const side = body.side === 'sell' ? 'sell' : body.side === 'buy' ? 'buy' : null;
+    const qty = Math.floor(+body.qty);
+    const ordType = body.ordType === 'market' ? 'market' : 'limit';
+    const price = +body.price;
+    if (!isKrCode(code)) throw httpError(400, '국내 6자리 종목코드만 지원합니다');
+    if (!side) throw httpError(400, 'side는 buy 또는 sell');
+    if (!(qty > 0)) throw httpError(400, '수량은 1 이상');
+    if (ordType === 'limit' && !(price > 0)) throw httpError(400, '지정가는 가격이 필요합니다');
+    const r = await kisOrder({ code, side, qty, price, ordType });
+    // KIS 거부(장 시간 외·잔고 부족 등)는 422 + 원문 메시지. 프론트가 그대로 보여준다.
+    if (!r.ok) throw httpError(422, r.message);
+    cache.delete('portfolio');   // 다음 /api/portfolio 가 KIS 잔고를 새로 읽도록
+    cache.delete('orders');
+    return r;
+  },
+  // 주문가능금액 — 미체결분이 이미 빠진 KIS 기준값. 로컬 차감 금지(이중 진실 방지).
+  '/api/kr/orderable': (q) => {
+    const code = String(q?.get('code') || '').trim();
+    if (!isKrCode(code)) throw new Error('국내 6자리 종목코드 필요');
+    const ordType = q?.get('ordType') === 'market' ? 'market' : 'limit';
+    const price = +(q?.get('price') || 0);
+    return cached(`orderable:${code}:${ordType}:${price}`, 5_000, () => kisOrderable({ code, price, ordType }));
+  },
+  // 당일 주문·체결 내역(체결/부분체결/미체결).
+  // ⚠️ 모의계좌는 당일분을 빈 배열로 돌려준다(실측). 실전에서만 의미가 있어 화면 이력은
+  //    로컬 기록(주문번호 포함)을 쓰고, 대기 주문은 아래 open 라우트로 본다.
+  '/api/kr/orders': () => cached('orders', 5_000, kisTodayOrders),
+  // 미체결(정정·취소 가능) 주문 — 모의에서도 동작한다.
+  '/api/kr/orders/open': () => cached('openorders', 5_000, kisOpenOrders),
+
   '/api/portfolio': () => cached('portfolio', 15_000, async () => {
     try { return await kisBalance(); }
-    catch (e) { return { configured: false, reason: String(e?.message || e), holdings: [] }; }
+    catch (e) {
+      const msg = String(e?.message || e);
+      // 계좌 미설정은 사용자가 고쳐야 하는 상태 → 그대로 알린다.
+      if (/미설정/.test(msg)) return { configured: false, reason: msg, holdings: [] };
+      // 스로틀 등 일시 실패는 throw — cached()가 마지막 정상값을 stale로 내준다.
+      // 여기서 configured:false 를 돌려주면 성공으로 간주돼 15초간 "주문 불가"로 박제된다
+      // (주문 직후 잔고 재조회가 초당 제한에 걸리면 바로 재현된다).
+      throw e;
+    }
   }),
   // 포트폴리오 일별 이력 (최근 N일, 기본 400일). 60초 캐시.
   '/api/portfolio/history': (q) => {
@@ -702,7 +1064,9 @@ const routes = {
   // 히트맵 개별종목 실시세 (미국 Finnhub 배치, 동시성 8, 10분 캐시)
   '/api/heatmap/quotes': (q) => {
     const syms = (q?.get('symbols') || '').split(',').map((c) => c.trim()).filter(Boolean).slice(0, 70);
-    return cached('hmq:' + syms.join(','), 10 * 60_000, async () => {
+    // 실패한 심볼은 아예 빠지므로 부분 히트맵이 10분간 굳는다 → 다 못 채웠으면 30초만.
+    const full = (out) => syms.length > 0 && Object.keys(out).length === syms.length;
+    return cached('hmq:' + syms.join(','), (out) => (full(out) ? 10 * 60_000 : 30_000), async () => {
       const out = {};
       await pool(syms, 8, async (sym) => {
         const d = await finnhubQuote(sym).catch(() => null);
@@ -714,7 +1078,8 @@ const routes = {
   // 미국 종목 시세 (Finnhub, symbols=AAPL,NVDA,TSLA)
   '/api/us/quotes': (q) => {
     const syms = (q?.get('symbols') || '').split(',').map((c) => c.trim()).filter(Boolean);
-    return cached('usq:' + syms.join(','), 15_000, async () => {
+    const allOk = (out) => syms.length > 0 && syms.every((x) => out[x]);
+    return cached('usq:' + syms.join(','), (out) => (allOk(out) ? 15_000 : 3_000), async () => {
       const out = {};
       await Promise.all(syms.map(async (sym) => { out[sym] = await finnhubQuote(sym).catch(() => null); }));
       return out;
@@ -916,7 +1281,17 @@ server.listen(PORT, async () => {
   try {
     portfolioHistory = createPortfolioHistory({
       fetchBalance: kisBalance,
-      fetchKospi: () => kisIndex('0001'),
+      // KIS는 초당 제한에 자주 걸린다 — 실패하면 ECOS 코스피지수로 폴백한다.
+      // (폴백이 없으면 히스토리에 kospi:null이 박히고 수익률 비교선이 끊긴다)
+      fetchKospi: async () => {
+        try {
+          const r = await kisIndex('0001');
+          if (r?.price > 0) return r;
+        } catch { /* ECOS로 */ }
+        const k = (await cached('econkey', 60 * 60_000, econKey)).data;
+        if (!(k?.kospi > 0)) throw new Error('KOSPI 지수 소스 실패');
+        return { price: k.kospi };
+      },
       fetchSpx: () => finnhubQuote('SPY'),
       file: `${CACHE_DIR}portfolio-history.json`,
     });

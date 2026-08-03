@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { signColor, fmt } from '../../lib/colors';
 import { snapToTick, tickSize } from '../../lib/krxTick';
-import { validateBuy, validateSell, fee, marketOrderPrice, effectiveBalance, chipQty, type Orderbook } from '../../lib/paperOrders';
+import { validateBuy, validateSell, fee, marketOrderPrice, chipQty, referencePrice, type Orderbook } from '../../lib/paperOrders';
 import { Button, Segmented, Badge, Modal, EmptyState, ErrorState } from '@/components/common';
 import toast from '@/lib/toast';
-import type { Market, PaperOrder, Portfolio } from '@/data/types';
+import type { Market, PaperOrder, Portfolio, Orderable } from '@/data/types';
 
 interface OrderTicketProps {
   code: string;
@@ -23,8 +23,9 @@ export default function OrderTicket({
   code, name, market, price, orderbook, lastTradePrice, portfolio, picked,
 }: OrderTicketProps) {
   const mode = useStore((st) => st.colorMode);
-  const paperOrders = useStore((st) => st.paperOrders);
   const placePaperOrder = useStore((st) => st.placePaperOrder);
+  const submitOrder = useStore((st) => st.submitOrder);
+  const fetchOrderable = useStore((st) => st.fetchOrderable);
 
   // UI state
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
@@ -32,20 +33,26 @@ export default function OrderTicket({
   const [qty, setQty] = useState<number>(1);
   const [limitPrice, setLimitPrice] = useState<number>(price);
   const [showModal, setShowModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  /** KIS 주문가능금액. null = 아직 못 읽음(주문 불가로 취급). */
+  const [orderable, setOrderable] = useState<Orderable | null>(null);
+
+  // 기준가는 실호가·실체결에서만 만든다. `price` prop은 getStockDetail이 아직 목이라
+  // 실가와 몇 배씩 벌어질 수 있어 주문 단가로 쓰지 않는다.
+  const refPrice = referencePrice(orderbook, lastTradePrice);
 
   // 훅은 전부 조기 return 이전에 — 조건부 훅은 포트폴리오 로드 전→후 전환에서 앱을 크래시시킨다(Rules of Hooks).
-  // 종목이 바뀔 때만 지정가를 현재가로 리셋 — tick마다 리셋하면 사용자 입력이 덮인다.
+  // 종목이 바뀌면 비우고, 실가가 도착하면 채운다(tick마다 덮으면 사용자 입력이 날아간다).
   useEffect(() => {
-    setLimitPrice(price > 0 ? snapToTick(price) : 0);
+    setLimitPrice(0);
     setQty(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
-  // 진입 시 가격이 아직 0이었다가 늦게 도착하면 최초 1회만 채운다.
   useEffect(() => {
-    if (limitPrice <= 0 && price > 0) setLimitPrice(snapToTick(price));
+    if (limitPrice <= 0 && refPrice > 0) setLimitPrice(snapToTick(refPrice));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [price]);
+  }, [refPrice]);
 
   // 호가 클릭 → 지정가 모드 전환 + 채움.
   useEffect(() => {
@@ -55,6 +62,23 @@ export default function OrderTicket({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [picked?.seq]);
+
+  // 주문 가격 — 조기 return 이전에 계산한다(주문가능금액 조회가 이 값에 의존한다).
+  const orderPrice = type === 'market'
+    ? marketOrderPrice(side, orderbook || { asks: [], bids: [] }, lastTradePrice, refPrice)
+    : snapToTick(limitPrice);
+
+  // 주문가능금액은 KIS에서 읽는다. 미체결분이 이미 차감된 값이라 로컬에서 다시 빼면 이중 차감.
+  // 단가가 바뀔 때마다 때리지 않도록 300ms 디바운스.
+  useEffect(() => {
+    // 매도는 보유수량만 보면 되므로 조회하지 않는다(KIS 초당 호출 제한을 아낀다).
+    if (market !== 'KR' || side !== 'buy' || !(orderPrice > 0)) return;
+    let alive = true;
+    const t = setTimeout(() => {
+      fetchOrderable(code, type, orderPrice).then((o) => { if (alive) setOrderable(o); });
+    }, 300);
+    return () => { alive = false; clearTimeout(t); };
+  }, [code, type, orderPrice, market, side, fetchOrderable]);
 
   // US 종목 처리
   if (market === 'US') {
@@ -70,33 +94,37 @@ export default function OrderTicket({
     return <ErrorState title="주문 불가 상태입니다" desc="포트폴리오 데이터에 연결되어 있지 않습니다." />;
   }
 
-  // 유효 잔고 계산
-  const { cash, holdings } = effectiveBalance(portfolio, paperOrders);
-  const effectiveQty = holdings.get(code) ?? 0;
-
-  // 주문 가격 결정
-  const orderPrice = type === 'market'
-    ? marketOrderPrice(side, orderbook || { asks: [], bids: [] }, lastTradePrice, price)
-    : snapToTick(limitPrice);
+  // 잔고는 KIS 단일 소스 — 보유수량은 계좌 그대로, 주문가능금액은 inquire-psbl-order.
+  const held = portfolio.holdings.find((h) => h.code === code);
+  // 매도가능수량 기준 — 미체결 매도가 걸린 주식을 또 팔지 않도록. 없으면 보유수량으로.
+  const heldQty = held?.sellableQty ?? held?.qty ?? 0;
+  const orderableCash = orderable?.cash ?? 0;
 
   // 비용/수익 계산
   const totalAmount = orderPrice * qty;
   const totalFee = fee(totalAmount);
   const totalCost = side === 'buy' ? totalAmount + totalFee : totalAmount - totalFee;
 
-  // 주문 후 예수금
-  const afterCash = side === 'buy' ? cash - totalCost : cash + totalCost;
+  // 주문 후 주문가능금액(추정) — 확정값은 주문 뒤 KIS 재조회로 갱신된다.
+  const afterCash = side === 'buy' ? orderableCash - totalCost : orderableCash + totalCost;
 
-  // 유효성 검증
-  const validation = side === 'buy'
-    ? validateBuy(qty, orderPrice, portfolio, paperOrders)
-    : validateSell(code, qty, portfolio, paperOrders);
+  // 유효성 검증. 최종 판단은 KIS가 하고, 거부 사유는 그대로 노출한다.
+  // 매도에는 주문가능금액이 필요 없다 — 보유수량만 본다.
+  const validation = !(refPrice > 0)
+    ? { ok: false as const, error: '실시간 시세를 아직 받지 못했습니다. 호가가 들어오면 주문할 수 있습니다.' }
+    : !(orderPrice > 0)
+      ? { ok: false as const, error: '주문 단가를 입력하세요.' }
+      : side === 'sell'
+        ? validateSell(qty, heldQty)
+        : !orderable
+          ? { ok: false as const, error: '주문가능금액을 확인하는 중입니다.' }
+          : validateBuy(qty, orderPrice, orderableCash);
 
   const isValid = validation.ok;
   const errorMsg = !validation.ok ? validation.error : '';
 
   // 칩 수량 계산 (도메인 로직 재사용)
-  const chip = (pct: number) => chipQty(pct, side, orderPrice, code, portfolio, paperOrders);
+  const chip = (pct: number) => chipQty(pct, side, orderPrice, orderableCash, heldQty);
 
   const handleSetQty = (newQty: number) => {
     setQty(Math.max(1, newQty));
@@ -119,33 +147,51 @@ export default function OrderTicket({
     setShowModal(true);
   };
 
-  const handleConfirmOrder = () => {
-    const order: PaperOrder = {
-      id: `${Date.now()}`,
-      code,
-      name,
-      market,
-      side,
-      type,
-      price: orderPrice,
-      qty,
-      fee: totalFee,
-      at: Date.now(),
-    };
+  const handleConfirmOrder = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const r = await submitOrder({
+        code, side, qty, ordType: type,
+        ...(type === 'limit' && { price: orderPrice }),
+      });
 
-    placePaperOrder(order);
-    toast.success({ message: '모의 주문 접수' });
-    setShowModal(false);
-    // UI 리셋
-    setQty(1);
-    setLimitPrice(snapToTick(price));
+      if (!r.ok) {
+        // KIS 거부 사유를 그대로 보여준다("장 시간이 아닙니다" 등). 임의 문구로 덮으면 원인을 못 찾는다.
+        toast.error({ message: r.message });
+        return;
+      }
+
+      // 접수된 주문만 이력에 남긴다 — 주문번호가 계좌에 들어갔다는 증거.
+      // 금액 계산에는 쓰지 않는다(잔고는 KIS 재조회로 이미 갱신됨).
+      placePaperOrder({
+        id: r.orderNo || `${Date.now()}`,
+        code, name, market, side, type,
+        price: orderPrice, qty, fee: totalFee, at: Date.now(),
+        ...(r.orderNo && { orderNo: r.orderNo }),
+      } satisfies PaperOrder);
+
+      toast.success({ message: r.message });
+      setShowModal(false);
+      setQty(1);
+      setLimitPrice(refPrice > 0 ? snapToTick(refPrice) : 0);   // 목 price가 아니라 실호가 기준
+      // 주문가능금액 재조회 — 방금 주문분이 빠진 값으로 갱신
+      fetchOrderable(code, type, orderPrice).then(setOrderable);
+    } catch (e) {
+      toast.error({ message: e instanceof Error ? e.message : '주문 전송 실패' });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const sideColor = signColor(side === 'buy' ? 1 : -1, mode);
 
   return (
     <div className="card" style={{ padding: '16px' }}>
-      <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text)' }}>모의 주문</h3>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>모의 주문</h3>
+        <span className="tag mono" style={{ fontSize: 10 }}>KIS 모의계좌 실주문</span>
+      </div>
 
       {/* 매수/매도 토글 */}
       <div style={{ marginBottom: 12 }}>
@@ -373,7 +419,7 @@ export default function OrderTicket({
                     fontSize: 10,
                     fontWeight: 500,
                   }}
-                  title={`${effectiveQty}주 중 ${pct}%`}
+                  title={`${heldQty}주 중 ${pct}%`}
                 >
                   {pct}%
                 </button>
@@ -394,13 +440,21 @@ export default function OrderTicket({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ color: 'var(--text-sub)' }}>{side === 'buy' ? '주문가능금액' : '매도가능수량'}</span>
+          <span className="mono" style={{ color: orderable ? 'var(--text)' : 'var(--text-mut)', fontWeight: 600 }}>
+            {side === 'buy'
+              ? (orderable ? `₩${fmt(orderableCash, 0)}` : '조회 중…')
+              : `${fmt(heldQty, 0)}주`}
+          </span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <span style={{ color: 'var(--text-sub)' }}>체결금액</span>
           <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)', fontWeight: 600 }}>
             ₩{fmt(totalAmount, 0)}
           </span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ color: 'var(--text-sub)' }}>수수료</span>
+          <span style={{ color: 'var(--text-sub)' }}>수수료(예상)</span>
           <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)', fontWeight: 600 }}>
             ₩{fmt(totalFee, 0)}
           </span>
@@ -408,10 +462,10 @@ export default function OrderTicket({
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ color: 'var(--text-sub)' }}>
-              {side === 'buy' ? '주문 후 예수금' : '주문 후 보유'}
+              {side === 'buy' ? '주문 후 주문가능금액' : '주문 후 보유'}
             </span>
             <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)', fontWeight: 600 }}>
-              ₩{fmt(side === 'buy' ? afterCash : effectiveQty - qty, 0)}
+              {side === 'buy' ? `₩${fmt(afterCash, 0)}` : `${fmt(heldQty - qty, 0)}주`}
             </span>
           </div>
         </div>
@@ -423,10 +477,10 @@ export default function OrderTicket({
           style={{
             padding: '8px',
             borderRadius: 6,
-            background: 'rgba(234,57,67,0.1)',
+            background: 'var(--bad-bg)',
             marginBottom: 12,
             fontSize: 11,
-            color: '#ea3943',
+            color: 'var(--bad)',
             lineHeight: 1.4,
           }}
         >
@@ -454,7 +508,7 @@ export default function OrderTicket({
         footer={
           <div style={{ display: 'flex', gap: 10 }}>
             <Button onClick={() => setShowModal(false)} variant="subtle" block>취소</Button>
-            <Button onClick={handleConfirmOrder} block style={{ background: sideColor }}>
+            <Button onClick={handleConfirmOrder} loading={submitting} block style={{ background: sideColor }}>
               확정
             </Button>
           </div>

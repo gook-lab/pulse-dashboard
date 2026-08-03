@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import type { NewsGroup, NewsItem } from '../../data/types';
-import { Segmented, Button, EmptyState, Badge } from '@/components/common';
+import { Segmented, Button, EmptyState, ErrorState, Badge } from '@/components/common';
 import { signColor, type ColorMode } from '../../lib/colors';
 import toast from '@/lib/toast';
 import s from './News.module.css';
@@ -84,7 +84,19 @@ export default function News() {
 
       {/* 우: 타임라인 */}
       <main className={s.timeline}>
-        {filtered.length === 0 && <section className="card"><EmptyState title="뉴스 없음" desc="다른 필터를 선택해보세요." /></section>}
+        {/* 아무것도 못 불러온 것과 필터로 걸러진 것을 구분한다. 최초 로드가 한 번 실패하면
+            store가 빈 배열로 남아 영구히 비는데, "다른 필터를 선택해보세요"는 원인을 오해시킨다. */}
+        {news.length === 0 ? (
+          <section className="card">
+            <ErrorState
+              title="뉴스를 불러오지 못했습니다"
+              desc="뉴스 소스 조회가 일시적으로 실패할 수 있습니다. 다시 시도해 주세요."
+              onRetry={() => { void refreshNews(); }}
+            />
+          </section>
+        ) : filtered.length === 0 ? (
+          <section className="card"><EmptyState title="조건에 맞는 뉴스가 없습니다" desc="감성·출처 필터를 바꿔보세요." /></section>
+        ) : null}
         {GROUPS.map((g) => {
           const items = filtered.filter((n) => n.group === g);
           if (!items.length) return null;

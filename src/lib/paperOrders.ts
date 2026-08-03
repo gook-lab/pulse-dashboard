@@ -1,4 +1,4 @@
-import type { Portfolio, PaperOrder } from '@/data/types';
+import type { PaperOrder } from '@/data/types';
 
 /**
  * 수수료 계산 (0.015%, 반올림)
@@ -8,84 +8,31 @@ export function fee(amount: number): number {
 }
 
 /**
- * 유효 잔고 오버레이 계산
- * @param portfolio KIS 포트폴리오
- * @param orders 페이퍼 주문 목록
- * @returns { cash: 유효예수금, holdings: 종목별 유효수량 Map }
- */
-export function effectiveBalance(
-  portfolio: Portfolio,
-  orders: PaperOrder[]
-): { cash: number; holdings: Map<string, number> } {
-  let effectiveCash = portfolio.cash ?? 0;
-  const effectiveHoldings = new Map<string, number>();
-
-  // KIS 보유 종목을 Map에 로드
-  for (const h of portfolio.holdings) {
-    effectiveHoldings.set(h.code, h.qty);
-  }
-
-  // 페이퍼 주문 반영
-  for (const order of orders) {
-    if (order.side === 'buy') {
-      // 매수: 예수금 감소, 보유 증가
-      const cost = order.price * order.qty + order.fee;
-      effectiveCash -= cost;
-      effectiveHoldings.set(order.code, (effectiveHoldings.get(order.code) ?? 0) + order.qty);
-    } else {
-      // 매도: 예수금 증가, 보유 감소
-      const proceeds = order.price * order.qty - order.fee;
-      effectiveCash += proceeds;
-      effectiveHoldings.set(order.code, (effectiveHoldings.get(order.code) ?? 0) - order.qty);
-    }
-  }
-
-  return { cash: effectiveCash, holdings: effectiveHoldings };
-}
-
-/**
- * 매도 주문 검증
+ * 매도 주문 검증. 수량은 KIS 보유수량 기준 — 로컬 원장으로 다시 세지 않는다.
  */
 export function validateSell(
-  code: string,
   qty: number,
-  portfolio: Portfolio,
-  orders: PaperOrder[]
+  heldQty: number
 ): { ok: true } | { ok: false; error: string } {
-  if (portfolio.unavailable) {
-    return { ok: false, error: '현재 주문 불가 상태입니다.' };
+  if (heldQty < qty) {
+    return { ok: false, error: `보유 수량이 부족합니다. (보유: ${heldQty}주)` };
   }
-
-  const { holdings } = effectiveBalance(portfolio, orders);
-  const effectiveQty = holdings.get(code) ?? 0;
-
-  if (effectiveQty < qty) {
-    return { ok: false, error: `보유 수량이 부족합니다. (보유: ${effectiveQty}주)` };
-  }
-
   return { ok: true };
 }
 
 /**
- * 매수 주문 검증
+ * 매수 주문 검증. KIS 주문가능현금(inquire-psbl-order) 기준.
+ * 최종 판단은 KIS가 한다 — 여기서 통과해도 거부될 수 있고 그 사유는 그대로 노출한다.
  */
 export function validateBuy(
   qty: number,
   price: number,
-  portfolio: Portfolio,
-  orders: PaperOrder[]
+  orderableCash: number
 ): { ok: true } | { ok: false; error: string } {
-  if (portfolio.unavailable) {
-    return { ok: false, error: '현재 주문 불가 상태입니다.' };
-  }
-
-  const { cash } = effectiveBalance(portfolio, orders);
   const totalCost = price * qty + fee(price * qty);
-
-  if (cash < totalCost) {
-    return { ok: false, error: `예수금이 부족합니다. (필요: ${totalCost.toLocaleString()}원, 보유: ${cash.toLocaleString()}원)` };
+  if (orderableCash < totalCost) {
+    return { ok: false, error: `주문가능금액이 부족합니다. (필요: ${totalCost.toLocaleString()}원, 가능: ${orderableCash.toLocaleString()}원)` };
   }
-
   return { ok: true };
 }
 
@@ -93,27 +40,22 @@ export function validateBuy(
  * 칩 수량 계산 (10/25/50/100%)
  * @param pct 칩 퍼센트 (10, 25, 50, 100)
  * @param side 'buy' | 'sell'
- * @param price 현재가 (매수 시), 또는 사용하지 않음 (매도 시)
+ * @param price 주문 단가 (매수 시)
+ * @param orderableCash KIS 주문가능현금 (매수 시)
+ * @param heldQty KIS 보유수량 (매도 시)
  */
 export function chipQty(
   pct: number,
   side: 'buy' | 'sell',
   price: number,
-  code: string,
-  portfolio: Portfolio,
-  orders: PaperOrder[]
+  orderableCash: number,
+  heldQty: number
 ): number {
-  const { cash, holdings } = effectiveBalance(portfolio, orders);
-
   if (side === 'buy') {
-    // 유효 예수금의 pct% 기준
-    const amount = (cash * pct) / 100;
-    return Math.floor(amount / price);
-  } else {
-    // 유효 보유(해당 종목)의 pct% 기준
-    const effectiveQty = holdings.get(code) ?? 0;
-    return Math.floor(effectiveQty * (pct / 100));
+    if (!(price > 0)) return 0;
+    return Math.floor(((orderableCash * pct) / 100) / price);
   }
+  return Math.floor(heldQty * (pct / 100));
 }
 
 export interface Orderbook {
@@ -140,6 +82,22 @@ export function marketOrderPrice(
   if (best) return best.price;
   if (lastTradePrice > 0) return lastTradePrice;
   return currentPrice;
+}
+
+/**
+ * 지정가 기본값으로 쓸 기준가. 실호가 → 최근 체결가 순으로 고르고, 둘 다 없으면 0.
+ *
+ * `detail.price`(목 데이터)로 폴백하지 않는 게 핵심이다. getStockDetail이 아직 목이라
+ * 25만원 종목에 7.8만원이 기본으로 채워질 수 있고, 그대로 주문하면 시장에서 한참 떨어진
+ * 지정가가 계좌에 들어간다. 실가가 없으면 0을 돌려 주문을 막는 편이 낫다.
+ */
+export function referencePrice(orderbook: Orderbook | undefined, lastTradePrice: number): number {
+  const ask = orderbook?.asks.find((l) => l.price > 0)?.price ?? 0;
+  const bid = orderbook?.bids.find((l) => l.price > 0)?.price ?? 0;
+  if (ask > 0 && bid > 0) return Math.round((ask + bid) / 2);
+  if (ask > 0) return ask;
+  if (bid > 0) return bid;
+  return lastTradePrice > 0 ? lastTradePrice : 0;
 }
 
 /**

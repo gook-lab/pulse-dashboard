@@ -382,8 +382,17 @@ function mockScreen(q: ScreenQuery): ScreenResult {
     return null;
   };
 
+  // 지도 라벨용 대표 거래 — 목은 rep 이 없으니 평형대 중심값 × 평당가로 총액을 만든다(서버와 같은 표기 재료).
+  const AREA_OF: Record<string, number> = { '~60': 59, '60~85': 84, '85~135': 114, '135~': 145 };
+  const repOf = (c: typeof pool[number]) => {
+    const ppy = basisPrice(c);
+    const area = AREA_OF[c.areaTier] ?? null;
+    if (ppy == null || area == null) return { amount: null, area: null };
+    return { amount: Math.round(ppy * (area / 3.3058)), area };
+  };
+
   const ranked = eligible
-    .map((c) => ({ id: c.aptSeq, value: valueOf(c) as number, deals: c.signals[dealType].dealCount, price: basisPrice(c) }))
+    .map((c) => ({ id: c.aptSeq, value: valueOf(c) as number, deals: c.signals[dealType].dealCount, price: basisPrice(c), ...repOf(c) }))
     .sort((a, b) => (a.value - b.value) * dir)
     .map((r, i) => ({ ...r, rank: i + 1 }));
 
@@ -425,6 +434,13 @@ export const mockApi: MarketApi = {
   getFearGreed: () => delay(FEAR_GREED),
   getCryptoFearGreed: () => delay(CRYPTO_FG),
   getMacro: () => delay(MACRO),
+  // 버핏지수는 목값이 없다 — 시총·GDP를 꾸며내면 밸류에이션 판단을 오도한다.
+  getBuffett: () => delay({ kr: null, us: null }),
+  // 주문은 목으로 성공시키지 않는다 — 계좌에 안 들어간 주문을 체결된 것처럼 보여주면 안 된다.
+  placeOrder: () => delay({ ok: false, orderNo: null, orderTime: null, message: '주문은 백엔드(KIS) 연결이 필요합니다.' }),
+  getOrderable: () => delay(null),
+  // 기본정보는 목으로 만들지 않는다 — 시총·PER을 꾸며내면 투자판단을 오도한다.
+  getStockInfo: () => delay(null),
   getWatchlist: () => delay(WATCHLIST),
   getNews: () => delay(NEWS),
   getAiOpinion: () => delay(AI_OPINION),

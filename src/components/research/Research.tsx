@@ -3,6 +3,7 @@ import { useStore } from '../../store/useStore';
 import { signColor, fmt, type ColorMode } from '../../lib/colors';
 import { Badge, Skeleton, SkeletonRows, SkeletonText } from '@/components/common';
 import type { Report } from '../../data/types';
+import { fmtMarketCapEok } from '@/lib/format';
 import s from './Research.module.css';
 
 // 투자의견 배지: 매수=signColor(+1), 매도=signColor(-1), 중립=회색(색 미지정).
@@ -102,9 +103,11 @@ function Reader({ r, mode }: { r: Report; mode: ColorMode }) {
       <section className="card">
         <div className="card-h"><span className="t">밸류에이션</span></div>
         <div className={s.val}>
-          <V k="PER" v={`${r.per.toFixed(1)}배`} />
-          <V k="PBR" v={`${r.pbr.toFixed(2)}배`} />
-          <V k="시가총액" v={r.marketCap} />
+          {/* 실 펀더멘털이 없으면 '-'. 목 PER·시총을 실데이터처럼 보이면 안 된다
+              (미국은 무료 소스가 없어 항상 '-'). */}
+          <V k="PER" v={r.fundamentalsReal ? `${r.per.toFixed(1)}배` : '-'} />
+          <V k="PBR" v={r.fundamentalsReal ? `${r.pbr.toFixed(2)}배` : '-'} />
+          <V k="시가총액" v={r.fundamentalsReal ? fmtMarketCapEok(r.marketCapEok) : '-'} />
           <V k="목표가" v={r.targetReal ? `${r.cur}${fmt(r.target, r.dec)}` : '-'} />
         </div>
       </section>

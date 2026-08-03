@@ -53,7 +53,10 @@ export default function Portfolio() {
         <Sum k="총자산" v={won(totalAsset)} />
         {/* 손익 0은 등락색이 아니라 중립(기본)색 — +₩0 초록은 잘못된 신호 */}
         <Sum k="평가손익" v={`${pf.summary.pnl > 0 ? '+' : ''}${won(pf.summary.pnl)}`} sub={`${pf.summary.pnlPct > 0 ? '+' : ''}${pf.summary.pnlPct}%`} color={pf.summary.pnl === 0 ? undefined : signColor(pf.summary.pnl, mode)} />
-        <Sum k="일간손익" v={`${pf.summary.dayPnl > 0 ? '+' : ''}${won(pf.summary.dayPnl)}`} sub={`${pf.summary.dayPnlPct > 0 ? '+' : ''}${pf.summary.dayPnlPct}%`} color={pf.summary.dayPnl === 0 ? undefined : signColor(pf.summary.dayPnl, mode)} />
+        {/* 장 시작 전에는 KIS가 일간 등락을 안 준다 — "₩0 / 0%"로 찍으면 실제 보합과 구별되지 않는다. */}
+        {pf.summary.dayPnlUnavailable
+          ? <Sum k="일간손익" v="-" sub="장 시작 전 · 소스 미제공" />
+          : <Sum k="일간손익" v={`${pf.summary.dayPnl > 0 ? '+' : ''}${won(pf.summary.dayPnl)}`} sub={`${pf.summary.dayPnlPct > 0 ? '+' : ''}${pf.summary.dayPnlPct}%`} color={pf.summary.dayPnl === 0 ? undefined : signColor(pf.summary.dayPnl, mode)} />}
         <Sum k={pf.cash != null ? '예수금' : '투자원금'} v={won(pf.cash != null ? cash : pf.summary.principal)} />
       </div>
 
@@ -89,7 +92,8 @@ export default function Portfolio() {
           )}
           {!holdingRows.length && cash > 0 && (
             <div style={{ padding: '14px 16px', color: 'var(--text-mut)', fontSize: 12 }}>
-              보유 종목이 없어 예수금 전액이 현금입니다. 모의투자에서 매수하면 이곳에 실시간 반영됩니다.
+              보유 종목이 없어 예수금 전액이 현금입니다. 종목 상세에서 매수하면 KIS 모의계좌에 주문이
+              들어가고, 체결되면 이곳에 반영됩니다(30초 폴링).
             </div>
           )}
         </section>
@@ -102,11 +106,17 @@ export default function Portfolio() {
         <ReturnChart />
 
         <section className="card">
-          <div className="card-h"><span className="t">모의 주문 내역</span></div>
+          <div className="card-h">
+            <span className="t">주문 내역</span>
+            {/* 모의계좌는 당일 주문·체결 조회를 KIS가 막아둬서(inquire-daily-ccld 빈 응답,
+                inquire-psbl-rvsecncl 미제공) 접수 이력은 이 브라우저에 남긴 기록으로 보여준다.
+                금액·보유수량은 위쪽 KIS 잔고가 진실이다. */}
+            <span className="tag" style={{ fontSize: 11 }}>이 브라우저 기록 · 잔고는 KIS 기준</span>
+          </div>
           {paperOrders.length === 0 ? (
             <EmptyState
               title="아직 주문이 없습니다"
-              desc="종목 상세의 주문 티켓에서 모의 주문을 넣어보세요"
+              desc="종목 상세의 주문 티켓에서 KIS 모의계좌로 주문을 넣어보세요"
             />
           ) : (
             <>
@@ -116,6 +126,7 @@ export default function Portfolio() {
                 <span className={s.rt}>종목</span>
                 <span className={s.rt}>수량</span>
                 <span className={s.rt}>가격</span>
+                <span className={s.rt}>주문번호</span>
               </div>
               <div style={{ maxHeight: 240, overflowY: 'auto' }}>
                 {[...paperOrders].reverse().map((order) => (
@@ -143,6 +154,10 @@ function PaperOrderRow({ order, mode }: { order: PaperOrder; mode: ColorMode }) 
       <span className={s.rt} style={{ color: 'var(--text)', fontWeight: 500 }}>{order.name}</span>
       <span className={`${s.rt} mono`}>{order.qty}</span>
       <span className={`${s.rt} mono`}>{fmt(order.price, 0)}</span>
+      {/* KIS 주문번호가 있으면 계좌에 실제 접수된 주문이다. 없으면 옛 로컬 기록. */}
+      <span className={`${s.rt} mono`} style={{ color: 'var(--text-mut)', fontSize: 10 }}>
+        {order.orderNo ? `#${order.orderNo}` : '-'}
+      </span>
     </div>
   );
 }

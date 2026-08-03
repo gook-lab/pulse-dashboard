@@ -117,3 +117,51 @@ describe('chartSeries', () => {
     it('fmtT: 중간 지점은 12:15', () => expect(fmtT(1, 3)).toBe('12:15'));
   });
 });
+
+describe('전일 종가 기준 등락 (1일 차트)', () => {
+  /**
+   * 1일 등락은 언제나 전일 종가 대비다. StockDetail이 실일봉에서 뽑는 규칙을 그대로 잠근다:
+   *  - 마지막 봉이 오늘이면 그 앞이 전일
+   *  - 장 시작 전(마지막 봉이 어제)이면 마지막 봉이 곧 전일
+   * 실측 회귀: 005930이 전일 207,000 → 현재 250,000 인데 화면에 +0.00%로 찍혔다.
+   */
+  const pickPrevClose = (rows: { date: string; c: number }[], today: string) => {
+    const d = rows.filter((c) => Number.isFinite(c.c) && c.c > 0);
+    if (!d.length) return 0;
+    const lastIsToday = d[d.length - 1].date?.slice(0, 8) === today;
+    return (lastIsToday ? d[d.length - 2] : d[d.length - 1])?.c ?? 0;
+  };
+
+  it('마지막 봉이 오늘이면 그 앞 봉이 전일 종가', () => {
+    const rows = [
+      { date: '20260729', c: 201000 },
+      { date: '20260730', c: 207000 },
+      { date: '20260731', c: 250000 },
+    ];
+    expect(pickPrevClose(rows, '20260731')).toBe(207000);
+  });
+
+  it('장 시작 전(마지막 봉이 어제)이면 마지막 봉이 전일 종가', () => {
+    const rows = [
+      { date: '20260730', c: 207000 },
+      { date: '20260731', c: 250000 },
+    ];
+    expect(pickPrevClose(rows, '20260801')).toBe(250000);
+  });
+
+  it('전일 종가로 낸 등락이 KIS 실시세와 같다', () => {
+    const prev = pickPrevClose(
+      [{ date: '20260730', c: 207000 }, { date: '20260731', c: 250000 }],
+      '20260731',
+    );
+    const live = 250000;
+    expect(prev).toBe(207000);
+    expect(live - prev).toBe(43000);                                  // KIS change
+    expect(+(((live - prev) / prev) * 100).toFixed(2)).toBe(20.77);    // KIS changePct
+  });
+
+  it('봉이 하나뿐이면 전일 종가를 만들지 않는다 — 0으로 두고 기준을 포기한다', () => {
+    expect(pickPrevClose([{ date: '20260731', c: 250000 }], '20260731')).toBe(0);
+    expect(pickPrevClose([], '20260731')).toBe(0);
+  });
+});

@@ -7,6 +7,10 @@ export interface CompareSeries {
   name: string;
   data: (number | null)[];
   color: string;
+  /** 선 두께. 추세선처럼 주선보다 물러나야 할 때 낮춘다(기본 2.2). */
+  width?: number;
+  /** SVG strokeDasharray. 관측값이 아닌 파생 계열임을 드러낼 때 쓴다. */
+  dash?: string;
 }
 
 export interface MinMax {

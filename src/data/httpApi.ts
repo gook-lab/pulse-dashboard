@@ -1,7 +1,8 @@
 // 실백엔드 소비 어댑터 (strangler): 백엔드가 준비된 엔드포인트만 HTTP로,
 // 나머지는 목에 위임. 엔드포인트가 늘면 여기서 하나씩 목→HTTP로 옮긴다.
 import type { MarketApi, FearGreed, CryptoFG, MacroItem, IndexQuote, SeoulRent, WatchItem, NewsItem, AiOpinion, Portfolio,
-  ScreenQuery, ScreenResult, ComplexesResult, AptComplexDetail, ComplexDealsResult, NeedsCollect, RankingItem, PortfolioHistoryResult } from './types';
+  ScreenQuery, ScreenResult, ComplexesResult, AptComplexDetail, ComplexDealsResult, NeedsCollect, RankingItem, PortfolioHistoryResult,
+  BuffettData, OrderRequest, OrderResult, Orderable, StockInfo } from './types';
 import { mockApi } from './mockApi';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -24,7 +25,7 @@ function needsCollectOf(e: unknown): NeedsCollect | null {
   return err?.needsCollect ? { needsCollect: true, hint: err.hint ?? 'pnpm collect' } : null;
 }
 
-type Q = { price: number; change?: number; changePct: number };
+type Q = { price: number; change?: number; changePct: number; changeUnavailable?: boolean };
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const httpApi: MarketApi = {
@@ -50,7 +51,10 @@ export const httpApi: MarketApi = {
       }
       if (kr && (q.code === 'KOSPI' || q.code === 'KOSDAQ')) {
         const d = kr[q.code];
-        if (d) return { ...q, price: d.price, change: d.change ?? round2(d.price * d.changePct / 100), changePct: d.changePct };
+        if (d) return {
+          ...q, price: d.price, change: d.change ?? round2(d.price * d.changePct / 100), changePct: d.changePct,
+          ...(d.changeUnavailable && { changeUnavailable: true }),
+        };
       }
       if (fx && q.code === 'USDKRW') {
         return { ...q, price: fx.value, change: round2(fx.value * fx.changePct / 100), changePct: fx.changePct };
@@ -91,10 +95,13 @@ export const httpApi: MarketApi = {
     type V = { value: number; changePct: number };
     type Q2 = { price: number; changePct: number };
     type Econ = { baseRate: number | null; gb3y: number | null; usdkrw: number | null; jpykrw: number | null };
-    const [btc, macro, econ] = await Promise.all([
+    const [btc, macro, econ, fx] = await Promise.all([
       getJson<{ price: number; changePct: number }>('/api/crypto/btc').catch(() => null),
       getJson<{ us10y: V | null; oil: V | null; vix: V | null; gold: Q2 | null }>('/api/macro').catch(() => null),
       getJson<Econ>('/api/econ/key').catch(() => null),
+      // 원/달러는 상단 지수 카드와 같은 소스(ECOS 매매기준율)를 쓴다. econ/key는 '종가'라
+      // 정의가 달라 같은 날에도 10원대로 벌어지고, 한 화면에 두 값이 찍혀 오류로 읽힌다.
+      getJson<{ value: number; changePct: number }>('/api/fx/usdkrw').catch(() => null),
     ]);
     const num = (n: number) => n.toLocaleString('ko-KR');
     const realKeys = new Set(['btc', 'us10y', 'oil', 'gold', 'rate', 'gb3y', 'usdkrw', 'jpykrw']); // 실소스 보유 키
@@ -104,12 +111,35 @@ export const httpApi: MarketApi = {
       if (macro?.oil && m.key === 'oil') return { ...m, value: `$${macro.oil.value}`, changePct: macro.oil.changePct };
       if (macro?.gold && m.key === 'gold') return { ...m, value: `$${num(macro.gold.price)}`, changePct: macro.gold.changePct };
       if (econ?.baseRate != null && m.key === 'rate') return { ...m, value: `${econ.baseRate}%` };
-      if (econ?.gb3y != null && m.key === 'gb3y') return { ...m, value: `${econ.gb3y}%` };
-      if (econ?.usdkrw != null && m.key === 'usdkrw') return { ...m, value: num(econ.usdkrw) };
+      if (econ?.gb3y != null && m.key === 'gb3y') return { ...m, value: `${econ.gb3y.toFixed(2)}%` };
+      if (fx && m.key === 'usdkrw') return { ...m, value: num(fx.value), changePct: fx.changePct, flat: false };
       if (econ?.jpykrw != null && m.key === 'jpykrw') return { ...m, value: num(econ.jpykrw) };
       return realKeys.has(m.key) ? { ...m, value: '-', changePct: 0, unavailable: true } : m;
     });
   },
+  // 주문: KIS 모의계좌로 실제 전송. 거부 사유는 서버가 KIS msg1을 그대로 올려준다.
+  placeOrder: async (req: OrderRequest): Promise<OrderResult> => {
+    const res = await fetch('/api/kr/order', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(req),
+    });
+    const j = await res.json().catch(() => null) as (OrderResult & { error?: string }) | null;
+    if (res.ok && j) return j;
+    // 400/422 본문의 error가 KIS 거부 사유다. 임의 문구로 덮으면 원인을 못 찾는다.
+    return { ok: false, orderNo: null, orderTime: null, message: j?.error || j?.message || `주문 실패 (${res.status})` };
+  },
+  // 종목 기본정보: KIS 실데이터. 목 DETAIL_META(시총 468조 등)를 덮어쓴다.
+  getStockInfo: (code): Promise<StockInfo | null> =>
+    getJson<StockInfo>(`/api/kr/info?code=${code}`).catch(() => null),
+  getOrderable: async (code, ordType, price): Promise<Orderable | null> => {
+    const q = new URLSearchParams({ code, ordType, price: String(Math.round(price || 0)) });
+    return getJson<Orderable>(`/api/kr/orderable?${q}`).catch(() => null);
+  },
+  // 버핏지수: ECOS(코스피 시총·한국 GDP) + FRED(미국 법인주식·GDP) 실연동.
+  // 실패한 시장은 null로 남겨 화면에서 '집계 불가'로 표시한다.
+  getBuffett: (): Promise<BuffettData> =>
+    getJson<BuffettData>('/api/buffett').catch(() => ({ kr: null, us: null })),
   getSeoulRent: async (): Promise<SeoulRent> => {
     try { return await getJson<SeoulRent>('/api/realestate/seoul'); }
     catch { return { month: '', avgManwon: 0, avgEok: 0, districts: [], unavailable: true }; }
@@ -120,10 +150,15 @@ export const httpApi: MarketApi = {
     const base = await mockApi.getResearch();
     const kr = base.filter((r) => /^\d/.test(r.code)).map((r) => r.code);
     const us = base.filter((r) => /^[A-Z]/.test(r.code)).map((r) => r.code);
-    const [krq, usq, tgt] = await Promise.all([
+    const [krq, usq, tgt, krInfo] = await Promise.all([
       kr.length ? getJson<Record<string, Q | null>>(`/api/kr/quotes?codes=${kr.join(',')}`).catch(() => null) : Promise.resolve(null),
       us.length ? getJson<Record<string, Q | null>>(`/api/us/quotes?symbols=${us.join(',')}`).catch(() => null) : Promise.resolve(null),
       kr.length ? getJson<Record<string, { target: number; close: number }>>(`/api/kr/targets?codes=${kr.join(',')}`).catch(() => null) : Promise.resolve(null),
+      // PER·PBR·시총은 목값이 실제와 3배 이상 벌어진다 → 국내는 KIS 실값으로 덮고,
+      // 미국은 무료 소스가 없어 fundamentalsReal=false 로 두고 화면에서 '-' 처리한다.
+      Promise.all(kr.map((c) =>
+        getJson<StockInfo>(`/api/kr/info?code=${c}`).then((d) => [c, d] as const).catch(() => null),
+      )).then((rows) => Object.fromEntries(rows.filter(Boolean) as (readonly [string, StockInfo])[])),
     ]);
     return base.map((r) => {
       const q = /^\d/.test(r.code) ? krq?.[r.code] : usq?.[r.code];
@@ -131,8 +166,17 @@ export const httpApi: MarketApi = {
       // KIS 시세가 순간 스로틀이어도 차트 캐시 기반 close(targets)가 있으면 행을 살린다.
       const price = q?.price ?? t?.close;
       if (!price) return { ...r, unavailable: true };
-      if (t?.target) return { ...r, price, target: t.target, targetReal: true, upsidePct: +(((t.target - price) / price) * 100).toFixed(1) };
-      return { ...r, price, targetReal: false };
+      const info = krInfo?.[r.code];
+      const fund = info
+        ? {
+          fundamentalsReal: true,
+          per: info.per ?? r.per,
+          pbr: info.pbr ?? r.pbr,
+          marketCapEok: info.marketCapEok,
+        }
+        : { fundamentalsReal: false as const };
+      if (t?.target) return { ...r, ...fund, price, target: t.target, targetReal: true, upsidePct: +(((t.target - price) / price) * 100).toFixed(1) };
+      return { ...r, ...fund, price, targetReal: false };
     });
   },
   // AI 종합 투자의견: 백엔드 규칙 기반 산출(F&G+지수+뉴스). 실패 시 "-".
@@ -182,7 +226,13 @@ export const httpApi: MarketApi = {
 
   getComplexDeals: async (aptSeq: string): Promise<ComplexDealsResult> => {
     try { return await getJson<ComplexDealsResult>(`/api/realestate/complex/deals?id=${encodeURIComponent(aptSeq)}`); }
-    catch { return { deals: [], stale: true }; }
+    catch (e) {
+      // 503 needsCollect = 배치 미실행/구버전 캐시 → 서버의 stale 과 같은 의미다.
+      if (needsCollectOf(e)) return { deals: [], stale: true };
+      // 그 외 실패는 던진다. 빈 배열로 돌려주면 "거래가 없는 단지"와
+      // "조회가 실패한 단지"가 화면에서 구분되지 않는다(DealScatter 는 error·onRetry 를 이미 받는다).
+      throw e;
+    }
   },
 
   // 국내 순위: KIS 급등/급락(by=up|down) + 거래량/대금(by=volume|amount). 30초 캐시(서버).

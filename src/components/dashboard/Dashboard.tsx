@@ -6,6 +6,7 @@ import SeoulRentMap from './SeoulRentMap';
 import Watchlist from './Watchlist';
 import RankingBoard from './RankingBoard';
 import FearGreedGauge from './FearGreedGauge';
+import BuffettIndex from './BuffettIndex';
 import MacroList from './MacroList';
 import AiOpinion from './AiOpinion';
 import NewsFeed from './NewsFeed';
@@ -37,6 +38,8 @@ export default function Dashboard() {
         </div>
         <div className={s.right}>
           {loaded ? <FearGreedGauge /> : <CardSkeleton title="Fear & Greed" variant="gauge" />}
+          {/* 자체 로딩/에러를 가진 카드 — 일괄 로딩(loaded)을 기다리지 않는다. */}
+          <BuffettIndex />
           {loaded ? <MacroList /> : <CardSkeleton title="매크로 지수" rows={7} />}
           {loaded ? <AiOpinion /> : <CardSkeleton title="AI 종합 투자의견" rows={3} />}
           {loaded ? <NewsFeed /> : <CardSkeleton title="뉴스 헤드라인" rows={4} />}
