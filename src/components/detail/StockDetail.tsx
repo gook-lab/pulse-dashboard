@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Bell } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { signColor, fmt, type ColorMode } from '../../lib/colors';
-import type { Candle, Level, TradeTick, StockInfo } from '../../data/types';
+import type { Candle, Level, TradeTick, StockInfo, StockOpinion } from '../../data/types';
 import { Loading, EmptyState, ErrorState, Badge, MarketChip, PriceChart, ReasonList, Segmented, SkeletonRows } from '@/components/common';
 import { useKisRealtime, useKrChartAll, useKrIntraday } from '@/lib/kisSocket';
 import { densify, synthIntraday, fromIntraday, fmtM, type Densified } from '@/lib/chartSeries';
@@ -38,6 +38,16 @@ export default function StockDetail() {
     getStockInfo(selectedCode).then((d) => { if (alive) setInfo(d); });
     return () => { alive = false; };
   }, [selectedCode, isKR, getStockInfo]);
+  // 종목별 투자 스코어 — 실측 지표 규칙 기반. 목 detail.ai(고정 점수·문구)를 대체한다.
+  const getStockOpinion = useStore((st) => st.getStockOpinion);
+  const [opinion, setOpinion] = useState<StockOpinion | null>(null);
+  useEffect(() => {
+    setOpinion(null);
+    if (!isKR) return;
+    let alive = true;
+    getStockOpinion(selectedCode).then((d) => { if (alive) setOpinion(d); });
+    return () => { alive = false; };
+  }, [selectedCode, isKR, getStockOpinion]);
   const lastClose = chartAll.daily[chartAll.daily.length - 1]?.c;
   const [liveTrades, setLiveTrades] = useState<TradeTick[]>([]);
   useEffect(() => { setLiveTrades([]); }, [selectedCode]);
@@ -357,9 +367,21 @@ export default function StockDetail() {
               picked={pickedPrice}
             />
             <section className="card">
-              <div className="card-h"><span className="t">AI 투자의견</span><span className="tag">M4 · AI</span></div>
-              <div className={s.aiScore}><span className={`${s.aiNum} mono`}>{detail.ai.score}</span><span style={{ fontSize: 12, color: 'var(--text-mut)' }}>/ 100</span></div>
-              <div className={s.aiBar}><div className={s.aiFill} style={{ width: `${detail.ai.score}%` }} /></div>
+              {/* 국내는 실측 규칙 기반 스코어(모멘텀·52주 위치·PER·뉴스). 미국은 소스가 없어 "-".
+                  목 detail.ai 점수를 실데이터처럼 보여주던 자리다. */}
+              <div className="card-h">
+                <span className="t">투자 스코어</span>
+                <span className="tag" style={{ fontSize: 11, color: isKR && opinion ? undefined : 'var(--text-mut)' }}>
+                  {isKR ? (opinion ? `규칙 기반 · ${opinion.stance}` : '집계 중') : '국내만 지원'}
+                </span>
+              </div>
+              <div className={s.aiScore}>
+                <span className={`${s.aiNum} mono`} style={isKR && opinion ? undefined : { color: 'var(--text-sub)' }}>
+                  {isKR ? (opinion ? opinion.score : '-') : '-'}
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--text-mut)' }}>/ 100</span>
+              </div>
+              <div className={s.aiBar}><div className={s.aiFill} style={{ width: `${isKR && opinion ? opinion.score : 0}%` }} /></div>
               <div className={s.tgt}>
                 {/* 목표주가: KR=기술적 산출(실데이터). 없으면 '-' — 목 고정값과 실시세 혼합 금지 */}
                 {isKR ? (
@@ -369,15 +391,23 @@ export default function StockDetail() {
                   </>
                 ) : (
                   <>
-                    <div><div className={s.tgtK}>목표주가</div><div className={`${s.tgtV} mono`}>{detail.cur}{fmt(detail.ai.target, detail.dec)}</div></div>
-                    <div><div className={s.tgtK}>상승여력</div><div className={`${s.tgtV} mono`} style={{ color: signColor(detail.ai.upsidePct, mode) }}>{detail.ai.upsidePct >= 0 ? '+' : ''}{detail.ai.upsidePct}%</div></div>
+                    {/* 미국은 무료 목표주가 소스가 없다 — 목 고정값을 실데이터처럼 쓰지 않는다. */}
+                    <div><div className={s.tgtK}>목표주가</div><div className={`${s.tgtV} mono`} style={{ color: 'var(--text-sub)' }}>-</div></div>
+                    <div><div className={s.tgtK}>상승여력</div><div className={`${s.tgtV} mono`} style={{ color: 'var(--text-sub)' }}>-</div></div>
                   </>
                 )}
               </div>
-              <div className={s.reasons}>
-                <ReasonList label="호재" items={detail.ai.bull} sign={1} mode={mode} />
-                <ReasonList label="악재" items={detail.ai.bear} sign={-1} mode={mode} />
-              </div>
+              {/* 근거는 실제로 잰 숫자를 인용한 문장만 — 없으면 아무 말도 하지 않는다. */}
+              {isKR && opinion ? (
+                <div className={s.reasons}>
+                  <ReasonList label="긍정" items={opinion.bull} sign={1} mode={mode} />
+                  <ReasonList label="부정" items={opinion.bear} sign={-1} mode={mode} />
+                </div>
+              ) : (
+                <div style={{ padding: '10px 0 2px', fontSize: 11, color: 'var(--text-mut)', lineHeight: 1.5 }}>
+                  {isKR ? '지표를 집계하는 중입니다.' : '해외 종목은 스코어 산출에 필요한 지표 소스가 없습니다.'}
+                </div>
+              )}
             </section>
             <section className="card">
               <div className="card-h">

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type {
   IndexQuote, HeatmapNode, FearGreed, CryptoFG, MacroItem, WatchItem, NewsItem, AiOpinion, StockDetail,
   Portfolio, Report, SeoulRent, Market, ScreenQuery, ScreenResult, ComplexesResult, PaperOrder, RankingItem,
-  PriceAlert, AppNotification, BuffettData, OrderRequest, OrderResult, Orderable, StockInfo,
+  PriceAlert, AppNotification, BuffettData, OrderRequest, OrderResult, Orderable, StockInfo, StockOpinion,
 } from '../data/types';
 
 export interface DetailHint { code: string; name: string; market?: Market; cur?: string; dec?: number; changePct?: number }
@@ -122,6 +122,8 @@ interface State {
   fetchOrderable: (code: string, ordType: 'limit' | 'market', price?: number) => Promise<Orderable | null>;
   /** 종목 기본정보(KIS). 실패 시 null → 화면은 "-". */
   getStockInfo: (code: string) => Promise<StockInfo | null>;
+  /** 종목별 투자 스코어(규칙 기반). 근거 없으면 null. */
+  getStockOpinion: (code: string) => Promise<StockOpinion | null>;
   selectStock: (code: string, hint?: Omit<DetailHint, 'code'>) => void;
   loadDetail: (code: string) => Promise<void>;
   // ── 페이퍼 주문 ──
@@ -245,6 +247,7 @@ export const useStore = create<State>((set, get) => ({
   },
   fetchOrderable: async (code, ordType, price) => api.getOrderable(code, ordType, price),
   getStockInfo: async (code) => api.getStockInfo(code),
+  getStockOpinion: async (code) => api.getStockOpinion(code),
   selectStock: (code, hint) => {
     set({ selectedCode: code, tab: 'detail', detailHint: hint ? { code, ...hint } : null });
     void useStore.getState().loadDetail(code);

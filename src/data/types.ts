@@ -198,6 +198,20 @@ export interface StockInfo {
   div: null;
 }
 
+/**
+ * 종목별 투자 스코어(규칙 기반, `server/opinion.mjs`).
+ * 모델이 아니라 실측 4지표(20일 모멘텀·52주 위치·PER·뉴스 감성)의 가중 혼합이다.
+ * 근거 문장은 전부 잰 숫자를 인용한다. 근거가 없으면 이 객체 자체가 null → 화면은 "-".
+ */
+export interface StockOpinion {
+  score: number;
+  stance: string;
+  bull: string[];
+  bear: string[];
+  /** 항목별 0~100. 입력이 없던 항목은 null. */
+  parts: { momentum: number | null; range: number | null; valuation: number | null; sentiment: number | null };
+}
+
 export interface SeoulDistrict {
   name: string;        // '강남구'
   code: string;        // LAWD_CD '11680'
@@ -453,6 +467,8 @@ export interface MarketApi {
   getOrderable(code: string, ordType: 'limit' | 'market', price?: number): Promise<Orderable | null>;
   /** 종목 기본정보(시총·PER·PBR 등). 국내만. 실패 시 null → 화면은 "-". */
   getStockInfo(code: string): Promise<StockInfo | null>;
+  /** 종목별 투자 스코어(규칙 기반). 국내만. 근거 없으면 null → 화면은 "-". */
+  getStockOpinion(code: string): Promise<StockOpinion | null>;
   getWatchlist(): Promise<WatchItem[]>;
   getNews(): Promise<NewsItem[]>;
   getAiOpinion(): Promise<AiOpinion>;

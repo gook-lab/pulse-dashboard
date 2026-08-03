@@ -9,6 +9,7 @@ import { fetchDeals, jeonseAgg } from './realestate/collect.mjs';
 import { routes as realestateRoutes } from './realestate/index.mjs';
 import { createPortfolioHistory } from './portfolioHistory.mjs';
 import { buildKr as buffettKr, buildUs as buffettUs } from './buffett.mjs';
+import { buildOpinion } from './opinion.mjs';
 
 // server/.env 로드 (없어도 무시 — 키 없는 라우트는 그대로 동작)
 // ※ collect.mjs 도 자체적으로 로드한다(단독 `pnpm collect` 실행 대비). 중복 호출은 무해.
@@ -989,6 +990,32 @@ const routes = {
     if (!isKrCode(code)) throw httpError(400, '국내 6자리 종목코드 필요');
     return cached(`info:${code}`, 60_000, () => kisInfo(code));
   },
+  // 종목별 투자 스코어 — 실측(일봉 20일 모멘텀 · 52주 위치 · PER · 뉴스 감성)의 규칙 기반 혼합.
+  // 목 detail.ai(고정 점수·문구)를 대체한다. 근거가 하나도 없으면 null → 화면은 "-".
+  '/api/kr/opinion': (q) => {
+    const code = (q?.get('code') || '').trim();
+    if (!isKrCode(code)) throw httpError(400, '국내 6자리 종목코드 필요');
+    // 근거를 못 모은 경우(null)는 짧게만 캐시해 다음 조회에서 회복시킨다.
+    return cached(`op:${code}`, (r) => (r ? 5 * 60_000 : 30_000), async () => {
+      const [info, daily, newsRes] = await Promise.all([
+        kisInfo(code).catch(() => null),
+        kisChart(code, 'D').catch(() => []),
+        cached('news', 60 * 60_000, fetchNews).catch(() => null),
+      ]);
+      const closes = (daily || []).map((c) => c.c).filter((v) => Number.isFinite(v) && v > 0);
+      const items = newsRes?.data?.items || [];
+      const mine = items.filter((n) => (n.tickers || []).includes(code));
+      return buildOpinion({
+        closes,
+        price: closes[closes.length - 1],          // 최근 종가 = 52주 범위 내 위치 기준
+        low52: info?.w52Low,
+        high52: info?.w52High,
+        per: info?.per,
+        newsGood: mine.filter((n) => n.sentiment === 'good').length,
+        newsBad: mine.filter((n) => n.sentiment === 'bad').length,
+      });
+    });
+  },
   // KIS 국내 종목 시세 (codes=005930,000660)
   '/api/kr/quotes': (q) => {
     const codes = (q?.get('codes') || '').split(',').map((c) => c.trim()).filter(Boolean);
@@ -1071,6 +1098,22 @@ const routes = {
       await pool(syms, 8, async (sym) => {
         const d = await finnhubQuote(sym).catch(() => null);
         if (d && d.price) out[sym] = { price: d.price, changePct: d.changePct };
+      });
+      return out;
+    });
+  },
+  // 히트맵 블록 크기용 실 시가총액 (Finnhub profile2, 무료 티어 제공 · 백만$).
+  // 시총은 하루 단위로 움직이므로 길게 캐시하되, 부분 실패는 짧게만 잡는다.
+  '/api/heatmap/weights': (q) => {
+    const syms = (q?.get('symbols') || '').split(',').map((c) => c.trim()).filter(Boolean).slice(0, 70);
+    const full = (out) => syms.length > 0 && Object.keys(out).length === syms.length;
+    return cached('hmw:' + syms.join(','), (out) => (full(out) ? 6 * 60 * 60_000 : 60_000), async () => {
+      const out = {};
+      await pool(syms, 6, async (sym) => {
+        const res = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${sym}&token=${FINNHUB_API_KEY}`).catch(() => null);
+        const j = res && res.ok ? await res.json().catch(() => null) : null;
+        const cap = +j?.marketCapitalization;
+        if (Number.isFinite(cap) && cap > 0) out[sym] = cap;   // 백만$
       });
       return out;
     });

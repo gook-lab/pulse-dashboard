@@ -2,7 +2,7 @@
 // 나머지는 목에 위임. 엔드포인트가 늘면 여기서 하나씩 목→HTTP로 옮긴다.
 import type { MarketApi, FearGreed, CryptoFG, MacroItem, IndexQuote, SeoulRent, WatchItem, NewsItem, AiOpinion, Portfolio,
   ScreenQuery, ScreenResult, ComplexesResult, AptComplexDetail, ComplexDealsResult, NeedsCollect, RankingItem, PortfolioHistoryResult,
-  BuffettData, OrderRequest, OrderResult, Orderable, StockInfo } from './types';
+  BuffettData, OrderRequest, OrderResult, Orderable, StockInfo, StockOpinion } from './types';
 import { mockApi } from './mockApi';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -132,6 +132,9 @@ export const httpApi: MarketApi = {
   // 종목 기본정보: KIS 실데이터. 목 DETAIL_META(시총 468조 등)를 덮어쓴다.
   getStockInfo: (code): Promise<StockInfo | null> =>
     getJson<StockInfo>(`/api/kr/info?code=${code}`).catch(() => null),
+  // 종목별 스코어: 실측 지표 규칙 기반. 목 detail.ai를 덮는다.
+  getStockOpinion: (code): Promise<StockOpinion | null> =>
+    getJson<StockOpinion | null>(`/api/kr/opinion?code=${code}`).catch(() => null),
   getOrderable: async (code, ordType, price): Promise<Orderable | null> => {
     const q = new URLSearchParams({ code, ordType, price: String(Math.round(price || 0)) });
     return getJson<Orderable>(`/api/kr/orderable?${q}`).catch(() => null);

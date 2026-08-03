@@ -441,6 +441,8 @@ export const mockApi: MarketApi = {
   getOrderable: () => delay(null),
   // 기본정보는 목으로 만들지 않는다 — 시총·PER을 꾸며내면 투자판단을 오도한다.
   getStockInfo: () => delay(null),
+  // 스코어도 목으로 만들지 않는다 — 투자의견을 꾸며내면 안 된다.
+  getStockOpinion: () => delay(null),
   getWatchlist: () => delay(WATCHLIST),
   getNews: () => delay(NEWS),
   getAiOpinion: () => delay(AI_OPINION),

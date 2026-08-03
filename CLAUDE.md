@@ -60,6 +60,8 @@ import toast from '@/lib/toast';
 - 버핏지수(`/api/buffett`, 계산은 `server/buffett.mjs`): 코스피 = ECOS 시총(`802Y001/0183000` 일별·억원) ÷ GDP(`200Y105/1400` 분기·십억원, **최근 4분기 합**) · 미국 = FRED `NCBEILQ027S`(백만$) ÷ `GDP`(십억$·연율, **같은 분기끼리**). ⚠️ **나스닥 단독 버핏지수는 만들지 않는다** — 외국기업 포함·NYSE 제외로 분자·분모 모집단이 어긋나고 나스닥 시총 무료 소스도 없다. 미국은 표준 정의(전체 시장)로 계산하고 라벨도 "미국". 절대 임계값(<75% 저평가 …) 대신 **같은 시계열 10년 분포 위치**(백분위·중앙값)를 함께 보여준다.
 - **OSM/Overpass**(`server/realestate/osm.mjs`, 배치도 재료): 공용 무료 서버라 우리가 먼저 자제한다 — 분당 30콜 예산·미러 2개·재시도, 결과는 `server/cache/osm/`에 파일 캐시(`CACHE_VERSION` 올리면 전체 재수집).
   질의는 **`out body geom(bbox)`** 여야 한다: `out geom tags`는 relation 멤버를 빼고(한강이 통째로 사라진다), bbox 가 없으면 way 를 안 잘라 준다(실측 한 way 8,188m).
+- **히트맵 블록 크기는 실 시가총액** — 미국 `/api/heatmap/weights`(Finnhub `profile2.marketCapitalization`, 무료·백만$) · 코스피는 `/api/kr/top100`의 `marketCap`. ⚠️ **한 종목이라도 빠지면 전부 목 가중으로 되돌린다** — 실값과 목값은 스케일이 달라(4,537,071 vs 3,170) 섞이면 트리맵이 통째로 뒤틀린다. 카드에 "크기 = 실 시가총액 / 목 가중" 배지로 출처를 밝힌다.
+- **종목 스코어는 규칙 기반**(`/api/kr/opinion`, 계산은 `server/opinion.mjs`) — 20일 모멘텀 0.35 · 52주 위치 0.30 · 뉴스 감성 0.20 · PER 0.15의 가중 혼합. **AI 모델이 아니므로 화면에도 "규칙 기반"이라고 쓴다.** 없는 항목은 빼고 남은 것만 평균하며 전부 없으면 `null` → "-". 근거 문장은 반드시 잰 숫자를 인용한다(`20일 수익률 -22.1%로 하락 흐름`). PER 비중이 낮은 이유: 업종별 정상 범위가 달라 저PER=저평가로 단정할 수 없다.
 - 부동산(realestate): `server/realestate/`에서 배치 수집 → `apt-signals.json` 캐싱. 단지 키는 **`aptSeq`**(이름 매칭 금지 — 동명 단지 존재). 시그널은 **3개월 이동 중앙값** + 이상치 제외(`[0.4, 2.5]×단지중앙값`), 기준월 = 3개월 전(신고지연 보정). 지오코딩은 `KAKAO_REST_KEY` 필요. 상세는 `server/realestate/PROBE.md`.
 
 ## 단지투어 3D 배치도
@@ -96,6 +98,7 @@ import toast from '@/lib/toast';
 ## 명령
 - `pnpm dev` (5180) · `pnpm server` (8080, 백엔드) · `pnpm build` · `pnpm test`
 - `pnpm collect` (부동산 실거래 배치, 약 6분 · `--with-trade` 매매 포함 — 활용신청 필수 · `--rebuild` 재수집 없이 시그널만)
+- `pnpm validate` (커밋 전 통합 검증 — tsc + 테스트 + 색 하드코딩 + 미정의 CSS 토큰. 훅은 경고만 하고 이건 막는다)
 - `pnpm server:restart` (8080 LISTEN만 종료 후 재기동+헬스체크 — `lsof -ti`로 직접 kill 금지: Vite 프록시 커넥션까지 잡음)
 - QA/브라우징은 gstack `$B`(browse) 사용.
 

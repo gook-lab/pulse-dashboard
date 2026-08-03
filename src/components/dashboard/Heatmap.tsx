@@ -53,6 +53,9 @@ export default function Heatmap() {
   const [cursor, setCursor] = useState({ x: 0, y: 0 });
   const [quotes, setQuotes] = useState<Record<string, { price: number; changePct: number }>>({});
   const [failed, setFailed] = useState(false); // 실시세 연결 실패 → 색 죽이고 "-"
+  /** 실 시가총액(블록 크기). 전량 확보했을 때만 쓴다 — 일부만 실값이면 목 가중과 스케일이 섞여
+   *  트리맵이 통째로 뒤틀린다. 단위는 시장 안에서만 일관되면 되므로(상대 비율) 환산하지 않는다. */
+  const [weights, setWeights] = useState<Record<string, number> | null>(null);
 
   // 실시세 병합 — 미국은 Finnhub, KOSPI는 KIS(이름→코드).
   useEffect(() => {
@@ -82,9 +85,42 @@ export default function Heatmap() {
     return () => { alive = false; clearInterval(id); };
   }, [market, heatmap]);
 
+  // 블록 크기: 실 시가총액(미국 Finnhub profile2 · 코스피 Daum). 목 weight는 폴백.
+  useEffect(() => {
+    setWeights(null);
+    const marketNodes = heatmap.filter((n) => n.market === market);
+    if (!marketNodes.length) return;
+    let alive = true;
+    const ok = (r: Response) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); };
+    const apply = (bySymbol: Record<string, number>) => {
+      if (!alive) return;
+      // 한 종목이라도 빠지면 전부 목 가중을 쓴다(스케일 혼합 방지).
+      setWeights(marketNodes.every((n) => bySymbol[n.symbol] > 0) ? bySymbol : null);
+    };
+    if (market === 'KOSPI') {
+      fetch('/api/kr/top100?market=kospi').then(ok).then((rows: { code: string; marketCap?: number }[]) => {
+        const byCode = new Map(rows.map((r) => [r.code, r.marketCap]));
+        const out: Record<string, number> = {};
+        marketNodes.forEach((n) => { const cap = byCode.get(KOSPI_CODES[n.symbol]); if (cap) out[n.symbol] = cap; });
+        apply(out);
+      }).catch(() => { /* 목 가중 유지 */ });
+    } else {
+      const syms = [...new Set(marketNodes.map((n) => n.symbol))];
+      fetch(`/api/heatmap/weights?symbols=${syms.join(',')}`).then(ok)
+        .then((w: Record<string, number>) => apply(w || {}))
+        .catch(() => { /* 목 가중 유지 */ });
+    }
+    return () => { alive = false; };
+  }, [market, heatmap]);
+
   const nodes = useMemo(
-    () => heatmap.filter((n) => n.market === market).map((n) => (quotes[n.symbol] ? { ...n, price: quotes[n.symbol].price, changePct: quotes[n.symbol].changePct } : n)),
-    [heatmap, market, quotes],
+    () => heatmap.filter((n) => n.market === market).map((n) => {
+      const q = quotes[n.symbol];
+      const w = weights?.[n.symbol];
+      if (!q && !w) return n;
+      return { ...n, ...(q && { price: q.price, changePct: q.changePct }), ...(w && { weight: w }) };
+    }),
+    [heatmap, market, quotes, weights],
   );
 
   const { tiles, secLabels, indLabels } = useMemo(() => {
@@ -125,7 +161,13 @@ export default function Heatmap() {
     <section className="card">
       <div className="card-h">
         <span className="t">마켓 맵</span>
-        <Segmented options={MARKETS} value={market} onChange={setMarket} />
+        <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+          {/* 블록 크기가 실 시총인지 목 가중인지 밝힌다 — 크기는 이 화면의 핵심 정보다. */}
+          <span className="tag" style={{ fontSize: 11, color: weights ? undefined : 'var(--warn)' }}>
+            {weights ? '크기 = 실 시가총액' : '크기 = 목 가중'}
+          </span>
+          <Segmented options={MARKETS} value={market} onChange={setMarket} />
+        </span>
       </div>
       <div className={s.tmap} style={{ aspectRatio: `${W} / ${H}` }}
         onMouseMove={(e) => setCursor({ x: e.clientX, y: e.clientY })}
@@ -138,8 +180,11 @@ export default function Heatmap() {
         ))}
         {tiles.map(({ node, r }) => {
           const ms = Math.min(r.w, r.h);
-          const showSym = ms > 15;
-          const showPct = ms > 30 && r.w > 40;
+          // 폭·높이를 각각 본다. 좌표계는 1000×640 이고 실제 렌더 폭은 컨테이너에 비례하는데,
+          // Comm./Energy 처럼 얇은 슬리버는 심볼 4~5자가 타일을 넘겨 잘려 나온다.
+          // 잘린 글자는 정보가 아니라 소음이라 아예 숨기고 hover 툴팁에 맡긴다.
+          const showSym = r.h > 20 && r.w > 34;
+          const showPct = r.h > 34 && r.w > 46;
           const fontSym = Math.max(7, Math.min(15, ms * 0.24));
           return (
             <div key={node.symbol} className={s.tmapTile}
