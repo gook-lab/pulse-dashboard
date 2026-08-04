@@ -5,6 +5,19 @@ import type { PriceAlert } from '@/data/types';
 import toast from './toast';
 
 /**
+ * 시세 조회 — HTTP 상태를 먼저 본다.
+ * res.ok 확인 없이 .json() 하면 500 의 에러 본문(또는 프록시 HTML)이 시세 자리에 들어와
+ * 알림 판정이 조용히 틀어진다. 실패는 실패로 던져 상위 재시도·백오프에 맡긴다.
+ */
+async function fetchQuotes(
+  url: string,
+  signal: AbortSignal,
+): Promise<Record<string, { price: number; changePct: number } | null>> {
+  const res = await fetch(url, { signal });
+  if (!res.ok) throw new Error(`${url} → ${res.status}`);
+  return res.json();
+}
+/**
  * 가격 알림 전역 폴링 엔진.
  * 30초마다 활성 알림의 종목 시세를 배치 조회하고 평가한다.
  * document.hidden이면 폴링을 중단한다.
@@ -38,8 +51,8 @@ export function useAlertEngine() {
         const abortSignal = AbortSignal.timeout(15_000);
 
         const [krQuotes, usQuotes] = await Promise.all([
-          krCodes.length ? fetch(`/api/kr/quotes?codes=${krCodes.join(',')}`, { signal: abortSignal }).then((r) => r.json()) : Promise.resolve({}),
-          usSymbols.length ? fetch(`/api/us/quotes?symbols=${usSymbols.join(',')}`, { signal: abortSignal }).then((r) => r.json()) : Promise.resolve({}),
+          krCodes.length ? fetchQuotes(`/api/kr/quotes?codes=${krCodes.join(',')}`, abortSignal) : Promise.resolve({}),
+          usSymbols.length ? fetchQuotes(`/api/us/quotes?symbols=${usSymbols.join(',')}`, abortSignal) : Promise.resolve({}),
         ]) as [Record<string, { price: number; changePct: number } | null>, Record<string, { price: number; changePct: number } | null>];
 
         // 성공 시 실패 카운터 리셋

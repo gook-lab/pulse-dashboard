@@ -17,6 +17,7 @@
 .tab {
   background: none; border: none; color: var(--text-sub);
   padding: 7px 12px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  white-space: nowrap; /* 탭 7개가 좁아져도 라벨이 세로로 꺾이면 안 된다("마켓"→"마\n켓") */
 }
 .tab:hover { color: var(--text); background: var(--panel-2); }
 .active { color: var(--text); background: var(--panel-2); }
@@ -113,4 +114,47 @@
   justify-content: center;
   padding: 0 4px;
   border: 1.5px solid var(--panel);
+}
+
+/* ── 좁은 화면 ──────────────────────────────────────────────────────────────
+   데스크톱 배치(로고+탭 / 검색+시계2개+연결상태+알림+색상토글)를 그대로 두면
+   오른쪽 묶음만 558px 라서 390px 화면에서 문서 전체가 가로로 스크롤된다.
+   탭은 가로 스크롤로 남기고, 보조 정보(시계·연결 라벨·⌘K)는 접는다. */
+@media (max-width: 900px) {
+  .bar { flex-wrap: wrap; gap: 8px 10px; padding: 8px 12px; }
+  .left { gap: 10px; min-width: 0; flex: 1 1 100%; }
+  .brand { display: none; }
+
+  /* 탭은 지우지 않는다 — 화면 전환 수단이라 접으면 앱을 쓸 수 없다. */
+  .nav {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .tab { white-space: nowrap; flex: none; }
+
+  /* 줄바꿈을 허용해야 검색창이 아래 줄로 내려간다(nowrap 이면 최소폭만큼 넘쳐 가로 스크롤). */
+  .right { flex: 1 1 100%; gap: 8px 10px; flex-wrap: wrap; }
+  /* 검색창은 줄어들어 같은 줄에 남는다 — 자기 줄을 차지하면 sticky 헤더가 3줄(131px)이 된다. */
+  .search { flex: 1 1 110px; width: auto; min-width: 0; }
+  .searchInput { min-width: 0; }   /* input 의 기본 intrinsic 최소폭이 축소를 막는다 */
+  .kbd { display: none; }          /* 모바일엔 ⌘K 가 없다 */
+  .clock { display: none; }        /* 뉴욕·서울 시계는 데스크톱 보조 정보 */
+  .ws { font-size: 0; gap: 0; }    /* 라벨은 접고 점만 남긴다 */
+  .ws .dot { margin-right: 0; }
+}
+
+/* 색상 토글은 라벨이 길어("국제식 ↑초록") 좁은 줄에서 세 줄로 접힌다. 줄바꿈을 막고 글자를 줄인다. */
+.colorToggle button { white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .colorToggle button { padding: 4px 8px; font-size: 11px; }
+}
+
+/* 아주 좁은 화면 — 색상 토글을 더 줄여 검색창 자리를 만든다. */
+@media (max-width: 430px) {
+  .colorToggle button { padding: 3px 6px; font-size: 10.5px; }
 }

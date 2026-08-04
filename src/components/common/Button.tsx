@@ -15,11 +15,11 @@ const SIZES: Record<Size, string> = {
 };
 
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-brand text-white hover:bg-[#6a5aef]',
+  primary: 'bg-brand text-white hover:bg-[var(--brand-hover)]',
   subtle: 'bg-panel2 text-sub border-line hover:text-fg hover:border-brand',
   ghost: 'text-sub hover:text-fg hover:bg-panel2',
   danger:
-    'text-[#ff6b73] bg-[rgba(234,57,67,0.14)] border-[rgba(234,57,67,0.32)] hover:bg-[rgba(234,57,67,0.22)]',
+    'text-[var(--bad-fg)] bg-[rgba(var(--bad-rgb),0.14)] border-[rgba(var(--bad-rgb),0.32)] hover:bg-[rgba(var(--bad-rgb),0.22)]',
 };
 
 interface ButtonProps extends HTMLMotionProps<'button'> {

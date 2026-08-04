@@ -132,7 +132,7 @@ function WlRow({ w, mode }: { w: WatchItem; mode: ColorMode }) {
         <MarketChip market={w.market} />
         {w.name}
         {live && <span title="실시간 체결" style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_LIVE, marginLeft: 6, display: 'inline-block' }} />}
-        {hasAlerts && <span title="활성 알림"><Bell size={14} style={{ marginLeft: 6, display: 'inline-block', color: 'var(--text-brand)' }} /></span>}
+        {hasAlerts && <span title="활성 알림"><Bell size={14} style={{ marginLeft: 6, display: 'inline-block', color: 'var(--brand)' }} /></span>}
       </span>
       {unavailable
         ? <>

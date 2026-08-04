@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useStore } from '../../store/useStore';
-import { signColor } from '../../lib/colors';
+import { signColor, brandWithAlpha } from '../../lib/colors';
 import { Badge, MarketChip, Segmented, SkeletonRows, ErrorState } from '@/components/common';
 import type { ColorMode } from '../../lib/colors';
 import type { RankingItem } from '../../data/types';
@@ -154,8 +154,9 @@ function RankingRow({ item, colorMode, kind, onClick }: RankingRowProps) {
   const { rank, code, name, price, changePct, volume, amount } = item;
 
   // 순위 1-3 강조 (브랜드 톤 통일)
-  const rankBg = rank <= 3 ? 'rgba(124, 108, 255, 0.12)' : 'transparent';
+  const rankBg = rank <= 3 ? brandWithAlpha(0.12) : 'transparent';
   const rankColor = rank <= 3 ? 'var(--brand)' : 'var(--text-sub)';
+  const rankHoverBg = rank <= 3 ? brandWithAlpha(0.22) : 'rgba(255,255,255,0.05)';
 
   // 거래량/대금 표시
   const metric = kind === 'volume' ? (volume ? fmtVol(volume) : '-') : kind === 'amount' ? (amount ? fmtAmt(amount) : '-') : '-';
@@ -172,13 +173,13 @@ function RankingRow({ item, colorMode, kind, onClick }: RankingRowProps) {
         display: 'flex',
         alignItems: 'center',
         padding: '8px 12px',
-        borderBottom: '1px solid var(--border-line)',
+        borderBottom: '1px solid var(--border)',
         cursor: 'pointer',
         backgroundColor: rankBg,
         transition: 'background-color 0.2s',
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.backgroundColor = `${rankBg}rgba(255,255,255,0.05)`;
+        (e.currentTarget as HTMLElement).style.backgroundColor = rankHoverBg;
       }}
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLElement).style.backgroundColor = rankBg;
@@ -196,12 +197,12 @@ function RankingRow({ item, colorMode, kind, onClick }: RankingRowProps) {
 
       {/* 종목명·코드 */}
       <div style={{ flex: 1, paddingLeft: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-base)' }}>{name}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{name}</div>
         <div style={{ fontSize: 11, color: 'var(--text-sub)' }}>{code}</div>
       </div>
 
       {/* 현재가 */}
-      <div style={{ width: 80, textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600 }}>
+      <div style={{ width: 80, textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600 }}>
         {price.toLocaleString('ko-KR')}
       </div>
 
