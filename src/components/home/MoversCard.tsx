@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useStore } from '../../store/useStore';
-import { EmptyState } from '@/components/common';
+import { EmptyState, SkeletonRows } from '@/components/common';
 import { signColor, fmt } from '../../lib/colors';
 import s from './Home.module.css';
 
@@ -13,6 +13,7 @@ const fmtManwon = (mw: number) => (mw >= 10000 ? `${(mw / 10000).toFixed(1)}억`
  */
 export default function MoversCard() {
   const watchlist = useStore((st) => st.watchlist);
+  const loaded = useStore((st) => st.loaded);
   const aptWatchlist = useStore((st) => st.aptWatchlist);
   const estimates = useStore((st) => st.complexEstimates);
   const mode = useStore((st) => st.colorMode);
@@ -50,7 +51,11 @@ export default function MoversCard() {
                 {w.changePct > 0 ? '+' : ''}{w.changePct.toFixed(2)}%
               </span>
             </button>
-          )) : <EmptyState title="시세 없음" desc="실시세 연결을 확인하세요." />}
+          )) : loaded
+            // 로딩 중엔 스켈레톤 — "시세 없음"은 실패의 문구다. 로딩과 실패가 같은 얼굴이면
+            // 홈을 열 때마다 앱이 고장 난 것처럼 보인다(ISSUE-001).
+            ? <EmptyState title="시세 없음" desc="실시세 연결을 확인하세요." />
+            : <SkeletonRows rows={4} />}
         </div>
         <div className={s.moverCol}>
           <div className={s.moverColH}>관심단지 — 매매 3개월 모멘텀</div>
@@ -68,7 +73,10 @@ export default function MoversCard() {
                 {e!.momentum3 != null ? `${e!.momentum3 > 0 ? '+' : ''}${e!.momentum3.toFixed(1)}%` : '-'}
               </span>
             </button>
-          )) : <EmptyState title="관심단지 없음" desc="부동산 탭에서 ★로 단지를 담아보세요." />}
+          )) : aptWatchlist.length === 0
+            ? <EmptyState title="관심단지 없음" desc="부동산 탭에서 ★로 단지를 담아보세요." />
+            // 관심단지는 있는데 추정가 응답이 아직 없다 = 로딩(ISSUE-001과 같은 구분).
+            : <SkeletonRows rows={3} />}
         </div>
       </div>
     </section>

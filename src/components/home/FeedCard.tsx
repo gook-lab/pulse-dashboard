@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useStore } from '../../store/useStore';
-import { EmptyState } from '@/components/common';
+import { EmptyState, SkeletonRows } from '@/components/common';
 import { buildHomeFeed } from '../../lib/homeFeed';
 import { signColor } from '../../lib/colors';
 import type { HomeFeedItem } from '../../data/types';
@@ -19,6 +19,7 @@ function ago(ts: number, now: number): string {
 
 /** 타임라인 피드 — 주문·알림·관심단지·보유종목 뉴스, 시간 역순 단일 규칙(설계 W2). */
 export default function FeedCard() {
+  const loaded = useStore((st) => st.loaded);
   const paperOrders = useStore((st) => st.paperOrders);
   const notifications = useStore((st) => st.notifications);
   const news = useStore((st) => st.news);
@@ -65,8 +66,11 @@ export default function FeedCard() {
             </button>
           ))}
         </div>
-      ) : (
+      ) : loaded ? (
         <EmptyState title="아직 조용합니다" desc="주문을 넣거나 가격 알림을 만들면 여기에 쌓입니다." />
+      ) : (
+        // 뉴스(보유종목 필터)가 아직 안 왔을 수 있다 — 로딩과 빈 상태를 구분(ISSUE-001).
+        <SkeletonRows rows={5} />
       )}
     </section>
   );
