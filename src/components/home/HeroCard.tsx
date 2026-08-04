@@ -31,7 +31,7 @@ export default function HeroCard() {
 
   const day = home?.dayChange ?? null;
   return (
-    <section className="card">
+    <section className={`card ${s.heroCard}`}>
       <div className={s.heroTop}>
         <div>
           <div className={s.heroLabel}>내 순자산 · 주식 + 예수금 + 수동자산</div>

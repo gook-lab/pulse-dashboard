@@ -2,11 +2,11 @@ import { useStore } from '../../store/useStore';
 import { Button, EmptyState } from '@/components/common';
 import s from './Home.module.css';
 
-// 카테고리 색(등락색 아님) — 주식은 브랜드, 현금은 포트폴리오 CASH_COLOR 와 동일한 중립 슬레이트.
+// 카테고리 색(등락색 아님) — global.css의 --alloc-* 토큰 단일 소스(F1, hex 리터럴 금지 규약).
 const SEGS = [
-  { key: 'stocks' as const, label: '주식', color: 'var(--brand)' },
-  { key: 'cash' as const, label: '예수금', color: '#5b667a' },
-  { key: 'manual' as const, label: '수동자산', color: '#4a90d9' },
+  { key: 'stocks' as const, label: '주식', color: 'var(--alloc-stocks)' },
+  { key: 'cash' as const, label: '예수금', color: 'var(--alloc-cash)' },
+  { key: 'manual' as const, label: '수동자산', color: 'var(--alloc-manual)' },
 ];
 
 const won = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`;

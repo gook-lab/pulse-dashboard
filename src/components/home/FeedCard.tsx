@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Receipt, Bell, Home as HomeIcon, Newspaper, type LucideIcon } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { EmptyState, SkeletonRows } from '@/components/common';
 import { buildHomeFeed } from '../../lib/homeFeed';
@@ -6,7 +7,8 @@ import { signColor } from '../../lib/colors';
 import type { HomeFeedItem } from '../../data/types';
 import s from './Home.module.css';
 
-const ICONS: Record<HomeFeedItem['type'], string> = { order: '🧾', alert: '🔔', apt: '🏠', news: '📰' };
+// 이모지는 폰트 크기·테마에 반응하지 않는다(F4) — 프로젝트 표준 lucide 아이콘 사용(AppBar 참조).
+const ICONS: Record<HomeFeedItem['type'], LucideIcon> = { order: Receipt, alert: Bell, apt: HomeIcon, news: Newspaper };
 
 function ago(ts: number, now: number): string {
   const m = Math.max(0, Math.round((now - ts) / 60_000));
@@ -47,24 +49,27 @@ export default function FeedCard() {
       <div className="card-h"><b>내 피드</b><span className="tag">주문 · 알림 · 보유종목 뉴스</span></div>
       {feed.length ? (
         <div className={s.feed}>
-          {feed.map((f) => (
-            <button key={f.id} type="button" className={s.feedItem} onClick={() => open(f)}>
-              <span className={s.feedIcon} aria-hidden>{ICONS[f.type]}</span>
-              <span className={s.feedBody}>
-                <span
-                  className={s.feedTitle}
-                  style={f.sentiment && f.sentiment !== 'neutral'
-                    ? { color: signColor(f.sentiment === 'good' ? 1 : -1, mode) } : undefined}
-                >
-                  {f.title}
+          {feed.map((f) => {
+            const Icon = ICONS[f.type];
+            return (
+              <button key={f.id} type="button" className={s.feedItem} onClick={() => open(f)}>
+                <span className={s.feedIcon} aria-hidden><Icon size={14} /></span>
+                <span className={s.feedBody}>
+                  <span
+                    className={s.feedTitle}
+                    style={f.sentiment && f.sentiment !== 'neutral'
+                      ? { color: signColor(f.sentiment === 'good' ? 1 : -1, mode) } : undefined}
+                  >
+                    {f.title}
+                  </span>
+                  <span className={s.feedMeta}>
+                    <span>{ago(f.ts, now)}</span>
+                    {f.detail && <span>· {f.detail}</span>}
+                  </span>
                 </span>
-                <span className={s.feedMeta}>
-                  <span>{ago(f.ts, now)}</span>
-                  {f.detail && <span>· {f.detail}</span>}
-                </span>
-              </span>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       ) : loaded ? (
         <EmptyState title="아직 조용합니다" desc="주문을 넣거나 가격 알림을 만들면 여기에 쌓입니다." />

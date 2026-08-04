@@ -6,6 +6,13 @@
 @media (max-width: 767px) { .grid { grid-template-columns: 1fr; } }
 
 /* ── 히어로 순자산 카드 ── */
+/* 홈의 첫 시선(F2) — 4개 카드가 같은 얼굴이면 위계가 없다. 히어로만 브랜드 액센트로 살짝 든다. */
+.heroCard {
+  border-left: 2px solid var(--brand);
+  background:
+    linear-gradient(135deg, rgba(var(--brand-rgb), 0.06), rgba(var(--brand-rgb), 0) 55%),
+    var(--panel);
+}
 .heroTop { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .heroLabel { font-size: 12px; color: var(--text-sub); }
 .heroValue { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin-top: 4px; }
@@ -19,6 +26,8 @@
 .allocBar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--panel-2); margin-top: 4px; }
 .allocSeg { height: 100%; min-width: 2px; }
 .allocLegend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+/* ~600px대에서 3항목 랩이 흐트러진다(F5) — 좁은 화면은 세로 정렬로 고정 */
+@media (max-width: 767px) { .allocLegend { flex-direction: column; gap: 6px; } }
 .allocItem { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-sub); }
 .allocDot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .allocVal { color: var(--text); font-weight: 600; }
@@ -33,7 +42,7 @@
 }
 .feedItem:last-child { border-bottom: 0; }
 .feedItem:hover { background: var(--row); }
-.feedIcon { flex: none; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--panel-2); font-size: 13px; }
+.feedIcon { flex: none; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--panel-2); color: var(--text-sub); }
 .feedBody { min-width: 0; flex: 1; }
 .feedTitle { font-size: 13px; color: var(--text); line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .feedMeta { font-size: 11px; color: var(--text-mut); margin-top: 3px; display: flex; gap: 6px; align-items: center; }
