@@ -6,9 +6,7 @@ import toast from '@/lib/toast';
 import ScreenerFilters from './ScreenerFilters';
 import ComplexList from './ComplexList';
 import ComplexMap from './ComplexMap';
-import ComplexDetail, { ComplexDetailBody } from './ComplexDetail';
-import { httpApi } from '@/data/httpApi';
-import type { AptComplexDetail } from '@/data/types';
+import ComplexDetail from './ComplexDetail';
 import s from './RealEstate.module.css';
 
 /** 기준일 경과일수. 하루 안이면 0. */
@@ -106,23 +104,6 @@ function useCollect() {
   return { running, message, start };
 }
 
-/** 1440px 이상 감지 */
-function useWideViewport() {
-  const [isWide, setIsWide] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia('(min-width: 1440px)').matches;
-  });
-
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1440px)');
-    const handler = (e: MediaQueryListEvent) => setIsWide(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-
-  return isWide;
-}
-
 export default function RealEstate() {
   const screen = useStore((st) => st.aptScreen);
   const needsCollect = useStore((st) => st.aptNeedsCollect);
@@ -131,26 +112,11 @@ export default function RealEstate() {
   const mapFailReason = useStore((st) => st.aptMapFailReason);
   const loadRealestate = useStore((st) => st.loadRealestate);
   const selectedComplexId = useStore((st) => st.selectedComplexId);
-  const selectComplex = useStore((st) => st.selectComplex);
 
   const [showMap, setShowMap] = useState(false);
-  const [sheetDetail, setSheetDetail] = useState<AptComplexDetail | null>(null);
-  const [selectedArea, setSelectedArea] = useState<number | null>(null);
-  const isWide = useWideViewport();
   const collect = useCollect();
 
   useEffect(() => { void loadRealestate(); }, [loadRealestate]);
-
-  // 시트 데이터 로드
-  useEffect(() => {
-    if (!isWide || !selectedComplexId) {
-      setSheetDetail(null);
-      return;
-    }
-    httpApi.getAptComplex(selectedComplexId)
-      .then((d) => setSheetDetail(d))
-      .catch(() => setSheetDetail(null));
-  }, [isWide, selectedComplexId]);
 
   if (needsCollect) {
     return (
@@ -172,8 +138,16 @@ export default function RealEstate() {
   const days = screen ? daysSince(screen.generatedAt) : 0;
   const date = screen ? screen.generatedAt.slice(0, 10) : '';
 
+  // 상세는 화면 전환이지만 스크리너를 언마운트하지는 않는다 —
+  // 지도 인스턴스가 죽으면 돌아왔을 때 보던 위치·줌이 초기화된다(hidden 이면 살아 있고,
+  // 다시 보일 때 ComplexMap 의 ResizeObserver 가 relayout 한다).
+  const detailMode = selectedComplexId != null;
+
   return (
     <div className={s.page}>
+      {detailMode && <ComplexDetail />}
+
+      <div hidden={detailMode}>
       <div className={s.head}>
         <span className={s.title}>부동산 스크리너</span>
         <span className={s.chip}>서울 25구 · {screen ? screen.total.toLocaleString() : '—'}단지</span>
@@ -198,7 +172,7 @@ export default function RealEstate() {
 
       {screen?.headline && <Headline text={screen.headline.text} detail={screen.headline.detail} />}
 
-      <div className={[s.body, mapFailed && s.bodyFull, showMap && s.bodyMap, isWide && sheetDetail && s.body3Col].filter(Boolean).join(' ')}>
+      <div className={[s.body, mapFailed && s.bodyFull, showMap && s.bodyMap].filter(Boolean).join(' ')}>
         <div className={s.left}>
           <ScreenerFilters />
           <ComplexList />
@@ -208,23 +182,8 @@ export default function RealEstate() {
             <ComplexMap />
           </div>
         )}
-        {/* 1440px 이상: 시트 컬럼 */}
-        {isWide && sheetDetail && (
-          <div className={s.sheet}>
-            <button className={s.sheetClose} onClick={() => selectComplex(null)}>
-              ✕ 닫기
-            </button>
-            <ComplexDetailBody
-              detail={sheetDetail}
-              selectedArea={selectedArea}
-              onSelectArea={setSelectedArea}
-            />
-          </div>
-        )}
       </div>
-
-      {/* 1440px 미만: 모달 */}
-      {!isWide && <ComplexDetail />}
+      </div>
     </div>
   );
 }

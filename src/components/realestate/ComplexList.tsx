@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '@/store/useStore';
 import { Badge, Bar, Button, EmptyState, SkeletonRows } from '@/components/common';
-import { scaleColor, signColor, SIGNAL_DOMAIN, WARN } from '@/lib/colors';
+import { fmt, scaleColor, signColor, SIGNAL_DOMAIN, WARN } from '@/lib/colors';
 import type { ColorDomain, ColorMode } from '@/lib/colors';
 import type { AptComplex, ScreenRank, SignalKey } from '@/data/types';
 import s from './ComplexList.module.css';
@@ -135,6 +135,9 @@ const Row = React.memo(function Row({ refKey, aptSeq, rank, master, signal, doma
         </span>
       </div>
 
+      {/* 기준월 평당가 — 시그널 %만으로는 "얼마짜리 단지"인지 알 수 없다 */}
+      <span className={`${s.price} mono`}>{rank?.price != null ? `${fmt(rank.price, 0)}만` : '—'}</span>
+
       <span className={`${s.deals} mono`}>{rank ? rank.deals : '—'}</span>
 
       <button
@@ -160,6 +163,9 @@ export default function ComplexList() {
   const mapFailed = useStore((st) => st.aptMapFailed);
   const areaFilter = useStore((st) => st.areaFilter);
   const setAreaFilter = useStore((st) => st.setAreaFilter);
+  const viewportBounds = useStore((st) => st.viewportBounds);
+  const viewportSync = useStore((st) => st.viewportSync);
+  const setViewportSync = useStore((st) => st.setViewportSync);
 
   const [visible, setVisible] = useState(50);
   const [activeKey, setActiveKey] = useState<string | null>(null);
@@ -186,13 +192,23 @@ export default function ComplexList() {
   // ⚠ 모든 훅은 아래 조기 반환(!screen)보다 앞에 있어야 한다 — 훅 순서 규칙.
   const areaRanked = useMemo(() => {
     const ranked = screen?.ranked ?? [];
-    return areaFilter
+    const byArea = areaFilter
       ? ranked.filter((r) => {
           const m = masterMap.get(r.id);
           return m?.gu === areaFilter.gu && (!areaFilter.umdNm || m?.umdNm === areaFilter.umdNm);
         })
       : ranked;
-  }, [screen, areaFilter, masterMap]);
+    // 뷰포트 연동 — 지도가 보여주는 범위와 리스트를 일치시킨다.
+    // 서버 bbox 가 아니라 클라이언트 필터인 이유: 서버가 자르면 순위가 화면 안에서
+    // 1부터 다시 매겨져 "서울 전체 415위"라는 스크리너의 문장이 사라진다.
+    if (!viewportSync || !viewportBounds || mapFailed) return byArea;
+    const { swLat, swLng, neLat, neLng } = viewportBounds;
+    return byArea.filter((r) => {
+      const m = masterMap.get(r.id);
+      return m?.lat != null && m.lng != null
+        && m.lat >= swLat && m.lat <= neLat && m.lng >= swLng && m.lng <= neLng;
+    });
+  }, [screen, areaFilter, masterMap, viewportSync, viewportBounds, mapFailed]);
 
   const registerRef = useCallback((key: string, el: HTMLDivElement | null) => {
     rowRefs.current.set(key, el);
@@ -268,6 +284,25 @@ export default function ComplexList() {
         />
       ) : (
         <>
+          {/* 화면 연동 — 지도가 보여주는 범위와 리스트를 맞춘다.
+              전역 카운트를 함께 적어 "서울 전체 중 지금 여기"라는 감각을 잃지 않게 한다. */}
+          {!mapFailed && (
+            <div className={s.areaChipRow}>
+              <button
+                className={viewportSync ? `${s.syncChip} ${s.syncOn}` : s.syncChip}
+                onClick={() => setViewportSync(!viewportSync)}
+                aria-pressed={viewportSync}
+              >
+                {viewportSync ? '✓ 화면 영역만' : '화면 영역만'}
+              </button>
+              <span className={s.syncCount}>
+                {viewportSync && viewportBounds
+                  ? <>화면 안 <span className="mono">{areaRanked.length.toLocaleString()}</span> · 서울 전체 <span className="mono">{screen.ranked.length.toLocaleString()}</span></>
+                  : <>서울 전체 <span className="mono">{screen.ranked.length.toLocaleString()}</span>개</>}
+              </span>
+            </div>
+          )}
+
           {areaFilter && (
             <div className={s.areaChipRow}>
               <span className={s.areaChip}>
@@ -277,7 +312,13 @@ export default function ComplexList() {
             </div>
           )}
 
-          {areaFilter && areaRanked.length === 0 ? (
+          {!areaFilter && viewportSync && viewportBounds && areaRanked.length === 0 && screen.ranked.length > 0 ? (
+            <EmptyState
+              title="이 화면 영역에는 조건을 만족하는 단지가 없습니다"
+              desc={`지도를 옮기거나 축소해 보세요. 서울 전체로는 ${screen.ranked.length.toLocaleString()}개가 조건을 만족합니다.`}
+              action={<Button variant="subtle" size="sm" onClick={() => setViewportSync(false)}>서울 전체 보기</Button>}
+            />
+          ) : areaFilter && areaRanked.length === 0 ? (
             <EmptyState
               title="이 지역에 조건을 만족하는 단지가 없습니다"
               desc="지역 필터를 해제하거나 최소거래 조건을 완화해 보세요."
@@ -289,6 +330,7 @@ export default function ComplexList() {
                 <span>순위</span>
                 <span>단지</span>
                 <span>{SIGNAL_LABELS[signal]}</span>
+                <span className={s.headPrice}>평당가</span>
                 <span className={s.headDeals}>거래</span>
               </div>
 

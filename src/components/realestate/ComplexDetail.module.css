@@ -81,6 +81,7 @@
   display: flex;
   align-items: flex-end;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .signalLabel {
@@ -105,10 +106,12 @@
   flex-shrink: 0;
 }
 
-/* 시그널 그리드: 7개 항목 */
+/* 시그널 그리드: 7개 항목.
+   auto-fit 은 빈 트랙을 접으므로 넓은 화면에서는 repeat(7,1fr) 과 같은 7열이 되고,
+   좁은 화면에서는 줄바꿈된다. 고정 7열이면 390px 에서 문서가 가로로 스크롤됐다. */
 .signalGrid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
   gap: 8px;
 }
 
@@ -290,4 +293,24 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* ── 전체 화면 상세 (모달·시트 대체) ─────────────────────────────────────── */
+.pageWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px 24px;
+}
+
+.pageHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
 }

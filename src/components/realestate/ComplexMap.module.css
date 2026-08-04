@@ -7,6 +7,9 @@
 }
 
 .mapContainer {
+  /* stacking context 생성 — 카카오 오버레이(z-index 9999)가 칩·범례·줌버튼을 덮는 것을 막는다 */
+  position: relative;
+  z-index: 0;
   flex: 1;
   min-height: calc(100vh - 300px);
   background: var(--panel);
@@ -29,7 +32,7 @@
   font-size: 11px;
   color: var(--text-sub);
   font-weight: 500;
-  z-index: 10;
+  z-index: 3;
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -42,7 +45,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  z-index: 10;
+  z-index: 3;
 }
 
 .zoomBtn {
@@ -80,7 +83,7 @@
   justify-content: center;
   gap: 2px;
   padding: 8px 10px;
-  background: rgba(124, 108, 255, 0.9);
+  background: rgba(var(--brand-rgb), 0.9);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 6px;
   min-width: 60px;
@@ -98,7 +101,85 @@
 .districtName {
   font-size: 12px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
+  color: inherit;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   가격 라벨 마커 (CustomOverlay)
+   ───────────────────────────────────────────────────────────────── */
+.priceLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 6px;
+  background: var(--label-bg, rgba(var(--brand-rgb), 0.95));
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: all 0.1s;
+  position: relative;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* 라벨 아래 꼬리 — yAnchor=1로 꼬리 끝이 실제 좌표를 가리킴 */
+.priceLabel::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  /* 부모의 배경색과 일치. inline style에서 --label-bg를 설정 */
+  border-top: 6px solid var(--label-bg, rgba(var(--brand-rgb), 0.95));
+  pointer-events: none;
+}
+
+.labelLine1 {
+  font-size: 12px;
+  font-weight: 700;
+  /* 색은 부모(.priceLabel)의 인라인 대비색을 상속한다 — 배경 휘도에 따라 흑/백이 바뀐다 */
+  color: inherit;
+  font-family: var(--mono);
+  line-height: 1.15;
+}
+
+.labelLine2 {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: inherit;
+  font-family: var(--mono);
+  opacity: 0.82;
+  line-height: 1.15;
+}
+
+.priceLabel:hover,
+.priceLabel.markerOn {
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+}
+
+/* 선택 단지 — 라벨도 브랜드 링 강조 */
+.priceLabel.markerSel {
+  transform: scale(1.08);
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  z-index: 9998;
+}
+
+.priceLabel .markerTip {
+  display: none;
+}
+
+.priceLabel:hover .markerTip,
+.priceLabel.markerOn .markerTip {
+  display: block;
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -174,7 +255,7 @@
   right: 0;
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.3));
   padding: 20px 16px 12px;
-  z-index: 5;
+  z-index: 3;
 }
 
 .legendContent {
@@ -210,11 +291,15 @@
 
 /* 산식 설명 툴팁 트리거 — 과밀했던 범례 문장의 나머지 절반 */
 .legendInfo {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--text-sub);
-  cursor: help;
+  cursor: pointer;
   line-height: 1;
+  background: none;
+  border: none;
+  padding: 0 2px;
 }
+.legendInfo:hover { color: var(--text); }
 
 /* 좌표 없어 지도에서 빠진 단지 수 — 범례 위 좌측 */
 .noCoordChip {
@@ -229,7 +314,7 @@
   color: var(--text-sub);
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  z-index: 5;
+  z-index: 3;
 }
 
 /* 반응형 */

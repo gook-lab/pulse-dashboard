@@ -11,10 +11,12 @@
 import { fileURLToPath } from 'node:url';
 import { mkdir, writeFile, rename, readFile, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { collectSeoul, writeRaw, formatStats } from './collect.mjs';
+import { collectSeoul, writeRaw, formatStats, fetchDealsPage } from './collect.mjs';
+import { ymOffset, NOW_OFFSET_MONTHS } from './lawd.mjs';
 import { buildMaster, geocodeAll, writeGeocodeReport, detectGeocodeDrop } from './complexes.mjs';
-import { computeAll, getSignal } from './signals.mjs';
+import { computeAll, getSignal, valueAt, idxOfAgo, buildSmoothed, filterOutliers, recentDeals } from './signals.mjs';
 import { writeDealShards, readComplexDeals, createDealsLRU } from './deals.mjs';
+import { fetchComplexBuildings, fetchAreaCell, shiftCell, cellIndex, inKorea, CELL_M } from './osm.mjs';
 
 const CACHE_DIR = fileURLToPath(new URL('../cache/', import.meta.url));
 const TMP_DIR = fileURLToPath(new URL('../cache/.tmp/', import.meta.url));
@@ -36,10 +38,78 @@ export async function loadStore({ force = false } = {}) {
   const { mtimeMs } = await stat(SIGNALS_FILE);
   if (store && !force && store._mtime === mtimeMs) return store;
   const raw = JSON.parse(await readFile(SIGNALS_FILE, 'utf8'));
+  columnize(raw);
+  /* 최근 거래 10건은 상세 화면에서만 쓰는데 payload 의 33%(5.3MB)를 차지한다.
+     상세는 한 번에 한 단지만 열리고 그때 거래 샤드를 어차피 읽으므로(smoothed 와 같은 경로)
+     상주시킬 이유가 없다. 파싱 직후 떨궈서 8,748단지 × 10건이 힙에 남지 않게 한다. */
+  for (const c of raw.complexes ?? []) c.recent = null;
   raw.etag = createHash('sha1').update(raw.generatedAt).digest('hex').slice(0, 16);
   raw._mtime = mtimeMs;
   store = raw;
   return store;
+}
+
+/**
+ * 월별 시계열을 **컬럼형 TypedArray** 로 접는다.
+ *
+ * 왜: [가격, 건수] 중첩 배열이 힙에서 21.6MB 였다(실측, 필드별 A/B).
+ * 8,748단지 × 17개월 × 2종 = 297,432개의 작은 배열이 각각 헤더를 달고 있었다.
+ * 같은 값을 Float32/Uint16 두 덩어리로 담으면 2MB 남짓이다.
+ *
+ * 파일은 그대로 JSON 이다 — 배치와 캐시 형식을 건드리지 않고 로드 시점에만 바꾼다.
+ * NaN 이 "그 달 거래 없음"이다(0 이 아니다 — 0 은 실제 가격일 수 있는 값이라 구분해야 한다).
+ */
+export function columnize(raw) {
+  const M = raw.months?.length ?? 0;
+  const N = raw.complexes?.length ?? 0;
+  if (!M || !N) return;
+
+  const cols = {
+    // Float32 는 유효숫자 7자리라 3189.4999 를 3189.5 로 밀어 반올림 경계를 넘긴다(실측:
+    // 순위 행 평당가가 3189 → 3190 으로 바뀌었다). 1MB 더 쓰고 값을 정확히 보존한다.
+    t: { price: new Float64Array(N * M), count: new Uint16Array(N * M) },
+    r: { price: new Float64Array(N * M), count: new Uint16Array(N * M) },
+  };
+
+  raw.complexes.forEach((c, row) => {
+    c.row = row;
+    for (const k of ['t', 'r']) {
+      const src = c.series?.[k] ?? [];
+      const off = row * M;
+      for (let i = 0; i < M; i++) {
+        const cell = src[i];
+        const v = cell?.[0];
+        cols[k].price[off + i] = v == null ? NaN : v;
+        cols[k].count[off + i] = Math.min(65535, cell?.[1] ?? 0);
+      }
+    }
+    c.series = null;   // 중첩 배열은 여기서 버린다
+  });
+
+  raw.cols = cols;
+  raw.monthCount = M;
+}
+
+/** 컬럼형 → 응답용 [가격|null, 건수] 배열. 상세는 한 번에 한 단지라 복원 비용이 없다. */
+export function seriesRows(store, c, kind) {
+  const M = store.monthCount, off = c.row * M;
+  const { price, count } = store.cols[kind];
+  const out = [];
+  for (let i = 0; i < M; i++) {
+    const p = price[off + i];
+    out.push([Number.isNaN(p) ? null : p, count[off + i]]);
+  }
+  return out;
+}
+
+/** 컬럼형에서 그 시점 값(거래 없는 달은 직전 유효값) — signals.valueAt 과 같은 규칙. */
+export function seriesValueAt(store, c, kind, idx) {
+  const M = store.monthCount, off = c.row * M;
+  const { price, count } = store.cols[kind];
+  for (let i = Math.min(idx, M - 1); i >= 0; i--) {
+    if (count[off + i] > 0 && !Number.isNaN(price[off + i])) return price[off + i];
+  }
+  return null;
 }
 
 /** 캐시가 없으면 프론트가 EmptyState 로 안내할 수 있게 구조화된 503. */
@@ -91,6 +161,29 @@ export function screen(complexes, q = {}) {
     .map((r, i) => ({ ...r, rank: i + 1 }));
 
   return { ranked, total, nullCount: total - eligible.length, signal, dealType, minDeals };
+}
+
+/**
+ * 순위 행에 기준월 평당가를 싣는다 — 시그널 %만으로는 "얼마짜리 단지"인지 알 수 없다.
+ * 시그널 계산과 같은 규칙: 기준월 = 3개월 전(신고지연 보정), 거래 없는 달은 직전 유효값.
+ */
+export function attachPrices(ranked, complexes, months, dealType, priceAt) {
+  const byId = new Map(complexes.map((c) => [c.aptSeq, c]));
+  const nowIdx = idxOfAgo(months, NOW_OFFSET_MONTHS);
+  const key = dealType === 'trade' ? 't' : 'r';
+  // priceAt 이 없으면 중첩 배열에서 읽는다(테스트·구형 호출부). 서버는 컬럼형 접근자를 넘긴다.
+  const read = priceAt ?? ((c) => (c?.series?.[key] ? valueAt(c.series[key], nowIdx) : null));
+  return ranked.map((r) => {
+    const c = byId.get(r.id);
+    const v = c ? read(c) : null;
+    const rep = c?.rep?.[key] ?? null;   // 지도 라벨용 대표 거래(총액·면적)
+    return {
+      ...r,
+      price: v == null ? null : Math.round(v),
+      amount: rep?.amount ?? null,
+      area: rep?.area ?? null,
+    };
+  });
 }
 
 /**
@@ -161,6 +254,10 @@ export const routes = {
       bbox: parseBbox(q?.get('bbox')),
     };
     const out = screen(s.complexes, query);
+    const nowIdx = idxOfAgo(s.months, NOW_OFFSET_MONTHS);
+    const key = dealType === 'trade' ? 't' : 'r';
+    out.ranked = attachPrices(out.ranked, s.complexes, s.months, dealType,
+      (c) => seriesValueAt(s, c, key, nowIdx));
     return {
       ...out,
       headline: headline(out.ranked, s.complexes, query),
@@ -173,13 +270,109 @@ export const routes = {
     };
   },
 
+  /**
+   * 관심단지 추정가(설계 W2, 홈 무버용) — 매매 대표 거래(rep.t)만 쓴다.
+   * 대표평형 = 확정 구간 최다 거래 면적(동률이면 큰 면적, repDeal 규칙). 전세만 있는
+   * 단지는 amount:null — 전세보증금으로 자산가치를 추정하지 않는다. 순자산 합산에도 안 쓴다.
+   */
+  '/api/realestate/estimates': async (q) => {
+    const ids = (q?.get('ids') || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 50);
+    if (!ids.length) return {};
+    const s = await requireStore();
+    const byId = new Map(s.complexes.map((c) => [c.aptSeq, c]));
+    const out = {};
+    for (const id of ids) {
+      const c = byId.get(id);
+      if (!c) continue;
+      const rep = c.rep?.t ?? null;
+      out[id] = {
+        aptNm: c.aptNm,
+        gu: c.gu ?? null,
+        /** 대표 거래 총액(만원). null = 매매 표본 없음 → 화면은 "-". */
+        amount: rep?.amount ?? null,
+        /** 대표 전용면적(㎡). */
+        area: rep?.area ?? null,
+        /** 매매 3개월 모멘텀(%) — 무버 정렬·등락 표시용. */
+        momentum3: c.signals?.trade?.momentum3 ?? null,
+      };
+    }
+    return out;
+  },
+
   /** 단지 상세 — 시계열은 메모리에 있으므로 파일 I/O 없음. */
   '/api/realestate/complex': async (q) => {
     const s = await requireStore();
     const id = q?.get('id');
     const c = s.complexes.find((x) => x.aptSeq === id);
     if (!c) { const e = new Error('not found'); e.status = 404; throw e; }
-    return { ...c, months: s.months, generatedAt: s.generatedAt };
+
+    /* 3개월 이동 중앙값 — 차트의 추세선.
+       월별 중앙값은 거래가 1~2건인 달이 많아 4,093 → 8,141 → 10,648 처럼 튄다(실측).
+       시그널이 쓰는 것과 같은 값이어야 하므로 signals.mjs 의 filterOutliers+buildSmoothed 를
+       그대로 다시 돌린다. 배치 payload 에 넣지 않는 이유는 메모리다 — 8,748단지 × 2종 × 17개월이
+       상주하면 안 되고, 상세는 한 번에 한 단지만 열린다. */
+    let smoothed = null;
+    let recent = c.recent ?? [];
+    try {
+      if (!dealsCache) dealsCache = createDealsLRU();
+      const { deals } = await readComplexDeals(id, c.sggCd, null, dealsCache);
+      const kept = (kind) => filterOutliers(
+        kind === 'trade'
+          ? deals.filter((d) => d.kind === 'trade')
+          : deals.filter((d) => d.kind === 'rent' && d.monthlyRent === 0),
+      ).kept;
+      smoothed = {
+        t: buildSmoothed(kept('trade'), s.months).map(([v]) => v),
+        r: buildSmoothed(kept('rent'), s.months).map(([v]) => v),
+      };
+      recent = recentDeals(deals);
+    } catch {
+      // 샤드가 없거나 깨졌으면 추세선만 없다 — 상세 화면 전체를 죽일 이유가 없다.
+      smoothed = null;
+    }
+
+    // series 는 컬럼형으로 접혀 있다 — 응답에서만 원래 모양으로 되돌린다.
+    const series = { t: seriesRows(s, c, 't'), r: seriesRows(s, c, 'r') };
+    return { ...c, series, months: s.months, smoothed, recent, generatedAt: s.generatedAt };
+  },
+
+  /**
+   * 단지 배치도 재료 — 주변 건물 외곽선(OSM). 층수는 우리 실거래 층 프로필로 채운다.
+   * Overpass 는 느리고 rate limit 이 있어 서버가 한 번 받아 파일로 굽는다.
+   */
+  '/api/realestate/complex/buildings': async (q) => {
+    const s = await requireStore();
+    const aptSeq = q?.get('id');
+    if (!aptSeq) { const e = new Error('missing id'); e.status = 400; throw e; }
+    const c = s.complexes.find((x) => x.aptSeq === aptSeq);
+    if (!c) { const e = new Error('not found'); e.status = 404; throw e; }
+    if (c.lat == null || c.lng == null) { const e = new Error('no coordinates'); e.status = 409; throw e; }
+
+    const out = await fetchComplexBuildings(aptSeq, c.lat, c.lng, { log: console.log });
+    // 배치도 높이의 기본값 — OSM levels 가 없는 건물은 이 층수로 압출한다.
+    const fallbackLevels = c.floors?.t?.max ?? c.floors?.r?.max ?? null;
+    return { ...out, fallbackLevels, aptNm: c.aptNm };
+  },
+
+  /**
+   * 배치도 주변 확장 — 방향키로 밀 때 화면이 들어간 격자 칸을 하나씩 받아온다.
+   * 칸 캐시는 원점과 무관하게 굽고(shiftCell) 응답에서만 단지 원점 기준으로 옮긴다.
+   */
+  '/api/realestate/area': async (q) => {
+    const num = (k) => { const v = Number(q?.get(k)); return Number.isFinite(v) ? v : null; };
+    const lat = num('lat'), lng = num('lng');
+    const originLat = num('originLat'), originLng = num('originLng');
+    if (lat == null || lng == null || originLat == null || originLng == null) {
+      const e = new Error('missing lat/lng/originLat/originLng'); e.status = 400; throw e;
+    }
+    // 임의 좌표를 그대로 Overpass 로 넘기면 공개 중계기가 된다. 국내로 제한한다.
+    if (!inKorea(lat, lng) || !inKorea(originLat, originLng)) {
+      const e = new Error('out of range'); e.status = 400; throw e;
+    }
+
+    const { i, j } = cellIndex(lat, lng);
+    const cell = await fetchAreaCell(i, j, { log: console.log });
+    return { ...shiftCell(cell, originLat, originLng), cellSize: CELL_M };
   },
 
   /** 단지별 거래 이력 — aptSeq로 조회하여 구별 샤드에서 로드. */
@@ -233,7 +426,8 @@ export const routes = {
   '/api/realestate/collect': async () => {
     if (collectJob?.running) return { started: false, ...collectStatus() };
     collectJob = { running: true, startedAt: new Date().toISOString(), finishedAt: null, ok: null, message: '수집 시작…', error: null };
-    void runBatch({ kinds: ['rent'], log: (line) => { collectJob.message = String(line); console.log(line); } })
+    void detectKinds()
+      .then((kinds) => runBatch({ kinds, log: (line) => { collectJob.message = String(line); console.log(line); } }))
       .then((r) => { collectJob.running = false; collectJob.ok = r.ok; collectJob.finishedAt = new Date().toISOString(); })
       .catch((e) => { collectJob.running = false; collectJob.ok = false; collectJob.error = String(e?.message || e); collectJob.finishedAt = new Date().toISOString(); });
     return { started: true, ...collectStatus() };
@@ -243,6 +437,21 @@ export const routes = {
 };
 
 // ── "지금 갱신" 잡 상태 ─────────────────────────────────────────────────────
+/**
+ * 매매 활용신청 승인 여부를 1콜로 감지해 수집 종류를 정한다.
+ * 미승인(403) 상태에서 무작정 매매를 넣으면 배치 전체가 실패 처리되어
+ * 캐시 교체가 영원히 안 된다 — 그래서 하드코딩이 아니라 런타임 감지다.
+ */
+async function detectKinds() {
+  try {
+    await fetchDealsPage('trade', '11110', ymOffset(1), 1);
+    return ['rent', 'trade'];
+  } catch {
+    console.log('[collect] 매매 API 미승인(403) — 전월세만 수집');
+    return ['rent'];
+  }
+}
+
 let collectJob = null;
 const collectStatus = () => collectJob
   ? { running: collectJob.running, startedAt: collectJob.startedAt, finishedAt: collectJob.finishedAt, ok: collectJob.ok, message: collectJob.message, error: collectJob.error }
@@ -322,6 +531,20 @@ export async function rebuildFromRaw({ log = console.log } = {}) {
   log(`[deals] 구별 거래 이력 샤드 재생성`);
 
   const master = buildMaster(rows);
+
+  // rebuild 는 지오코딩을 하지 않는다 — 이전 산출물의 좌표를 병합하지 않으면
+  // 시그널 로직 하나 고칠 때마다 지도 좌표가 통째로 증발한다(실제로 겪은 사고).
+  try {
+    const prev = JSON.parse(await readFile(SIGNALS_FILE, 'utf8'));
+    const prevCoord = new Map((prev.master ?? []).map((m) => [m.aptSeq, m]));
+    let kept = 0;
+    for (const m of master) {
+      const p = prevCoord.get(m.aptSeq);
+      if (m.lat == null && p?.lat != null) { m.lat = p.lat; m.lng = p.lng; kept++; }
+    }
+    log(`[rebuild] 이전 좌표 보존 ${kept.toLocaleString()}개 (신규 단지는 pnpm geocode 로 채움)`);
+  } catch { /* 첫 실행 — 보존할 좌표 없음 */ }
+
   const months = [...stats.months].reverse();
   const complexes = computeAll(rows, months);
   const outliers = complexes.reduce((s, c) => s + (c.outliers ?? 0), 0);

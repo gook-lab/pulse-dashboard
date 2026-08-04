@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  sourceIdxAt,
   areaTier, pricePerPyeong, median, buildSeries, valueAt, pctChange,
-  computeKindSignals, computeJeonseRatio, computeAll, getSignal, idxOfAgo, PYEONG, filterOutliers, buildSmoothed, tierSummary, recentDeals,
+  computeKindSignals, computeJeonseRatio, computeAll, getSignal, idxOfAgo, PYEONG, filterOutliers, buildSmoothed, tierSummary, recentDeals, floorProfile,
 } from './signals.mjs';
 import { NOW_OFFSET_MONTHS, CONFIRMED_MONTHS } from './lawd.mjs';
 
@@ -158,15 +159,21 @@ describe('computeJeonseRatio', () => {
   const t = (idx, ppy, area) => deal(idx, ppy, { area, price: ppy * (area / PYEONG), kind: 'trade' });
   const r = (idx, ppy, area) => deal(idx, ppy, { area, price: ppy * (area / PYEONG), kind: 'rent', monthlyRent: 0 });
 
-  it('같은 평형대에서 매매·전세 각 3건 이상이어야 계산된다', () => {
+  it('같은 평형대에서 매매·전세 각 JEONSE_MIN_PER_SIDE(2)건 이상이어야 계산된다', () => {
     const rows = [t(NOW, 1000, 84), t(NOW - 1, 1000, 84), t(NOW - 2, 1000, 84),
                   r(NOW, 600, 84), r(NOW - 1, 600, 84), r(NOW - 2, 600, 84)];
     expect(computeJeonseRatio(rows, MONTHS)).toEqual({ jeonseRatio: 0.6, jeonseRatioTier: '60~85' });
   });
 
-  it('한쪽이 3건 미만이면 null', () => {
-    const rows = [t(NOW, 1000, 84), t(NOW - 1, 1000, 84), t(NOW - 2, 1000, 84),
+  it('정확히 2+2건이면 계산된다 — 커버리지 게이트(40%) 미달로 완화된 하한', () => {
+    const rows = [t(NOW, 1000, 84), t(NOW - 1, 1000, 84),
                   r(NOW, 600, 84), r(NOW - 1, 600, 84)];
+    expect(computeJeonseRatio(rows, MONTHS)).toEqual({ jeonseRatio: 0.6, jeonseRatioTier: '60~85' });
+  });
+
+  it('한쪽이 2건 미만이면 null', () => {
+    const rows = [t(NOW, 1000, 84), t(NOW - 1, 1000, 84), t(NOW - 2, 1000, 84),
+                  r(NOW, 600, 84)];
     expect(computeJeonseRatio(rows, MONTHS)).toEqual({ jeonseRatio: null, jeonseRatioTier: null });
   });
 
@@ -187,9 +194,10 @@ describe('computeJeonseRatio', () => {
 
   it('월세 건은 전세 표본에서 제외', () => {
     const rows = [t(NOW, 1000, 84), t(NOW - 1, 1000, 84), t(NOW - 2, 1000, 84),
-                  r(NOW, 600, 84), r(NOW - 1, 600, 84),
+                  r(NOW, 600, 84),
+                  deal(NOW - 1, 600, { area: 84, price: 600 * (84 / PYEONG), kind: 'rent', monthlyRent: 80 }),
                   deal(NOW - 2, 600, { area: 84, price: 600 * (84 / PYEONG), kind: 'rent', monthlyRent: 80 })];
-    expect(computeJeonseRatio(rows, MONTHS).jeonseRatio).toBeNull();   // 전세는 2건뿐
+    expect(computeJeonseRatio(rows, MONTHS).jeonseRatio).toBeNull();   // 월세를 세면 3건이지만 전세는 1건뿐
   });
 
   it('미확정 구간(최근 2개월) 거래는 쓰지 않는다', () => {
@@ -420,5 +428,85 @@ describe('computeAll — tiers·recent 포함', () => {
     expect(c.tiers['60~85'].t[1]).toBe(12);
     expect(c.recent.length).toBe(10);
     expect(c.recent[0].ym >= c.recent[9].ym).toBe(true);
+  });
+});
+
+describe('floorProfile — 단지투어 층 축', () => {
+  const at = (floor, ppy, area = 84) => deal(14, ppy, { floor, area, price: ppy * (area / PYEONG) });
+
+  it('최고층 대비 비율로 저·중·고를 나눈다 — 15층의 5층과 35층의 5층은 다르다', () => {
+    const rows = [at(1, 1000), at(4, 1100), at(8, 2000), at(14, 3000), at(15, 3100)];
+    const p = floorProfile(rows);
+    expect(p.max).toBe(15);
+    expect(p.banded).toBe(true);
+    expect(p.low.count).toBe(2);    // 1, 4층 (≤5)
+    expect(p.mid.count).toBe(1);    // 8층 (≤10)
+    expect(p.high.count).toBe(2);   // 14, 15층
+    expect(p.low.ppy).toBeLessThan(p.high.ppy);
+  });
+
+  it('저층 단지(최고 5층)는 구간을 나누지 않는다고 표시한다', () => {
+    expect(floorProfile([at(1, 1000), at(5, 1200)]).banded).toBe(false);
+  });
+
+  it('층·면적 없는 행은 제외하고, 전부 없으면 null', () => {
+    expect(floorProfile([deal(14, 1000, { floor: null })])).toBeNull();
+    expect(floorProfile([])).toBeNull();
+  });
+
+  it('computeAll 산출물에 거래유형별로 실린다', () => {
+    const rows = [at(3, 2000), at(9, 2400), at(12, 2800)];
+    const [c] = computeAll(rows, MONTHS);
+    expect(c.floors.t.max).toBe(12);
+    expect(c.floors.r).toBeNull();   // 전세 거래 없음
+  });
+});
+
+describe('모멘텀 — 잴 수 없으면 0 이 아니라 null', () => {
+  it('거래가 한 달에만 있으면 모멘텀은 전부 null — 이동중앙값이 퍼뜨린 값도 같은 거래다', () => {
+    // 신축처럼 한 달에 거래가 몰린 단지. 시그널은 3개월 이동중앙값 위에서 계산되므로
+    // 7월 거래 하나가 7·8·9월 값으로 퍼진다. 값만 보면 관측이 셋처럼 보이지만 거래는 하나다.
+    const series = MONTHS.map((_, i) => (i >= 7 && i <= 9 ? [6204, i === 7 ? 36 : 0] : [null, 0]));
+    const sig = computeKindSignals(series, MONTHS);
+    expect(sig.momentum3).toBeNull();
+    expect(sig.momentum6).toBeNull();
+    expect(sig.momentum12).toBeNull();
+    expect(sig.dealCount).toBeGreaterThan(0);   // 거래 자체는 있었다
+  });
+
+  it('서로 다른 관측 두 개면 정상적으로 잰다 — 거래 없는 달 대체는 그대로 유효하다', () => {
+    const series = MONTHS.map((_, i) => (i === 8 ? [5000, 3] : i === NOW ? [6000, 2] : [null, 0]));
+    expect(computeKindSignals(series, MONTHS).momentum6).toBe(20);
+  });
+
+  it('기준월에 거래가 없어도 과거 관측이 다르면 잰다', () => {
+    const series = MONTHS.map((_, i) => (i === 5 ? [4000, 2] : i === 12 ? [5000, 2] : [null, 0]));
+    // 기준월(14)은 12월 관측으로 대체, 6개월 전(8)은 5월 관측 → 서로 다른 관측이므로 측정된다
+    expect(computeKindSignals(series, MONTHS).momentum6).toBe(25);
+  });
+});
+
+describe('sourceIdxAt — 값이 어느 달에서 왔는가', () => {
+  it('그 달에 거래가 있으면 자기 자신', () => {
+    const series = [[1, 1], [2, 1], [3, 1]];
+    expect(sourceIdxAt(series, 2)).toBe(2);
+  });
+
+  it('없으면 직전 유효 달', () => {
+    const series = [[1, 1], [null, 0], [null, 0]];
+    expect(sourceIdxAt(series, 2)).toBe(0);
+  });
+
+  it('앞에도 없으면 -1', () => {
+    expect(sourceIdxAt([[null, 0], [null, 0]], 1)).toBe(-1);
+  });
+
+  it('값은 있는데 건수가 0 인 달은 건너뛴다 — 이동중앙값이 퍼뜨린 값이다', () => {
+    const smoothed = [[100, 2], [100, 0], [100, 0]];
+    expect(sourceIdxAt(smoothed, 2)).toBe(0);
+  });
+
+  it('범위를 넘겨도 안전하다', () => {
+    expect(sourceIdxAt([[5, 1]], 99)).toBe(0);
   });
 });

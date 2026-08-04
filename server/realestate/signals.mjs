@@ -95,10 +95,22 @@ export function buildSeries(rows, months) {
  * 미래 값을 끌어오면 존재하지 않는 정보가 새어 들어온다.
  */
 export function valueAt(series, idx) {
+  const i = sourceIdxAt(series, idx);
+  return i < 0 ? null : series[i][0];
+}
+
+/**
+ * 그 시점의 값이 **어느 달의 거래**에서 왔는지. 값이 아니라 **건수**로 찾는다.
+ *
+ * 시그널은 3개월 이동 중앙값 위에서 계산되는데, 이동창은 거래 한 번을 뒤 두 달까지 퍼뜨린다.
+ * 값만 보면 7·8·9월이 서로 다른 관측처럼 보이지만 실제 거래는 7월 한 번뿐이다.
+ * 건수로 봐야 "같은 거래를 두 번 읽는" 경우를 잡아낸다.
+ */
+export function sourceIdxAt(series, idx) {
   for (let i = Math.min(idx, series.length - 1); i >= 0; i--) {
-    if (series[i][0] != null) return series[i][0];
+    if (series[i][0] != null && series[i][1] > 0) return i;
   }
-  return null;
+  return -1;
 }
 
 /** 이동 중앙값 창(개월). 3이면 해당 월 + 직전 2개월. */
@@ -154,10 +166,16 @@ export function computeKindSignals(series, months) {
   const nowIdx = idxOfAgo(months, NOW_OFFSET_MONTHS);
   const now = valueAt(series, nowIdx);
 
+  /* 모멘텀 — 두 시점이 같은 관측으로 해결되면 null 이다.
+     거래가 한 번뿐인 단지에서 "6개월 모멘텀 +0.0%" 가 나오던 경로(모집단의 2.2%).
+     0% 는 "안 변했다"가 아니라 "잴 수 없다"였다 — 실데이터가 없으면 목이 아니라 '-'. */
+  const nowSrc = sourceIdxAt(series, nowIdx);
   const mom = (k) => {
     const i = nowIdx - k;
     if (i < 0) return null;
-    return pctChange(valueAt(series, i), now);
+    const src = sourceIdxAt(series, i);
+    if (src < 0 || src === nowSrc) return null;
+    return pctChange(series[src][0], now);
   };
 
   // 확정 12개월 구간 [lo..nowIdx]
@@ -187,6 +205,13 @@ export function computeKindSignals(series, months) {
  * 매매·전세가 각각 3건 이상인 평형대만 계산 대상. 여러 개면 거래 최다 평형대를 대표로.
  * 단지 전체를 뭉개면 소형·대형이 섞여 비율이 무의미해진다.
  */
+/**
+ * 평형대당 매매·전세 최소 표본. 설계 초안은 3이었으나 실측 커버리지가 37.6%로
+ * 게이트(40%)에 미달해, 설계 Open Question #2 가 정해둔 완화 경로(→2건)를 적용했다.
+ * 더 낮추면 표본 2건짜리 중앙값이 사실상 한 거래의 값이 되므로 여기까지가 하한이다.
+ */
+export const JEONSE_MIN_PER_SIDE = 2;
+
 export function computeJeonseRatio(rows, months) {
   const confirmed = new Set(months.slice(0, idxOfAgo(months, NOW_OFFSET_MONTHS) + 1));
   const byTier = new Map();
@@ -202,7 +227,7 @@ export function computeJeonseRatio(rows, months) {
 
   let best = null;
   for (const [tier, v] of byTier) {
-    if (v.trade.length < 3 || v.rent.length < 3) continue;
+    if (v.trade.length < JEONSE_MIN_PER_SIDE || v.rent.length < JEONSE_MIN_PER_SIDE) continue;
     const total = v.trade.length + v.rent.length;
     if (!best || total > best.total) best = { tier, total, v };
   }
@@ -236,6 +261,61 @@ export function tierSummary(tradeRows, rentRows) {
   put(tradeRows, 't');
   put(rentRows, 'r');
   return out;
+}
+
+/**
+ * 층 프로필 — 단지투어의 '층' 축. 실거래에 floor 는 100% 있지만 aptDong 은 사실상 비어 있어
+ * (강남 60건 중 59건 공백) 동 단위는 이 데이터로 만들 수 없다. 층은 만들 수 있다.
+ *
+ * 저/중/고 구간은 그 단지의 최고층 대비 비율로 나눈다 — 15층 단지의 5층과
+ * 35층 단지의 5층은 다른 층이다. 최고층 6층 미만이면 구간을 나누지 않는다(무의미).
+ */
+export function floorProfile(rows) {
+  const valid = rows.filter((r) => r.floor != null && r.floor > 0 && r.area != null);
+  if (!valid.length) return null;
+  const max = Math.max(...valid.map((r) => r.floor));
+
+  const bands = { low: [], mid: [], high: [] };
+  for (const r of valid) {
+    const ppy = pricePerPyeong(r.price, r.area);
+    if (ppy == null) continue;
+    const t = r.floor / max;
+    (t <= 1 / 3 ? bands.low : t <= 2 / 3 ? bands.mid : bands.high).push(ppy);
+  }
+
+  const band = (v) => (v.length ? { ppy: Math.round(median(v)), count: v.length } : null);
+  return {
+    max,
+    /** 구간을 나눌 만큼 높은 단지인지 — 화면이 저층/고층 비교를 보여줄지 결정한다. */
+    banded: max >= 6,
+    low: band(bands.low),
+    mid: band(bands.mid),
+    high: band(bands.high),
+  };
+}
+
+/**
+ * 대표 거래 — 지도 가격 라벨용("전 2.7억 · 58㎡").
+ * 평당가만으로는 "얼마짜리 단지"가 안 읽힌다. 총액을 말하려면 대표 평형이 필요하다.
+ * 확정 구간에서 가장 많이 거래된 면적(㎡ 반올림)을 대표로 잡고 그 면적의 중앙값 총액을 쓴다.
+ * 같은 건수면 큰 면적 — 대단지의 주력 평형이 소형에 묻히지 않게.
+ */
+export function repDeal(rows, months) {
+  const confirmed = new Set(months.slice(0, idxOfAgo(months, NOW_OFFSET_MONTHS) + 1));
+  const byArea = new Map();
+  for (const r of rows) {
+    if (!confirmed.has(r.ym) || r.area == null || !(r.price > 0)) continue;
+    const a = Math.round(r.area);
+    if (!byArea.has(a)) byArea.set(a, []);
+    byArea.get(a).push(r.price);
+  }
+  let best = null;
+  for (const [area, prices] of byArea) {
+    if (!best || prices.length > best.prices.length
+      || (prices.length === best.prices.length && area > best.area)) best = { area, prices };
+  }
+  if (!best) return null;
+  return { area: best.area, amount: Math.round(median(best.prices)), count: best.prices.length };
 }
 
 /**
@@ -289,6 +369,10 @@ export function computeAll(rows, months) {
       outliers: ft.dropped.length + fr.dropped.length,
       series: { t: st, r: sr },
       tiers: tierSummary(ft.kept, fr.kept),
+      /** 지도 라벨용 대표 거래(총액·면적). 거래유형별 한 벌씩. */
+      rep: { t: repDeal(ft.kept, months), r: repDeal(fr.kept, months) },
+      /** 층 프로필 — 단지투어·층별 가격차. 거래유형별 한 벌씩. */
+      floors: { t: floorProfile(ft.kept), r: floorProfile(fr.kept) },
       recent: recentDeals(rs),
       signals: {
         trade: computeKindSignals(smT, months),

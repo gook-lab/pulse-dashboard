@@ -1,0 +1,377 @@
+/* 단지 배치도 — SVG 아이소메트릭 압출. 색은 global.css 의 --bld-* 토큰만. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.svg {
+  width: 100%;
+  height: 360px;
+  display: block;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.state {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+/* ── 압출 면 ─────────────────────────────────────────────────────────────
+   near = 지금 보고 있는 단지(브랜드 톤), far = 이웃 건물(회색으로 물러난다)
+   벽 채움은 세로 그라디언트라 SVG 쪽에서 url(#…) 로 넣는다(여기서 fill 을 주면 덮어쓴다). */
+.near .roof { fill: var(--bld-near-roof); stroke: var(--bld-near-rim); }
+.far .roof { fill: var(--bld-far-roof); stroke: var(--bld-far-rim); }
+
+.roof {
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+}
+
+/* 벽 외곽선은 검게 두지 않는다 — 도면처럼 보인다.
+   멀리서는 아예 없애고(덩어리로 읽히게), 확대하면 겹친 건물을 떼어놓을 만큼만 넣는다. */
+.wall,
+.wallEdged {
+  shape-rendering: geometricPrecision;
+}
+
+.wall { stroke: none; }
+
+.wallEdged {
+  stroke: var(--map-edge);
+  stroke-width: 0.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.near .wall { stroke: var(--map-edge); stroke-width: 0.4; vector-effect: non-scaling-stroke; }
+
+/* 접지 그림자 — 태양이 없는 시각에도 건물이 떠 보이지 않게. */
+.contact {
+  fill: var(--map-contact);
+  stroke: none;
+}
+
+/* 층 구분선 — 층수만큼 가로선. 20층 건물이 20층처럼 보이는 최소 장치. */
+.bands {
+  fill: none;
+  stroke: var(--map-band);
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.lvl {
+  font-family: var(--mono);
+  font-size: 7px;
+  font-weight: 700;
+  fill: var(--map-label);
+  paint-order: stroke;
+  stroke: var(--map-label-halo);
+  stroke-width: 2px;
+  pointer-events: none;
+}
+
+/* ── 범례 ────────────────────────────────────────────────────────────── */
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--text-sub);
+}
+
+.legendNear,
+.legendFar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 700;
+}
+
+.legendNear::before,
+.legendFar::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.legendNear::before { background: var(--bld-near-roof); }
+.legendFar::before { background: var(--bld-far-roof); }
+
+.legendNote {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-mut);
+}
+
+@media (max-width: 767px) {
+  .svg { height: 260px; }
+}
+
+/* ── 그림자 레이어 ─────────────────────────────────────────────────────── */
+.shadowLayer path {
+  fill: var(--map-shadow);
+  stroke: none;
+}
+
+/* ── 일조 컨트롤 ───────────────────────────────────────────────────────── */
+.sunBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.slider {
+  flex: 1;
+  min-width: 120px;
+  accent-color: var(--brand);
+  height: 4px;
+}
+
+.sunInfo {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 지면(조경·물·도로) ─────────────────────────────────────────────────── */
+/* 지면 위계 — 차도 > 철도 > 보행로. 굵기만 다르고 색이 같으면 인도가 골목처럼 읽힌다. */
+.groundLayer path { stroke: none; }
+.green { fill: var(--map-green); }
+.water { fill: var(--map-water); }
+.road  { fill: var(--map-road); }
+.rail  { fill: var(--map-rail); }
+.path  { fill: var(--map-path); }
+
+/* ── 키보드 조작 ────────────────────────────────────────────────────────── */
+.svg:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.legendHint {
+  font-size: 11px;
+  color: var(--text-sub);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.legendHint kbd {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--row);
+  color: var(--text);
+}
+
+/* ── 나침반 ─────────────────────────────────────────────────────────────── */
+.canvas {
+  position: relative;
+}
+
+.compass {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  pointer-events: none;
+}
+
+.compassBg {
+  fill: var(--map-overlay);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.needle {
+  fill: var(--brand);
+}
+
+.compassLabel {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--text-sub);
+}
+
+/* ── 주변 스트리밍 상태 ─────────────────────────────────────────────────── */
+.streamNote,
+.streamWarn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.streamNote { color: var(--text-sub); }
+.streamWarn { color: var(--warn); }
+
+/* 드래그로 끌 수 있다는 신호. 잡는 동안은 손을 쥔 모양으로. */
+/* pan-y 여야 한다: none 이면 전체 폭 캔버스 위에서 세로 스와이프가 먹혀
+   모바일에서 상세 페이지 스크롤이 갇힌다. 세로는 페이지, 가로는 시점 이동.
+   (PriceChart 도 같은 이유로 pan-y 를 쓴다.) */
+.svg { cursor: grab; touch-action: pan-y; }
+.svg:active { cursor: grabbing; }
+
+/* 단지가 화면 밖으로 나갔을 때만 나타나는 복귀 버튼. */
+.recenter {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--map-overlay);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.recenter:hover { border-color: var(--brand); color: var(--brand); }
+
+/* ── 배율·시점 HUD ──────────────────────────────────────────────────────── */
+.hud {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: calc(100% - 20px);
+  flex-wrap: wrap;
+  padding: 4px 6px;
+  background: var(--map-overlay);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.hudBtn {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text-sub);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.hudBtn:hover:not(:disabled) { color: var(--text); border-color: var(--brand); }
+.hudBtn:disabled { opacity: 0.4; cursor: default; }
+
+.hudZoom {
+  min-width: 38px;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.hudSep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 1px;
+}
+
+.hudView {
+  font-size: 10.5px;
+  color: var(--text-mut);
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
+}
+
+.svgDragging { cursor: grabbing; }
+
+/* 크게보기 — 화면 높이를 쓰되 머리말·일조바·범례가 함께 보일 만큼만.
+   더 키우면 조작 설명(범례)이 접혀 스크롤해야 나온다. */
+.svgLarge { height: min(62vh, 700px); }
+
+@media (max-width: 767px) {
+  .svgLarge { height: min(48vh, 420px); }
+}
+
+/* 좁은 화면에서는 캔버스가 260px 뿐이라 HUD 두 줄이 20% 를 먹는다.
+   버튼을 키우면서(터치 목표) 폭은 줄여 한 줄에 들어가게 한다. */
+@media (max-width: 767px) {
+  .hud {
+    left: 8px;
+    bottom: 8px;
+    gap: 4px;
+    padding: 3px 5px;
+  }
+
+  .hudBtn {
+    width: 26px;
+    height: 26px;
+    font-size: 14px;
+  }
+
+  .hudZoom { min-width: 34px; font-size: 11px; }
+  .hudView { display: none; }   /* 각도 숫자는 나침반이 대신한다 */
+  .hudSep { display: none; }
+}
+
+/* ── 주변 인프라·도로 라벨 ─────────────────────────────────────────────── */
+.poi { pointer-events: none; }
+
+.poiBg {
+  fill: var(--map-overlay);
+  stroke: var(--border);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.poiGlyph {
+  fill: none;
+  stroke: var(--poi-fg);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* 역세권은 이 화면에서 가장 먼저 보는 정보다 — 하나만 브랜드색으로 세운다. */
+.poiKey .poiBg { stroke: var(--brand); }
+.poiKey .poiGlyph { stroke: var(--brand); }
+
+.poiName {
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--text);
+  paint-order: stroke;
+  stroke: var(--map-label-halo);
+  stroke-width: 2.5px;
+}
+
+.roadName {
+  font-size: 8.5px;
+  font-weight: 600;
+  fill: var(--text-mut);
+  paint-order: stroke;
+  stroke: var(--map-label-halo);
+  stroke-width: 2px;
+  pointer-events: none;
+}

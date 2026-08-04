@@ -1,7 +1,6 @@
-import { useMemo } from 'react';
-import { useStore } from '@/store/useStore';
-import { EmptyState, Badge } from '@/components/common';
-import { fmt, colors } from '@/lib/colors';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { EmptyState, ErrorState, Loading, Badge } from '@/components/common';
+import { fmt, WARN } from '@/lib/colors';
 import type { AptDeal } from '@/data/types';
 import s from './DealScatter.module.css';
 
@@ -14,33 +13,34 @@ interface DealScatterProps {
   onRetry?: () => void;
 }
 
-/** 3개월 이동 중앙값 */
-function movingMedian(values: (number | null)[], window: number): (number | null)[] {
-  const result: (number | null)[] = [];
-  for (let i = 0; i < values.length; i++) {
-    const start = Math.max(0, i - window + 1);
-    const slice = values.slice(start, i + 1).filter((v) => v != null) as number[];
-    if (slice.length === 0) {
-      result.push(null);
-    } else {
-      slice.sort((a, b) => a - b);
-      const mid = slice.length >> 1;
-      result.push(slice.length % 2 ? slice[mid] : (slice[mid - 1] + slice[mid]) / 2);
-    }
-  }
-  return result;
+/** 거래 시점을 "연*12+월 + 일" 로 펼친 연속값. 월 단위 산술이 되므로 3개월 창을 그대로 잴 수 있다. */
+export function monthValue(ym: string, day: number | null): number {
+  const yy = parseInt(ym.slice(0, 4), 10);
+  const mm = parseInt(ym.slice(4, 6), 10);
+  return yy * 12 + mm + (day ? (day - 1) / 31 : 0);
 }
 
 /**
- * 거래 날짜를 정규화한 수치 (YYYYMM + day로 0~1 범위).
- * day가 null이면 월 시작(0), 숫자면 day/31로 더함.
+ * 3개월 이동 중앙값 — "최근 3건"이 아니라 진짜 3개월 창이다.
+ * 거래가 몰린 달과 비어 있는 달이 섞여 있어서 건수 기준 창은 기간이 멋대로 늘어난다
+ * (서버 시그널 엔진도 기간 기준 중앙값을 쓴다 — 화면과 신호가 어긋나면 안 된다).
  */
-function normalizeDate(ym: string, day: number | null): number {
-  const yy = parseInt(ym.slice(0, 4), 10);
-  const mm = parseInt(ym.slice(4, 6), 10);
-  const monthValue = yy * 12 + mm;
-  return monthValue + (day ? (day - 1) / 31 : 0);
+export function rollingMedian(
+  pts: { t: number; y: number }[],
+  months = 3,
+): (number | null)[] {
+  return pts.map((p) => {
+    const win = pts.filter((q) => q.t <= p.t && q.t > p.t - months).map((q) => q.y);
+    if (!win.length) return null;
+    win.sort((a, b) => a - b);
+    const mid = win.length >> 1;
+    return win.length % 2 ? win[mid] : (win[mid - 1] + win[mid]) / 2;
+  });
 }
+
+const H = 240;
+const M = { top: 14, right: 14, bottom: 28, left: 52 };
+const LOW_FLOOR_MAX = 5;
 
 export default function DealScatter({
   deals,
@@ -50,200 +50,125 @@ export default function DealScatter({
   stale = false,
   onRetry,
 }: DealScatterProps) {
-  const colorMode = useStore((st) => st.colorMode);
-  const c = colors(colorMode);
-  // 선택된 평형대의 거래만 필터링
-  const filtered = useMemo(() => {
-    if (!selectedArea) return deals;
-    return deals.filter((d) => d.area && d.area > selectedArea - 5 && d.area < selectedArea + 5);
+  // 폭은 컨테이너에서 받아 1:1 픽셀로 그린다. viewBox 를 늘리면 글자·점까지 같이 늘어난다.
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(600);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const set = () => setW(Math.max(320, el.clientWidth));
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const points = useMemo(() => {
+    const src = selectedArea
+      ? deals.filter((d) => d.area != null && Math.abs(d.area - selectedArea) < 5)
+      : deals;
+    return src
+      .filter((d) => Number.isFinite(d.price))
+      .map((d) => ({ t: monthValue(d.ym, d.day), y: d.price, floor: d.floor, ym: d.ym, day: d.day }))
+      .sort((a, b) => a.t - b.t);
   }, [deals, selectedArea]);
 
-  // 가격(y), 날짜(x) 추출 및 정렬
-  const points = useMemo(() => {
-    const pts = filtered.map((d) => ({
-      x: normalizeDate(d.ym, d.day),
-      y: d.price,
-      floor: d.floor,
-      ym: d.ym,
-      day: d.day,
-    }));
-    return pts.sort((a, b) => a.x - b.x);
-  }, [filtered]);
+  const median = useMemo(() => rollingMedian(points), [points]);
 
-  // 3개월 이동 중앙값
-  const medianLine = useMemo(() => {
-    if (points.length === 0) return [];
-    const prices = points.map((p) => p.y);
-    return movingMedian(prices, 3);
-  }, [points]);
+  const scale = useMemo(() => {
+    if (!points.length) return null;
+    const ys = points.map((p) => p.y);
+    let lo = Math.min(...ys), hi = Math.max(...ys);
+    if (lo === hi) { lo = Math.max(0, lo * 0.9); hi = hi * 1.1 || 1; }   // 거래가 한 건뿐인 평형
+    const pad = (hi - lo) * 0.1;
+    lo = Math.max(0, lo - pad); hi = hi + pad;
 
-  // Y축 범위 계산
-  const { minY, maxY } = useMemo(() => {
-    if (points.length === 0) return { minY: 0, maxY: 1000 };
-    const prices = points.map((p) => p.y);
-    let min = Math.min(...prices);
-    let max = Math.max(...prices);
-    // Y스케일 가드: min === max 일 때
-    if (min === max) {
-      min = Math.max(0, min - 100);
-      max = min + 200;
-    }
-    const padding = (max - min) * 0.1;
-    return { minY: Math.max(0, min - padding), maxY: max + padding };
-  }, [points]);
+    const t0 = points[0].t, t1 = points[points.length - 1].t;
+    const spanT = t1 - t0 || 1;
+    const innerW = w - M.left - M.right;
+    const innerH = H - M.top - M.bottom;
+    return {
+      lo, hi, t0, t1,
+      x: (t: number) => M.left + ((t - t0) / spanT) * innerW,
+      y: (v: number) => H - M.bottom - ((v - lo) / (hi - lo)) * innerH,
+    };
+  }, [points, w]);
 
-  // SVG 치수
-  const SVG_WIDTH = 480;
-  const SVG_HEIGHT = 240;
-  const MARGIN = { top: 16, right: 16, bottom: 32, left: 48 };
-  const chartWidth = SVG_WIDTH - MARGIN.left - MARGIN.right;
-  const chartHeight = SVG_HEIGHT - MARGIN.top - MARGIN.bottom;
-
-  // 스케일 함수
-  const scaleX = (x: number) => {
-    const rangeX =
-      points.length > 0 ? points[points.length - 1].x - points[0].x : 1;
-    const normalized = rangeX > 0 ? (x - (points[0]?.x ?? 0)) / rangeX : 0;
-    return MARGIN.left + normalized * chartWidth;
-  };
-
-  const scaleY = (y: number) => {
-    const normalized = (y - minY) / (maxY - minY);
-    return SVG_HEIGHT - MARGIN.bottom - normalized * chartHeight;
-  };
-
-  if (loading) {
-    return <div className={s.container} style={{ height: SVG_HEIGHT }}>로딩 중...</div>;
-  }
-
+  if (loading) return <div className={s.container}><Loading label="거래 기록 불러오는 중…" /></div>;
   if (error) {
     return (
       <div className={s.container}>
-        <div className={s.error}>
-          <p>{error}</p>
-          {onRetry && (
-            <button className={s.retryBtn} onClick={onRetry}>
-              재시도
-            </button>
-          )}
-        </div>
+        <ErrorState title="거래 기록을 불러오지 못했습니다" desc={error} onRetry={onRetry} />
       </div>
     );
   }
-
-  if (points.length === 0) {
+  if (!points.length || !scale) {
     return (
       <div className={s.container}>
-        <EmptyState title="거래 기록 없음" desc="이 평형의 거래 기록이 없습니다" />
+        <EmptyState title="거래 기록 없음" desc="이 평형대의 실거래 기록이 없습니다. 다른 평형을 선택해 보세요." />
       </div>
     );
   }
 
+  // y 격자 — 4구간이면 값을 읽을 수 있고 배경이 시끄럽지 않다.
+  const ticks = Array.from({ length: 5 }, (_, i) => scale.lo + ((scale.hi - scale.lo) * i) / 4);
+  const ymLabel = (ym: string) => `${ym.slice(2, 4)}.${ym.slice(4)}`;
+  const medPath = points
+    .map((p, i) => (median[i] == null ? null : `${scale.x(p.t).toFixed(1)},${scale.y(median[i]!).toFixed(1)}`))
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <div className={s.container}>
-      {stale && <Badge>배치 재수집 필요</Badge>}
-      <svg
-        width={SVG_WIDTH}
-        height={SVG_HEIGHT}
-        className={s.chart}
-        viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
-      >
-        {/* 그리드 배경 */}
-        <defs>
-          <pattern id="grid" width="40" height="30" patternUnits="userSpaceOnUse">
-            <path d={`M 40 0 L 0 0 0 30`} fill="none" stroke="var(--color-border)" strokeWidth="0.5" />
-          </pattern>
-        </defs>
-        <rect width={SVG_WIDTH} height={SVG_HEIGHT} fill="var(--color-bg)" />
-        <rect
-          x={MARGIN.left}
-          y={MARGIN.top}
-          width={chartWidth}
-          height={chartHeight}
-          fill="url(#grid)"
-        />
+    <div className={s.container} ref={boxRef}>
+      {stale && <div className={s.staleRow}><Badge color={WARN}>배치 재수집 필요</Badge></div>}
 
-        {/* Y축 */}
-        <line x1={MARGIN.left} y1={MARGIN.top} x2={MARGIN.left} y2={SVG_HEIGHT - MARGIN.bottom} stroke="var(--color-border)" strokeWidth="1" />
+      <svg width="100%" height={H} viewBox={`0 0 ${w} ${H}`} className={s.chart}
+        role="img" aria-label={`실거래 산점도 — ${points.length}건, ${ymLabel(points[0].ym)}부터 ${ymLabel(points[points.length - 1].ym)}까지`}>
+        {ticks.map((v, i) => (
+          <g key={i}>
+            <line x1={M.left} y1={scale.y(v)} x2={w - M.right} y2={scale.y(v)} className={s.grid} />
+            <text x={M.left - 8} y={scale.y(v)} textAnchor="end" dominantBaseline="middle" className={s.label}>
+              {fmt(Math.round(v / 100) / 100, 1)}억
+            </text>
+          </g>
+        ))}
 
-        {/* X축 */}
-        <line x1={MARGIN.left} y1={SVG_HEIGHT - MARGIN.bottom} x2={SVG_WIDTH - MARGIN.right} y2={SVG_HEIGHT - MARGIN.bottom} stroke="var(--color-border)" strokeWidth="1" />
+        <line x1={M.left} y1={M.top} x2={M.left} y2={H - M.bottom} className={s.axis} />
+        <line x1={M.left} y1={H - M.bottom} x2={w - M.right} y2={H - M.bottom} className={s.axis} />
 
-        {/* 3개월 이동 중앙값 라인 (점선) */}
-        {medianLine.length > 1 && (
-          <polyline
-            points={points
-              .map((p, i) => {
-                const med = medianLine[i];
-                return med !== null ? `${scaleX(p.x)},${scaleY(med)}` : null;
-              })
-              .filter(Boolean)
-              .join(' ')}
-            fill="none"
-            stroke="var(--color-text-sub)"
-            strokeWidth="2"
-            strokeDasharray="4,4"
-            opacity="0.6"
-          />
-        )}
+        {medPath.includes(' ') && <polyline points={medPath} className={s.median} />}
 
-        {/* 데이터 포인트 */}
         {points.map((p, i) => {
-          const isLowFloor = p.floor && p.floor >= 1 && p.floor <= 5;
-          const color = isLowFloor ? c.up : c.down; // 저층=상승색, 중고층=하락색
-          const cx = scaleX(p.x);
-          const cy = scaleY(p.y);
-          const tooltip = `${p.ym}.${String(p.day ?? 1).padStart(2, '0')}: ${fmt(p.y, 0)}만원 · ${p.floor ? p.floor + '층' : '층미상'}`;
+          const low = p.floor != null && p.floor >= 1 && p.floor <= LOW_FLOOR_MAX;
+          // 층 구분에 등락색을 쓰면 안 된다 — colorMode(국제식·한국식)를 바꾸면 층 의미가 뒤집힌다.
+          // 층은 방향성이 없는 분류라 같은 브랜드색의 채움/테두리로 나눈다(색맹에게도 구분된다).
           return (
-            <g key={i}>
-              <circle
-                cx={cx}
-                cy={cy}
-                r="3"
-                fill={color}
-                opacity="0.7"
-                className={s.point}
-              />
-              <title>{tooltip}</title>
-            </g>
+            <circle key={i} cx={scale.x(p.t)} cy={scale.y(p.y)} r={low ? 3.6 : 3.2}
+              className={low ? s.pointLow : s.point}>
+              <title>
+                {`${ymLabel(p.ym)}.${String(p.day ?? 1).padStart(2, '0')} · ${fmt(p.y, 0)}만원 · ${p.floor != null ? `${p.floor}층` : '층 미상'}`}
+              </title>
+            </circle>
           );
         })}
 
-        {/* Y축 레이블 */}
-        <text x={MARGIN.left - 8} y={MARGIN.top} textAnchor="end" dominantBaseline="middle" className={s.label}>
-          {fmt(maxY, 0)}
+        <text x={scale.x(scale.t0)} y={H - M.bottom + 16} textAnchor="start" className={s.label}>
+          {ymLabel(points[0].ym)}
         </text>
-        <text x={MARGIN.left - 8} y={SVG_HEIGHT - MARGIN.bottom} textAnchor="end" dominantBaseline="middle" className={s.label}>
-          {fmt(minY, 0)}
+        <text x={scale.x(scale.t1)} y={H - M.bottom + 16} textAnchor="end" className={s.label}>
+          {ymLabel(points[points.length - 1].ym)}
         </text>
-
-        {/* X축 레이블 (첫/끝) */}
-        {points.length > 0 && (
-          <>
-            <text x={scaleX(points[0].x)} y={SVG_HEIGHT - MARGIN.bottom + 16} textAnchor="middle" className={s.label}>
-              {points[0].ym.slice(2, 4)}.{points[0].ym.slice(4)}
-            </text>
-            <text x={scaleX(points[points.length - 1].x)} y={SVG_HEIGHT - MARGIN.bottom + 16} textAnchor="middle" className={s.label}>
-              {points[points.length - 1].ym.slice(2, 4)}.{points[points.length - 1].ym.slice(4)}
-            </text>
-          </>
-        )}
       </svg>
 
-      {/* 범례 */}
       <div className={s.legend}>
-        <div className={s.legendItem}>
-          <span className={`${s.legendDot} ${s.lowFloor}`} />
-          <span>저층(1~5층)</span>
-        </div>
-        <div className={s.legendItem}>
-          <span className={`${s.legendDot} ${s.midHighFloor}`} />
-          <span>중·고층</span>
-        </div>
-        <div className={s.legendItem}>
-          <span className={s.legendLine} />
-          <span>3개월 이동 중앙값</span>
-        </div>
+        <span className={s.legendItem}>
+          <span className={`${s.legendDot} ${s.dotLow}`} />저층(1~{LOW_FLOOR_MAX}층)
+        </span>
+        <span className={s.legendItem}>
+          <span className={`${s.legendDot} ${s.dotHigh}`} />중·고층
+        </span>
+        <span className={s.legendItem}><span className={s.legendLine} />3개월 이동 중앙값</span>
+        <span className={s.legendNote}>{points.length}건 · 점에 커서를 올리면 층과 금액</span>
       </div>
     </div>
   );

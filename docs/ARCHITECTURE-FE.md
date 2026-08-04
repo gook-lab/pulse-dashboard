@@ -94,6 +94,12 @@ sequenceDiagram
 - 순위: 서버 정렬 완료본(rank 포함) — 클라 정렬 O(0)
 - AI 종합: 뉴스 60건·지수·F&G를 서버가 `score+markets[]`로 파생
 
+**컬럼형 시계열 저장**(`server/realestate/index.mjs`): 월별 시계열을 중첩 배열 `[[가격, 건수], …]`로 두면 8,748단지 × 17개월 × 2종 = **297,432개의 작은 배열**이 각각 헤더를 달고 힙에 남는다(실측 21.6MB). 로드 시 `columnize()`가 `Float64Array`(가격) + `Uint16Array`(건수) 두 덩어리로 접는다 — 파일은 그대로 JSON이라 배치·캐시 형식은 그대로다.
+- 접근자: `seriesRows(store, c, kind)`(응답용 복원) · `seriesValueAt(store, c, kind, idx)`(거래 없는 달은 직전 유효값). `NaN` = 거래 없음(0과 구분).
+- **Float32는 안 된다** — 유효숫자 7자리라 순위 행 평당가가 3,189 → 3,190으로 밀린다(실측). 정렬 기준값은 Float64.
+- 상세에서만 쓰는 `recent`(최근 거래 10건)는 상주시키지 않고 요청 시 거래 샤드에서 만든다.
+- 효과: heap 82.0 → 51.4MB, 서버 RSS 143.8 → 48.6MB.
+
 **정직성 필드 패턴**: `unavailable?: boolean`(실패≠0), `targetReal?: boolean`(실산출 목표가만 표시), `source: 'kis-mock'|'kis-real'`(출처 명시), `DetailHint`(임의 종목 코드-이름 불일치 방지).
 
 ---

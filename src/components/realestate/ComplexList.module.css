@@ -67,10 +67,13 @@
 
 .areaClear:hover { color: var(--text); background: var(--panel-2); }
 
-/* ── 리스트 헤더 — 행과 같은 그리드(★열 포함)여야 열이 맞는다 ──────────────── */
+/* ── 리스트 헤더 — 행과 같은 그리드(★열 포함)여야 열이 맞는다 ────────────────
+   바 열을 minmax(200px, 300px) 로 두면 안 된다: 그리드는 fr 을 늘리기 전에
+   고정 상한 트랙을 상한까지 먼저 키우므로, 리스트 폭(≈566px)에서 바가 남은 공간을
+   전부 먹고 단지명 열이 0px 이 된다(실제로 이름이 사라졌다). 두 열 모두 fr 로 나눈다. */
 .headerRow {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) minmax(200px, 300px) 60px 28px;
+  grid-template-columns: 40px minmax(104px, 1.1fr) minmax(120px, 1.5fr) 74px 60px 28px;
   gap: 8px;
   align-items: center;
   padding: 0 8px 6px;
@@ -99,7 +102,7 @@
 /* ── 행 (순위 또는 관심단지) ───────────────────────────────────────────────── */
 .row {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) minmax(200px, 300px) 60px 28px;
+  grid-template-columns: 40px minmax(104px, 1.1fr) minmax(120px, 1.5fr) 74px 60px 28px;
   gap: 8px;
   align-items: center;
   padding: 6px 8px;
@@ -229,11 +232,11 @@
   background: var(--panel-2);
 }
 
-/* ── 좁은 리스트(1024~1280 의 440px 컬럼) — 바 열이 200px 을 고집하면 단지명이 0 이 된다 ── */
+/* ── 좁은 리스트(1024~1280 의 440px 컬럼) ── */
 @media (max-width: 1280px) {
   .headerRow,
   .row {
-    grid-template-columns: 32px minmax(90px, 1fr) minmax(110px, 170px) 44px 26px;
+    grid-template-columns: 32px minmax(88px, 1.1fr) minmax(96px, 1.3fr) 64px 44px 26px;
     gap: 6px;
   }
 }
@@ -260,4 +263,44 @@
   }
 
   .row { padding: 8px 6px; }
+}
+
+/* ── 기준월 평당가 열 — 판단용 숫자(11.5px, --text-sub 이상) ─────────────── */
+.price {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.headPrice { text-align: right; }
+
+@media (max-width: 767px) {
+  /* <768 4열 유지 — 평당가는 접는다 (시그널 값이 우선) */
+  .price, .headPrice { display: none; }
+}
+
+/* ── 화면 연동 토글 ─────────────────────────────────────────────────────── */
+.syncChip {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-sub);
+  background: var(--row);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+.syncChip:hover { color: var(--text); }
+
+.syncOn {
+  color: var(--text);
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+  border-color: color-mix(in srgb, var(--brand) 40%, transparent);
+}
+
+.syncCount {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
 }

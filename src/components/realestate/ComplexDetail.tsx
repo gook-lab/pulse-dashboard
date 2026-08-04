@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '@/store/useStore';
-import { Modal, Badge, EmptyState, SkeletonText, PriceChart, HorizontalBars, Segmented } from '@/components/common';
+import { Badge, Button, EmptyState, SkeletonText, PriceChart, HorizontalBars, Segmented } from '@/components/common';
 import toast from '@/lib/toast';
 import { httpApi } from '@/data/httpApi';
 import type { AptComplexDetail, SignalKey, AreaTier } from '@/data/types';
 import { fmt, scaleColor, SIGNAL_DOMAIN, WARN } from '@/lib/colors';
 import DealScatter from './DealScatter';
+import ComplexTour from './ComplexTour';
 import LoanCalc from './LoanCalc';
 import s from './ComplexDetail.module.css';
 
@@ -15,7 +16,7 @@ interface ComplexDetailBodyProps {
   onSelectArea: (area: number | null) => void;
 }
 
-/** 단지 상세 내용 — 모달과 시트에서 공유. */
+/** 단지 상세 내용 — 전체 화면 뷰가 감싼다. */
 function ComplexDetailBody({ detail, selectedArea, onSelectArea }: ComplexDetailBodyProps) {
   const screenerQuery = useStore((st) => st.screenerQuery);
   const aptScreen = useStore((st) => st.aptScreen);
@@ -63,8 +64,24 @@ function ComplexDetailBody({ detail, selectedArea, onSelectArea }: ComplexDetail
 
   const timeseriesData = detail.series[dealType === 'trade' ? 't' : 'r'];
   const seriesValues = timeseriesData.map(([price]) => price);
-  const volumesValues = timeseriesData.map(([, count]) => count);
+  // 거래 없는 달은 0 이 아니라 null — 0 은 막대로 그릴 값이 아니다(가격 계열과 같은 규칙).
+  const volumesValues = timeseriesData.map(([, count]) => (count > 0 ? count : null));
   const provisionalFrom = Math.max(0, timeseriesData.length - 2);
+  /* 추세선 — 월 1~2건인 달이 많아 월별 중앙값은 4,093 → 10,649 처럼 튄다.
+     서버가 상세 응답에서 같은 정의(3개월 창의 모든 거래)로 계산해 준다. */
+  const smoothedValues = detail.smoothed?.[dealType === 'trade' ? 't' : 'r'] ?? null;
+  const trendSeries = smoothedValues?.some((v) => v != null)
+    ? [{ name: '3개월 이동 중앙값', data: smoothedValues, color: 'var(--text-sub)', width: 1.6, dash: '8 5' }]
+    : [];
+
+  // 기준월 평당가 — 시그널 계산과 같은 규칙(기준월 = 3개월 전, 거래 없는 달은 직전 유효값)
+  const basisPrice = (() => {
+    for (let i = Math.min(detail.months.length - 3, timeseriesData.length - 1); i >= 0; i--) {
+      const p = timeseriesData[i]?.[0];
+      if (p != null) return Math.round(p);
+    }
+    return null;
+  })();
 
   const tierBars = Object.entries(detail.tiers)
     .filter(([_, tierData]) => {
@@ -173,6 +190,9 @@ function ComplexDetailBody({ detail, selectedArea, onSelectArea }: ComplexDetail
             {formatSignal(signal, signalValue)}
           </div>
           <div className={s.rankText}>{rankText}</div>
+          <div className={s.rankText}>
+            기준월 평당가 <span className="mono">{basisPrice != null ? `${fmt(basisPrice, 0)}만` : '—'}</span>
+          </div>
         </div>
 
         <div className={s.signalGrid}>
@@ -207,11 +227,13 @@ function ComplexDetailBody({ detail, selectedArea, onSelectArea }: ComplexDetail
           series={{ '1년': seriesValues }}
           volumes={{ '1년': volumesValues }}
           labels={{ '1년': detail.months.map((m) => `${m.slice(2, 4)}.${m.slice(4)}`) }}
+          compareSeries={{ '1년': trendSeries }}
           mode={colorMode}
           defaultPeriod="1년"
           height={220}
           provisionalFrom={provisionalFrom}
           liveBadge="월별 실거래"
+          singlePointNote="거래가 한 달에만 있어 추세를 그릴 수 없습니다 · 점 하나가 그 달의 값입니다"
         />
         <div className={s.chartCaption}>
           {dealTypeLabel} 평당가(만원) · 최근 2개월은 신고지연으로 미확정{detail.outliers ? ` · 이상치 제외 ${detail.outliers}건` : ''}
@@ -248,6 +270,9 @@ function ComplexDetailBody({ detail, selectedArea, onSelectArea }: ComplexDetail
         </div>
       )}
 
+      {/* 단지투어 — 실사 뷰(로드뷰) + 층별 가격 */}
+      <ComplexTour detail={detail} />
+
       {/* ⑤ KB시세 vs 실거래 (데이터 없음 상태) */}
       <div className={s.kbSection}>
         <div className={s.sectionLabel}>KB시세 vs 실거래</div>
@@ -273,11 +298,12 @@ function ComplexDetailBody({ detail, selectedArea, onSelectArea }: ComplexDetail
       {/* ⑦ HorizontalBars (평형별) */}
       {tierBars.length > 0 && (
         <div className={s.tiersSection}>
-          <div className={s.tiersLabel}>평형별 {dealTypeLabel}</div>
+          {/* tiers 는 평당가 중앙값이다(types.ts). "평형별 매매 5,030만" 으로 쓰면 총액으로 읽힌다. */}
+          <div className={s.tiersLabel}>평형별 {dealTypeLabel} 평당가</div>
           <HorizontalBars
             data={tierBars}
             highlight={tierBars.find((b) => detail.areaTier && b.label.startsWith(`${detail.areaTier}㎡`))?.label}
-            format={(v) => `${fmt(v, 0)}만`}
+            format={(v) => `${fmt(v, 0)}만/평`}
             labelWidth={110}
           />
         </div>
@@ -330,7 +356,11 @@ function ComplexDetailBody({ detail, selectedArea, onSelectArea }: ComplexDetail
   );
 }
 
-/** 상세 모달 — 반응형 미만에서 사용. */
+/**
+ * 단지 상세 — 전체 화면 뷰(주식 탭의 '종목 상세'와 같은 패턴).
+ * 모달이 아니라 화면 전환인 이유: 차트·평형별·최근거래를 좁은 폭에 우겨넣으면
+ * 시그널 라벨이 세로로 찌그러지고 차트가 읽히지 않는다(380px 시트에서 실제로 그랬다).
+ */
 export default function ComplexDetail() {
   const selectedComplexId = useStore((st) => st.selectedComplexId);
   const selectComplex = useStore((st) => st.selectComplex);
@@ -356,38 +386,39 @@ export default function ComplexDetail() {
       });
   }, [selectedComplexId]);
 
-  const open = selectedComplexId != null;
-  const handleClose = () => selectComplex(null);
+  const back = () => selectComplex(null);
 
-  if (!open) return null;
+  // 모달에서 Esc 로 닫던 습관을 그대로 — 전체 화면에서도 Esc 는 목록 복귀다.
+  useEffect(() => {
+    if (!selectedComplexId) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') selectComplex(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedComplexId, selectComplex]);
 
-  if (loading) {
-    return (
-      <Modal open={open} onOpenChange={handleClose} width={720}>
-        <SkeletonText lines={8} />
-      </Modal>
-    );
-  }
+  if (!selectedComplexId) return null;
 
-  if (detail === null) {
-    return (
-      <Modal open={open} onOpenChange={handleClose} width={720}>
+  return (
+    <section className={s.pageWrap} aria-label="단지 상세">
+      <div className={s.pageHead}>
+        <Button variant="subtle" size="sm" onClick={back}>← 스크리너로</Button>
+      </div>
+      {loading ? (
+        <SkeletonText lines={10} />
+      ) : detail ? (
+        <ComplexDetailBody
+          detail={detail}
+          selectedArea={selectedArea}
+          onSelectArea={setSelectedArea}
+        />
+      ) : (
         <EmptyState
           title="데이터 없음"
           desc="재건축이나 개명으로 인해 조회할 수 없는 단지입니다."
+          action={<Button variant="subtle" size="sm" onClick={back}>스크리너로 돌아가기</Button>}
         />
-      </Modal>
-    );
-  }
-
-  return (
-    <Modal open={open} onOpenChange={handleClose} width={720}>
-      <ComplexDetailBody
-        detail={detail}
-        selectedArea={selectedArea}
-        onSelectArea={setSelectedArea}
-      />
-    </Modal>
+      )}
+    </section>
   );
 }
 

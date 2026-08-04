@@ -12,8 +12,63 @@
   --text-sub: #8a93a6;
   --text-mut: #5e6879;
   --brand: #7c6cff;
+  --brand-rgb: 124, 108, 255; /* --brand를 RGB로 분해. 투명도 함께 쓰면 rgba(var(--brand-rgb), 0.15) */
+  --brand-14: rgba(124, 108, 255, 0.14); /* PriceChart 뱃지 배경. 라인 365 */
+  --brand-16: rgba(124, 108, 255, 0.16); /* PriceChart 뱃지 배경. 라인 365 */
+  --brand-18: rgba(124, 108, 255, 0.18); /* PriceChart 버튼 선택 배경. 라인 389, 562 */
   --warn: #F0B90B; /* 배치 신선도·관심 표시 등 경고/강조. src/lib/colors.ts WARN 과 동일값 */
   --bad: #ea3943; /* 경고 배지·오류 강조. 알림 카운트 등. */
+  --bad-rgb: 234, 57, 67; /* --bad를 RGB로 분해. 투명도 함께 쓰려면 rgba(var(--bad-rgb), 0.1) */
+  --bad-bg: rgba(234, 57, 67, 0.1); /* 오류 배경색. 라인 426 OrderTicket */
+  --bad-fg: #ff6b73;   /* 오류 텍스트 — --bad 보다 밝아야 어두운 배경에서 읽힌다 */
+  --brand-hover: #6a5aef;
+  /* 단지 배치도 압출 — 지붕/벽 2면. near = 지금 보고 있는 단지, far = 이웃 건물 */
+  /* 불투명해야 앞 건물이 뒤를 가린다 — 반투명이면 겹친 벽이 다 보여 입체가 무너진다.
+     원근은 알파가 아니라 명도로 만든다(far 를 어둡게). */
+  --bld-near-roof: rgba(158, 146, 255, 1);
+  --bld-near-w1: rgba(112, 99, 226, 1);
+  --bld-near-w2: rgba(82, 71, 176, 1);
+  --bld-near-w3: rgba(60, 52, 132, 1); /* 연속 회전용 3단계 명암. 등지는 면. */
+  --bld-far-roof: rgba(96, 106, 128, 1);
+  --bld-far-w1: rgba(70, 78, 96, 1);
+  --bld-far-w2: rgba(52, 59, 74, 1);
+  --bld-far-w3: rgba(40, 45, 58, 1); /* 연속 회전용 3단계 명암. 등지는 면. */
+  /* 벽 세로 그라디언트의 바닥 색 — 위는 각 면의 톤, 아래로 갈수록 이 색.
+     단색 압출은 종이를 세운 것처럼 보인다. 아래가 어두워야 덩어리로 읽힌다. */
+  --bld-near-base: rgba(34, 29, 80, 1);
+  --bld-far-base: rgba(22, 26, 34, 1);
+  /* 옥상 테두리 하이라이트 — 지붕과 벽의 경계가 서야 상자가 된다. */
+  --bld-near-rim: rgba(186, 178, 255, 0.9);
+  --bld-far-rim: rgba(132, 142, 165, 0.55);
+  /* 접지 그림자 — 해가 없어도 건물이 땅에 놓여 있어야 한다. */
+  --map-contact: rgba(0, 0, 0, 0.3);
+  /* 층 구분선 — 창문 격자 대신 층을 세게 해주는 최소한의 단서. */
+  --map-band: rgba(255, 255, 255, 0.09);
+  /* 배치도 지면 팔레트 — 차도 > 철도 > 보행로 순으로 존재감을 낮춘다. */
+  --map-green: rgba(46, 92, 62, 0.62);
+  --map-water: rgba(38, 78, 120, 0.72);
+  --map-road: rgba(74, 82, 98, 0.5);
+  --map-rail: rgba(96, 88, 78, 0.55);
+  --map-path: rgba(74, 82, 98, 0.26);
+  --map-shadow: rgba(0, 0, 0, 0.34);   /* 건물 그림자 */
+  --map-edge: rgba(0, 0, 0, 0.28);     /* 압출 면 외곽선 */
+  --map-overlay: rgba(10, 14, 22, 0.84); /* HUD·나침반 배경 */
+  --map-label: rgba(255, 255, 255, 0.96);
+  --map-label-halo: rgba(0, 0, 0, 0.45);
+  --poi-fg: rgba(214, 221, 235, 0.92);   /* 인프라 아이콘 글리프 */
+  /* 차트 크롬 — 데이터색(등락)이 아니라 눈금·축·미니맵 같은 배경 요소.
+     등락색은 src/lib/colors.ts 의 colors(mode) 가 단일 소스다(여기 두면 모드 전환이 깨진다). */
+  --chart-grid: #222a3a;      /* y 눈금선 */
+  --chart-base: #2a3346;      /* 기준선(첫 값) */
+  --chart-crosshair: #4a5568; /* 스크럽 십자선 */
+  --chart-muted: #5e6879;     /* 미확정 구간 선·점 */
+  --chart-frame: #232b3a;     /* 줌 버튼 테두리 */
+  --chart-minimap-bg: #0d1119;
+  --chart-minimap-line: #6b7c99;
+  --chart-live: #3fe0a0;      /* 실시간 배지 글자 */
+  --chart-scrub: #9d90ff;     /* 과거 시점 배지·전체 버튼 */
+  --chart-divider: #3a4454;   /* 툴팁 구분선 */
+  --chart-tooltip: rgba(19, 24, 36, 0.97);
   --radius: 14px;
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --sans: 'Pretendard Variable', Pretendard, system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif;
