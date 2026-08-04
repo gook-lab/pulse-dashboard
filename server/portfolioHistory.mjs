@@ -9,11 +9,12 @@ import { existsSync } from 'node:fs';
  * @param {Function} deps.fetchBalance KIS 잔고 조회 → { summary: { totalValue, principal } }
  * @param {Function} deps.fetchKospi KOSPI 지수 → { price }
  * @param {Function} deps.fetchSpx S&P500(SPY) → { price }
+ * @param {Function} [deps.fetchManualTotal] 수동 자산 합계(원) → number. 미주입이면 구형 스키마 그대로.
  * @param {string} deps.file 캐시 파일 경로 (JSON)
  * @param {Function} deps.now 현재 시각 함수 (테스트용 Date 주입)
  * @returns {Object} { record, start, stop, read }
  */
-export function createPortfolioHistory({ fetchBalance, fetchKospi, fetchSpx, file, now = () => new Date() }) {
+export function createPortfolioHistory({ fetchBalance, fetchKospi, fetchSpx, fetchManualTotal, file, now = () => new Date() }) {
   let timerId = null;
 
   /** KST 기준 YYYY-MM-DD 문자열. */
@@ -68,6 +69,20 @@ export function createPortfolioHistory({ fetchBalance, fetchKospi, fetchSpx, fil
     try { spx = (await fetchSpx()).price; } catch { spx = null; }
 
     const newEntry = { date, totalValue, principal, kospi, spx };
+
+    // 수동 자산(additive 필드) — fetchManualTotal 주입 시에만 붙는다(구형 스키마·기존 테스트 불변).
+    // 구·신 엔트리가 한 파일에 혼재해도 소비자는 필드 부재를 "수동자산 미포함 구간"으로 읽는다.
+    if (fetchManualTotal) {
+      let manualTotal = null;
+      try {
+        const t = await fetchManualTotal();
+        manualTotal = Number.isFinite(t) ? t : null;
+      } catch { manualTotal = null; }
+      newEntry.manualTotal = manualTotal;
+      // 순자산 정책(설계 W2): netWorth = KIS 총자산 + 수동 자산. KIS 가 없으면 순자산도 null —
+      // 수동 자산만으로 "순자산"을 만들면 시계열이 KIS 복구 시점에 계단으로 뛴다.
+      newEntry.netWorth = totalValue == null ? null : totalValue + (manualTotal ?? 0);
+    }
 
     // 같은 날짜 기존 엔트리 찾아 덮어쓰기
     const idx = data.entries.findIndex((e) => e.date === date);

@@ -8,6 +8,8 @@ dist-ssr
 !.env.example
 .gstack/
 server/cache/
+# 수동 자산(개인 금융 데이터) — 커밋 금지
+server/data/
 .claude/worktrees/
 tsconfig.tsbuildinfo
 vite.config.js

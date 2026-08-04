@@ -2,7 +2,8 @@
 // 나머지는 목에 위임. 엔드포인트가 늘면 여기서 하나씩 목→HTTP로 옮긴다.
 import type { MarketApi, FearGreed, CryptoFG, MacroItem, IndexQuote, SeoulRent, WatchItem, NewsItem, AiOpinion, Portfolio,
   ScreenQuery, ScreenResult, ComplexesResult, AptComplexDetail, ComplexDealsResult, NeedsCollect, RankingItem, PortfolioHistoryResult,
-  BuffettData, OrderRequest, OrderResult, Orderable, StockInfo, StockOpinion } from './types';
+  BuffettData, OrderRequest, OrderResult, Orderable, StockInfo, StockOpinion,
+  HomeSummary, ManualAsset, ComplexEstimate } from './types';
 import { mockApi } from './mockApi';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -254,5 +255,38 @@ export const httpApi: MarketApi = {
     } catch {
       return { entries: [] };
     }
+  },
+
+  // ── 홈 (W2) ────────────────────────────────────────────────────────────
+  // 서버가 항목별 null 을 이미 구분해 준다. 요청 자체가 죽었을 때만 unavailable — 목 폴백 금지.
+  getHome: async (): Promise<HomeSummary> => {
+    try { return await getJson<HomeSummary>('/api/home'); }
+    catch { return { netWorth: null, dayChange: null, allocation: null, manualTotal: 0, snapshotSeries: [], unavailable: true }; }
+  },
+  getManualAssets: async (): Promise<ManualAsset[]> => {
+    try { return (await getJson<{ items: ManualAsset[] }>('/api/assets')).items ?? []; }
+    catch { return []; }
+  },
+  saveManualAsset: async (a): Promise<ManualAsset> => {
+    const res = await fetch('/api/assets', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(a),
+    });
+    const j = await res.json().catch(() => null) as (ManualAsset & { error?: string }) | null;
+    // 400 본문의 error 가 서버 검증 메시지다 — 임의 문구로 덮으면 원인을 못 찾는다.
+    if (!res.ok || !j || j.error) throw new Error(j?.error || `자산 저장 실패 (${res.status})`);
+    return j;
+  },
+  deleteManualAsset: async (id: string): Promise<boolean> => {
+    const res = await fetch('/api/assets/delete', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }),
+    });
+    const j = await res.json().catch(() => null) as { ok?: boolean; error?: string } | null;
+    if (!res.ok || !j) throw new Error(j?.error || `자산 삭제 실패 (${res.status})`);
+    return !!j.ok;
+  },
+  getComplexEstimates: async (ids: string[]): Promise<Record<string, ComplexEstimate>> => {
+    if (!ids.length) return {};
+    try { return await getJson<Record<string, ComplexEstimate>>(`/api/realestate/estimates?ids=${encodeURIComponent(ids.slice(0, 50).join(','))}`); }
+    catch { return {}; }
   },
 };

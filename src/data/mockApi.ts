@@ -461,4 +461,10 @@ export const mockApi: MarketApi = {
   getComplexDeals: () => delay({ deals: [] }), // 목은 빈 deals
   getRanking: (_kind?: unknown, _market?: unknown): Promise<RankingItem[]> => delay([], 120), // unavailable — 목 생성 금지
   getPortfolioHistory: (): Promise<{ entries: any[] }> => delay({ entries: [] }), // 목 생성 금지
+  // 홈(W2) — 순자산·자산은 목으로 꾸며내지 않는다(RADIO #2). 백엔드 없으면 전부 "-".
+  getHome: () => delay({ netWorth: null, dayChange: null, allocation: null, manualTotal: 0, snapshotSeries: [], unavailable: true as const }),
+  getManualAssets: () => delay([]),
+  saveManualAsset: () => Promise.reject(new Error('수동 자산은 백엔드 연결이 필요합니다.')),
+  deleteManualAsset: () => Promise.reject(new Error('수동 자산은 백엔드 연결이 필요합니다.')),
+  getComplexEstimates: () => delay({}),
 };

@@ -359,4 +359,73 @@ describe('portfolioHistory', () => {
       expect(content.entries[1].date).toBe('2025-06-14');
     });
   });
+
+  describe('수동 자산 스키마 확장 (W2)', () => {
+    it('fetchManualTotal 주입 시 manualTotal·netWorth 가 붙는다', async () => {
+      const hist = createPortfolioHistory({
+        ...mockFetchers,
+        fetchManualTotal: async () => 3_000_000,
+        file: testFile,
+        now: () => mockNow,
+      });
+      await hist.record();
+      const e = JSON.parse(await readFile(testFile, 'utf8')).entries[0];
+      expect(e.manualTotal).toBe(3_000_000);
+      expect(e.netWorth).toBe(13_000_000); // KIS 10M + 수동 3M
+    });
+
+    it('미주입이면 구형 스키마 그대로(필드 없음)', async () => {
+      const hist = createPortfolioHistory({ ...mockFetchers, file: testFile, now: () => mockNow });
+      await hist.record();
+      const e = JSON.parse(await readFile(testFile, 'utf8')).entries[0];
+      expect('manualTotal' in e).toBe(false);
+      expect('netWorth' in e).toBe(false);
+    });
+
+    it('KIS 실패 시 netWorth 는 null — 수동 자산만으로 순자산을 만들지 않는다', async () => {
+      const hist = createPortfolioHistory({
+        ...mockFetchers,
+        fetchBalance: async () => { throw new Error('KIS down'); },
+        fetchManualTotal: async () => 3_000_000,
+        file: testFile,
+        now: () => mockNow,
+      });
+      await hist.record();
+      const e = JSON.parse(await readFile(testFile, 'utf8')).entries[0];
+      expect(e.totalValue).toBeNull();
+      expect(e.manualTotal).toBe(3_000_000);
+      expect(e.netWorth).toBeNull();
+    });
+
+    it('fetchManualTotal 실패는 null — KIS 총자산만으로 netWorth 계산', async () => {
+      const hist = createPortfolioHistory({
+        ...mockFetchers,
+        fetchManualTotal: async () => { throw new Error('file gone'); },
+        file: testFile,
+        now: () => mockNow,
+      });
+      await hist.record();
+      const e = JSON.parse(await readFile(testFile, 'utf8')).entries[0];
+      expect(e.manualTotal).toBeNull();
+      expect(e.netWorth).toBe(10_000_000);
+    });
+
+    it('구·신 엔트리 혼재 파일에서 read() 정상(역호환)', async () => {
+      // 구형 엔트리를 미리 심는다
+      await writeFile(testFile, JSON.stringify({
+        entries: [{ date: '2025-06-14', totalValue: 9_000_000, principal: 5_000_000, kospi: 2790, spx: 450 }],
+      }), 'utf8');
+      const hist = createPortfolioHistory({
+        ...mockFetchers,
+        fetchManualTotal: async () => 1_000_000,
+        file: testFile,
+        now: () => mockNow,
+      });
+      await hist.record();
+      const entries = await hist.read(400);
+      expect(entries).toHaveLength(2);
+      expect('netWorth' in entries[0]).toBe(false);      // 구형 그대로
+      expect(entries[1].netWorth).toBe(11_000_000);      // 신형
+    });
+  });
 });

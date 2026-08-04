@@ -8,6 +8,7 @@ import { SEOUL_GU, ymOffset } from './realestate/lawd.mjs';
 import { fetchDeals, jeonseAgg } from './realestate/collect.mjs';
 import { routes as realestateRoutes } from './realestate/index.mjs';
 import { createPortfolioHistory } from './portfolioHistory.mjs';
+import { createAssetsStore } from './assets.mjs';
 import { buildKr as buffettKr, buildUs as buffettUs } from './buffett.mjs';
 import { buildOpinion } from './opinion.mjs';
 
@@ -22,6 +23,11 @@ const { FRED_API_KEY, FINNHUB_API_KEY, ECOS_API_KEY, ALPHAVANTAGE_API_KEY } = pr
 // --- 포트폴리오 이력 관리 (일별 스냅샷) -----------------------------------------
 const CACHE_DIR = fileURLToPath(new URL('./cache/', import.meta.url));
 let portfolioHistory = null;
+
+// --- 수동 자산 (홈 순자산의 KIS 밖 부분 — 설계 W2) ----------------------------
+// 정의는 정적(CRUD), 값은 스냅샷 배치가 매일 합산해 시계열로 남긴다.
+const DATA_DIR = fileURLToPath(new URL('./data/', import.meta.url));
+const assetsStore = createAssetsStore({ file: `${DATA_DIR}manual-assets.json` });
 
 // --- 작은 TTL 캐시 -----------------------------------------------------------
 const cache = new Map(); // key -> { at, ttl, data }
@@ -873,6 +879,20 @@ async function aiOpinion() {
   };
 }
 
+/** 포트폴리오 producer — /api/portfolio 와 /api/home 이 같은 캐시 키('portfolio')로 공유. */
+async function portfolioProducer() {
+  try { return await kisBalance(); }
+  catch (e) {
+    const msg = String(e?.message || e);
+    // 계좌 미설정은 사용자가 고쳐야 하는 상태 → 그대로 알린다.
+    if (/미설정/.test(msg)) return { configured: false, reason: msg, holdings: [] };
+    // 스로틀 등 일시 실패는 throw — cached()가 마지막 정상값을 stale로 내준다.
+    // 여기서 configured:false 를 돌려주면 성공으로 간주돼 15초간 "주문 불가"로 박제된다
+    // (주문 직후 잔고 재조회가 초당 제한에 걸리면 바로 재현된다).
+    throw e;
+  }
+}
+
 // --- 라우팅 ------------------------------------------------------------------
 const routes = {
   // 부동산 스크리너 (/complexes · /screen · /complex) — realestate/index.mjs
@@ -1064,18 +1084,59 @@ const routes = {
   // 미체결(정정·취소 가능) 주문 — 모의에서도 동작한다.
   '/api/kr/orders/open': () => cached('openorders', 5_000, kisOpenOrders),
 
-  '/api/portfolio': () => cached('portfolio', 15_000, async () => {
-    try { return await kisBalance(); }
-    catch (e) {
-      const msg = String(e?.message || e);
-      // 계좌 미설정은 사용자가 고쳐야 하는 상태 → 그대로 알린다.
-      if (/미설정/.test(msg)) return { configured: false, reason: msg, holdings: [] };
-      // 스로틀 등 일시 실패는 throw — cached()가 마지막 정상값을 stale로 내준다.
-      // 여기서 configured:false 를 돌려주면 성공으로 간주돼 15초간 "주문 불가"로 박제된다
-      // (주문 직후 잔고 재조회가 초당 제한에 걸리면 바로 재현된다).
-      throw e;
+  '/api/portfolio': () => cached('portfolio', 15_000, portfolioProducer),
+  // ── 수동 자산 CRUD (설계 W2) — 캐시 없음: 파일 직독이라 편집이 즉시 반영된다.
+  '/api/assets': async (_q, req) => {
+    if (req.method === 'POST') {
+      const body = await readJsonBody(req);
+      try { return await assetsStore.upsert(body); }
+      catch (e) { throw httpError(400, String(e?.message || e)); }
     }
-  }),
+    return { items: await assetsStore.list() };
+  },
+  '/api/assets/delete': async (_q, req) => {
+    if (req.method !== 'POST') throw httpError(405, 'POST만 허용');
+    const { id } = await readJsonBody(req);
+    if (!id) throw httpError(400, 'id 필요');
+    return { ok: await assetsStore.remove(String(id)) };
+  },
+  // ── 홈 통합 응답 (설계 W2) — 항목별 조합: 실패 항목만 null, 응답은 항상 200.
+  // 실패는 각 producer 의 throw 로 캐시에 안 남고(RADIO #5) 다음 요청에서 자연 재시도된다.
+  // 프론트는 항목 단위 null → "-" 로 그린다(RADIO #2 — 목 폴백 금지).
+  '/api/home': async () => {
+    const [pf, manualTotal, series] = await Promise.all([
+      cached('portfolio', 15_000, portfolioProducer).then((r) => r.data).catch(() => null),
+      assetsStore.total().catch(() => 0),   // 파일 부재 = 자산 0 과 동치
+      cached('home:series', 5 * 60_000, async () => {
+        if (!portfolioHistory) return [];
+        const entries = await portfolioHistory.read(120);
+        return entries.map((e) => {
+          // 구형 엔트리(netWorth 필드 없음)는 KIS 총자산을 그대로 순자산으로 — "수동자산 미포함 구간".
+          const modern = 'netWorth' in e;
+          const nw = modern ? e.netWorth : e.totalValue;
+          return nw == null ? null : { date: e.date, netWorth: nw, manualIncluded: modern && e.manualTotal != null };
+        }).filter(Boolean);
+      }).then((r) => r.data).catch(() => []),
+    ]);
+    const ok = pf && pf.source && pf.configured !== false;
+    const s = ok ? pf.summary : null;
+    return {
+      // 순자산 정책(설계 W2): KIS(주식+예수금) + 수동 자산. 관심단지 추정가는 합산하지 않는다.
+      netWorth: ok ? s.totalValue + manualTotal : null,
+      // pct 는 순자산 대비로 재계산 — KIS dayPnlPct 는 유가증권 평가액 대비라(-9.6% 실측)
+      // 순자산 옆에 붙이면 "순자산이 9.6% 빠졌다"로 오독된다.
+      dayChange: ok && !s.dayPnlUnavailable
+        ? (() => {
+          const nw = s.totalValue + manualTotal;
+          const base = nw - s.dayPnl;
+          return { value: s.dayPnl, pct: base > 0 ? +((s.dayPnl / base) * 100).toFixed(2) : 0 };
+        })()
+        : null,
+      allocation: ok ? { stocks: s.securities ?? 0, cash: pf.cash ?? 0, manual: manualTotal } : null,
+      manualTotal,
+      snapshotSeries: series,
+    };
+  },
   // 포트폴리오 일별 이력 (최근 N일, 기본 400일). 60초 캐시.
   '/api/portfolio/history': (q) => {
     const days = Math.min(400, Math.max(1, +(q?.get('days') || 400)));
@@ -1336,6 +1397,8 @@ server.listen(PORT, async () => {
         return { price: k.kospi };
       },
       fetchSpx: () => finnhubQuote('SPY'),
+      // 수동 자산 합산(설계 W2) — 스냅샷에 manualTotal·netWorth additive 필드가 붙는다.
+      fetchManualTotal: () => assetsStore.total(),
       file: `${CACHE_DIR}portfolio-history.json`,
     });
     await portfolioHistory.start(60 * 60_000); // 1시간

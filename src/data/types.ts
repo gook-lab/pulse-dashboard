@@ -452,6 +452,60 @@ export interface ComplexDealsResult {
   stale?: boolean;
 }
 
+/* ── 홈 (W2 — 자산 중심 홈) ────────────────────────────────────────────────── */
+
+/** 수동 자산 — 정의는 정적(서버 파일), 값은 일일 스냅샷이 합산해 시계열로 남긴다. */
+export interface ManualAsset {
+  id: string;
+  name: string;
+  kind: 'cash' | 'deposit' | 'realestate' | 'other';
+  /** 원(KRW). */
+  amount: number;
+  note?: string;
+  updatedAt: string;
+}
+
+/** 홈 타임라인 피드 한 줄 — 시간 역순 단일 규칙(중요도 가중 없음, v0). */
+export interface HomeFeedItem {
+  id: string;
+  /** epoch ms — 정렬 키. */
+  ts: number;
+  type: 'order' | 'alert' | 'apt' | 'news';
+  title: string;
+  detail?: string;
+  /** 클릭 시 이동 대상. */
+  ref?: { kind: 'stock' | 'complex'; id: string };
+  sentiment?: 'good' | 'bad' | 'neutral';
+}
+
+/**
+ * 서버 /api/home 통합 응답. 항목별 null = 실데이터 없음 → 화면은 그 항목만 "-"
+ * (RADIO #2 — 목 폴백 금지). 피드·무버는 로컬 소스(주문·알림·관심단지)라
+ * 클라이언트가 `buildHomeFeed`(lib/homeFeed.ts)로 조립한다.
+ */
+export interface HomeSummary {
+  /** 순자산 = KIS(주식+예수금) + 수동 자산. 관심단지 추정가는 합산하지 않는다. */
+  netWorth: number | null;
+  /** 일간 손익 — 장 시작 전(dayPnlUnavailable)엔 null → "-". */
+  dayChange: { value: number; pct: number } | null;
+  allocation: { stocks: number; cash: number; manual: number } | null;
+  manualTotal: number;
+  snapshotSeries: { date: string; netWorth: number; manualIncluded: boolean }[];
+  unavailable?: boolean;
+}
+
+/** 관심단지 추정가(/api/realestate/estimates) — 매매 대표 거래 기준. amount:null = 매매 표본 없음. */
+export interface ComplexEstimate {
+  aptNm: string;
+  gu: string | null;
+  /** 대표 거래 총액(만원). */
+  amount: number | null;
+  /** 대표 전용면적(㎡). */
+  area: number | null;
+  /** 매매 3개월 모멘텀(%). */
+  momentum3: number | null;
+}
+
 /** M0 백엔드가 구현할 계약. 목/실백엔드 공통. */
 export interface MarketApi {
   getIndices(): Promise<IndexQuote[]>;
@@ -488,6 +542,15 @@ export interface MarketApi {
   getRanking(kind: 'up' | 'down' | 'volume' | 'amount', market?: 'all' | 'kospi' | 'kosdaq'): Promise<RankingItem[]>;
   /** 포트폴리오 수익률 이력. days: 조회 일수(22/66/250/전체). */
   getPortfolioHistory(days: number): Promise<PortfolioHistoryResult>;
+  /** 홈 통합 요약(순자산·배분·스냅샷 시계열). 실패 시 unavailable → 화면은 "-". */
+  getHome(): Promise<HomeSummary>;
+  /** 수동 자산 목록. */
+  getManualAssets(): Promise<ManualAsset[]>;
+  /** 수동 자산 생성(id 없음)/수정(id 있음). 검증 실패는 message 실은 Error. */
+  saveManualAsset(a: { id?: string; name: string; kind: ManualAsset['kind']; amount: number; note?: string }): Promise<ManualAsset>;
+  deleteManualAsset(id: string): Promise<boolean>;
+  /** 관심단지 추정가 배치 조회. 최대 50개. */
+  getComplexEstimates(ids: string[]): Promise<Record<string, ComplexEstimate>>;
 }
 
 /* ── 버핏지수 ──────────────────────────────────────────────────────────────── */

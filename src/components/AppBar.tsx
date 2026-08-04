@@ -8,7 +8,8 @@ import type { ColorMode } from '../lib/colors';
 import s from './AppBar.module.css';
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'dashboard', label: '대시보드' },
+  { id: 'home', label: '홈' },
+  { id: 'dashboard', label: '마켓' },
   { id: 'detail', label: '종목 상세' },
   { id: 'news', label: '뉴스' },
   { id: 'portfolio', label: '포트폴리오' },
@@ -167,7 +168,7 @@ export default function AppBar() {
             </button>
           </div>
 
-          <Segmented options={COLOR_OPTS} value={colorMode} onChange={setColorMode} />
+          <Segmented options={COLOR_OPTS} value={colorMode} onChange={setColorMode} className={s.colorToggle} />
         </div>
       </header>
 

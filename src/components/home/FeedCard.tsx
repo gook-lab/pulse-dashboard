@@ -1,0 +1,73 @@
+import { useMemo } from 'react';
+import { useStore } from '../../store/useStore';
+import { EmptyState } from '@/components/common';
+import { buildHomeFeed } from '../../lib/homeFeed';
+import { signColor } from '../../lib/colors';
+import type { HomeFeedItem } from '../../data/types';
+import s from './Home.module.css';
+
+const ICONS: Record<HomeFeedItem['type'], string> = { order: '🧾', alert: '🔔', apt: '🏠', news: '📰' };
+
+function ago(ts: number, now: number): string {
+  const m = Math.max(0, Math.round((now - ts) / 60_000));
+  if (m < 1) return '방금';
+  if (m < 60) return `${m}분 전`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}시간 전`;
+  return `${Math.floor(h / 24)}일 전`;
+}
+
+/** 타임라인 피드 — 주문·알림·관심단지·보유종목 뉴스, 시간 역순 단일 규칙(설계 W2). */
+export default function FeedCard() {
+  const paperOrders = useStore((st) => st.paperOrders);
+  const notifications = useStore((st) => st.notifications);
+  const news = useStore((st) => st.news);
+  const portfolio = useStore((st) => st.portfolio);
+  const mode = useStore((st) => st.colorMode);
+  const selectStock = useStore((st) => st.selectStock);
+  const setTab = useStore((st) => st.setTab);
+
+  const now = Date.now();
+  const feed = useMemo(
+    () => buildHomeFeed({ orders: paperOrders, notifications, news, holdings: portfolio?.holdings ?? [], now }),
+    // now 는 렌더마다 바뀌지만 피드 재계산 기준은 소스 데이터다 — 분 단위 표기는 리렌더에 맡긴다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [paperOrders, notifications, news, portfolio],
+  );
+
+  const open = (item: HomeFeedItem) => {
+    if (!item.ref) return;
+    if (item.ref.kind === 'stock') selectStock(item.ref.id);
+    else setTab('realestate');
+  };
+
+  return (
+    <section className="card">
+      <div className="card-h"><b>내 피드</b><span className="tag">주문 · 알림 · 보유종목 뉴스</span></div>
+      {feed.length ? (
+        <div className={s.feed}>
+          {feed.map((f) => (
+            <button key={f.id} type="button" className={s.feedItem} onClick={() => open(f)}>
+              <span className={s.feedIcon} aria-hidden>{ICONS[f.type]}</span>
+              <span className={s.feedBody}>
+                <span
+                  className={s.feedTitle}
+                  style={f.sentiment && f.sentiment !== 'neutral'
+                    ? { color: signColor(f.sentiment === 'good' ? 1 : -1, mode) } : undefined}
+                >
+                  {f.title}
+                </span>
+                <span className={s.feedMeta}>
+                  <span>{ago(f.ts, now)}</span>
+                  {f.detail && <span>· {f.detail}</span>}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="아직 조용합니다" desc="주문을 넣거나 가격 알림을 만들면 여기에 쌓입니다." />
+      )}
+    </section>
+  );
+}

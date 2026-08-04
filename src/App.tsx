@@ -6,6 +6,7 @@ import { useAlertEngine } from './lib/useAlertEngine';
 import toast from './lib/toast';
 import AppBar from './components/AppBar';
 import TickerTape from './components/TickerTape';
+import Home from './components/home/Home';
 import Dashboard from './components/dashboard/Dashboard';
 import StockDetail from './components/detail/StockDetail';
 import News from './components/news/News';
@@ -57,6 +58,7 @@ export default function App() {
       <TickerTape />
       <div className="main">
         <div className="wrap">
+          {tab === 'home' && <Home />}
           {tab === 'dashboard' && <Dashboard />}
           {tab === 'detail' && <StockDetail />}
           {tab === 'news' && <News />}

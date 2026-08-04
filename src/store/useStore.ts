@@ -3,6 +3,7 @@ import type {
   IndexQuote, HeatmapNode, FearGreed, CryptoFG, MacroItem, WatchItem, NewsItem, AiOpinion, StockDetail,
   Portfolio, Report, SeoulRent, Market, ScreenQuery, ScreenResult, ComplexesResult, PaperOrder, RankingItem,
   PriceAlert, AppNotification, BuffettData, OrderRequest, OrderResult, Orderable, StockInfo, StockOpinion,
+  HomeSummary, ManualAsset, ComplexEstimate,
 } from '../data/types';
 
 export interface DetailHint { code: string; name: string; market?: Market; cur?: string; dec?: number; changePct?: number }
@@ -14,7 +15,7 @@ import toast from '../lib/toast';
 // 데이터 소스 주입 지점. httpApi = 백엔드 준비된 엔드포인트는 실연동, 나머지는 목.
 const api = httpApi;
 
-export type Tab = 'dashboard' | 'detail' | 'news' | 'portfolio' | 'research' | 'realestate';
+export type Tab = 'home' | 'dashboard' | 'detail' | 'news' | 'portfolio' | 'research' | 'realestate';
 
 // ── 페이퍼 주문 ──────────────────────────────────────────────────────────────
 const PAPER_ORDERS_KEY = 'pulse.paper-orders';
@@ -52,6 +53,15 @@ let screenToken = 0; // 연타 시 stale 응답 무시용
 interface State {
   tab: Tab;
   colorMode: ColorMode;
+  // ── 홈 (W2) ──
+  home: HomeSummary | null;
+  homeLoading: boolean;
+  manualAssets: ManualAsset[];
+  /** 관심단지 추정가 — aptWatchlist 기준 배치 조회. */
+  complexEstimates: Record<string, ComplexEstimate>;
+  loadHome: () => Promise<void>;
+  saveManualAsset: (a: { id?: string; name: string; kind: ManualAsset['kind']; amount: number; note?: string }) => Promise<boolean>;
+  deleteManualAsset: (id: string) => Promise<boolean>;
   loaded: boolean;
   error: string | null;
   indices: IndexQuote[];
@@ -148,8 +158,51 @@ interface State {
 }
 
 export const useStore = create<State>((set, get) => ({
-  tab: 'dashboard',
+  tab: 'home',
   colorMode: 'global',
+  // ── 홈 (W2) ──
+  home: null,
+  homeLoading: false,
+  manualAssets: [],
+  complexEstimates: {},
+  loadHome: async () => {
+    const first = !useStore.getState().home;
+    if (first) set({ homeLoading: true });
+    try {
+      const ids = useStore.getState().aptWatchlist;
+      const [home, manualAssets, complexEstimates] = await Promise.all([
+        api.getHome(),
+        api.getManualAssets(),
+        ids.length ? api.getComplexEstimates(ids) : Promise.resolve({}),
+      ]);
+      set({ home, manualAssets, complexEstimates, homeLoading: false });
+    } catch {
+      // getHome 류는 자체 폴백(unavailable)이 있어 여기 오는 건 예외 — 이전 값 유지.
+      if (first) set({ homeLoading: false });
+    }
+  },
+  saveManualAsset: async (a) => {
+    try {
+      await api.saveManualAsset(a);
+      toast.success({ message: a.id ? '자산을 수정했습니다.' : '자산을 추가했습니다.' });
+      await useStore.getState().loadHome();   // 순자산·배분 즉시 반영
+      return true;
+    } catch (e) {
+      toast.error({ message: String((e as Error)?.message || '자산 저장 실패') });
+      return false;
+    }
+  },
+  deleteManualAsset: async (id) => {
+    try {
+      await api.deleteManualAsset(id);
+      toast.success({ message: '자산을 삭제했습니다.' });
+      await useStore.getState().loadHome();
+      return true;
+    } catch (e) {
+      toast.error({ message: String((e as Error)?.message || '자산 삭제 실패') });
+      return false;
+    }
+  },
   loaded: false,
   error: null,
   indices: [],

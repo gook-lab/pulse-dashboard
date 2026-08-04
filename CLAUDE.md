@@ -62,6 +62,7 @@ import toast from '@/lib/toast';
   질의는 **`out body geom(bbox)`** 여야 한다: `out geom tags`는 relation 멤버를 빼고(한강이 통째로 사라진다), bbox 가 없으면 way 를 안 잘라 준다(실측 한 way 8,188m).
 - **히트맵 블록 크기는 실 시가총액** — 미국 `/api/heatmap/weights`(Finnhub `profile2.marketCapitalization`, 무료·백만$) · 코스피는 `/api/kr/top100`의 `marketCap`. ⚠️ **한 종목이라도 빠지면 전부 목 가중으로 되돌린다** — 실값과 목값은 스케일이 달라(4,537,071 vs 3,170) 섞이면 트리맵이 통째로 뒤틀린다. 카드에 "크기 = 실 시가총액 / 목 가중" 배지로 출처를 밝힌다.
 - **종목 스코어는 규칙 기반**(`/api/kr/opinion`, 계산은 `server/opinion.mjs`) — 20일 모멘텀 0.35 · 52주 위치 0.30 · 뉴스 감성 0.20 · PER 0.15의 가중 혼합. **AI 모델이 아니므로 화면에도 "규칙 기반"이라고 쓴다.** 없는 항목은 빼고 남은 것만 평균하며 전부 없으면 `null` → "-". 근거 문장은 반드시 잰 숫자를 인용한다(`20일 수익률 -22.1%로 하락 흐름`). PER 비중이 낮은 이유: 업종별 정상 범위가 달라 저PER=저평가로 단정할 수 없다.
+- **홈(W2) 순자산 정책** — 순자산 = KIS 총자산 + 수동 자산(`server/assets.mjs` · `/api/assets` CRUD · `server/data/`는 gitignore). **관심단지 추정가는 합산 금지**(워치 전용, `/api/realestate/estimates` = rep.t 대표평형×중앙값·전세 표본으론 추정 안 함). `/api/home`은 항목별 `cached` 분리 — 실패 항목만 null로 조합해 항상 200, 프론트는 항목 단위 "-". dayChange `pct`는 순자산 대비로 재계산(KIS `dayPnlPct`는 유가증권 대비라 -9.6%처럼 찍혀 오독). 일일 스냅샷은 `manualTotal`·`netWorth` additive 필드 — 구·신 엔트리 혼재를 소비자가 견딘다(`manualIncluded`). 홈 피드는 주문·알림이 로컬(localStorage)이라 서버 병합 불가 → `buildHomeFeed`(`src/lib/homeFeed.ts`, 순수 함수) 클라 조립, 시간 역순 단일 규칙.
 - 부동산(realestate): `server/realestate/`에서 배치 수집 → `apt-signals.json` 캐싱. 단지 키는 **`aptSeq`**(이름 매칭 금지 — 동명 단지 존재). 시그널은 **3개월 이동 중앙값** + 이상치 제외(`[0.4, 2.5]×단지중앙값`), 기준월 = 3개월 전(신고지연 보정). 지오코딩은 `KAKAO_REST_KEY` 필요. 상세는 `server/realestate/PROBE.md`.
 
 ## 단지투어 3D 배치도
