@@ -3,7 +3,7 @@ import { useStore } from '../../store/useStore';
 import { signColor, fmt } from '../../lib/colors';
 import { snapToTick, tickSize } from '../../lib/krxTick';
 import { validateBuy, validateSell, fee, marketOrderPrice, chipQty, referencePrice, type Orderbook } from '../../lib/paperOrders';
-import { Button, Segmented, Badge, Modal, EmptyState, ErrorState } from '@/components/common';
+import { Button, Segmented, Badge, Modal, EmptyState, ErrorState, Loading } from '@/components/common';
 import toast from '@/lib/toast';
 import type { Market, PaperOrder, Portfolio, Orderable } from '@/data/types';
 
@@ -41,11 +41,16 @@ export default function OrderTicket({
   // 실가와 몇 배씩 벌어질 수 있어 주문 단가로 쓰지 않는다.
   const refPrice = referencePrice(orderbook, lastTradePrice);
 
+  /** 사용자가 지정가를 직접 만졌나 — 만지기 전에는 렌더 시점에 실호가 기준가로 파생 표시한다.
+   *  effect 채움만으로는 SSE 첫 프레임~effect 사이에 "지정가 0 + 빨간 에러" 창이 생겼다(ISSUE-003 실측). */
+  const [priceTouched, setPriceTouched] = useState(false);
+
   // 훅은 전부 조기 return 이전에 — 조건부 훅은 포트폴리오 로드 전→후 전환에서 앱을 크래시시킨다(Rules of Hooks).
   // 종목이 바뀌면 비우고, 실가가 도착하면 채운다(tick마다 덮으면 사용자 입력이 날아간다).
   useEffect(() => {
     setLimitPrice(0);
     setQty(1);
+    setPriceTouched(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
@@ -53,6 +58,9 @@ export default function OrderTicket({
     if (limitPrice <= 0 && refPrice > 0) setLimitPrice(snapToTick(refPrice));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refPrice]);
+
+  /** 화면·검증이 쓰는 지정가 — 손대기 전이면 실호가 기준가를 즉시 파생(상태 채움을 기다리지 않는다). */
+  const effectiveLimit = limitPrice > 0 ? limitPrice : (!priceTouched && refPrice > 0 ? snapToTick(refPrice) : limitPrice);
 
   // 호가 클릭 → 지정가 모드 전환 + 채움.
   useEffect(() => {
@@ -66,7 +74,7 @@ export default function OrderTicket({
   // 주문 가격 — 조기 return 이전에 계산한다(주문가능금액 조회가 이 값에 의존한다).
   const orderPrice = type === 'market'
     ? marketOrderPrice(side, orderbook || { asks: [], bids: [] }, lastTradePrice, refPrice)
-    : snapToTick(limitPrice);
+    : snapToTick(effectiveLimit);
 
   // 주문가능금액은 KIS에서 읽는다. 미체결분이 이미 차감된 값이라 로컬에서 다시 빼면 이중 차감.
   // 단가가 바뀔 때마다 때리지 않도록 300ms 디바운스.
@@ -85,9 +93,10 @@ export default function OrderTicket({
     return <EmptyState title="모의 주문은 KR 종목만 지원" />;
   }
 
-  // 포트폴리오 검증
+  // 포트폴리오 검증 — null은 아직 로딩(일괄 로드 전)이다. 실패는 unavailable로 따로 온다.
+  // 로딩을 에러로 그리면 리로드 때마다 "불러올 수 없습니다"가 번쩍인다(ISSUE-003 동류).
   if (!portfolio) {
-    return <ErrorState title="잔고 데이터를 불러올 수 없습니다" desc="포트폴리오 정보를 확인한 뒤 다시 시도하세요." />;
+    return <Loading label="잔고 불러오는 중" />;
   }
 
   if (portfolio.unavailable) {
@@ -122,6 +131,9 @@ export default function OrderTicket({
 
   const isValid = validation.ok;
   const errorMsg = !validation.ok ? validation.error : '';
+  /** 로딩성 안내(시세 대기·주문가능금액 조회 중)는 빨간 에러 톤이 아니라 중립 톤 — 에러로 보이면
+   *  사용자가 뭘 잘못했다고 읽는다(ISSUE-003 동류). */
+  const isPendingInfo = !validation.ok && (!(refPrice > 0) || (side === 'buy' && orderPrice > 0 && !orderable));
 
   // 칩 수량 계산 (도메인 로직 재사용)
   const chip = (pct: number) => chipQty(pct, side, orderPrice, orderableCash, heldQty);
@@ -131,12 +143,13 @@ export default function OrderTicket({
   };
 
   const handleLimitPriceBlur = () => {
-    setLimitPrice(snapToTick(limitPrice));
+    setLimitPrice(snapToTick(effectiveLimit));
   };
 
   const handleLimitPriceStepChange = (delta: number) => {
-    const tick = tickSize(limitPrice);
-    setLimitPrice(snapToTick(limitPrice + delta * tick));
+    const tick = tickSize(effectiveLimit);
+    setPriceTouched(true);
+    setLimitPrice(snapToTick(effectiveLimit + delta * tick));
   };
 
   const handlePlaceOrder = () => {
@@ -227,8 +240,8 @@ export default function OrderTicket({
             <div style={{ flex: 1 }}>
               <input
                 type="number"
-                value={limitPrice}
-                onChange={(e) => setLimitPrice(Number(e.target.value))}
+                value={effectiveLimit}
+                onChange={(e) => { setPriceTouched(true); setLimitPrice(Number(e.target.value)); }}
                 onBlur={handleLimitPriceBlur}
                 style={{
                   width: '100%',
@@ -465,22 +478,23 @@ export default function OrderTicket({
               {side === 'buy' ? '주문 후 주문가능금액' : '주문 후 보유'}
             </span>
             <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)', fontWeight: 600 }}>
-              {side === 'buy' ? `₩${fmt(afterCash, 0)}` : `${fmt(heldQty - qty, 0)}주`}
+              {/* 주문가능금액 조회 전엔 0 - 비용 = 음수가 찍힌다 — 모르는 값은 '-'다. */}
+              {side === 'buy' ? (orderable ? `₩${fmt(afterCash, 0)}` : '-') : `${fmt(heldQty - qty, 0)}주`}
             </span>
           </div>
         </div>
       </div>
 
-      {/* 오류 표시 */}
+      {/* 오류·안내 표시 — 로딩성 안내는 중립 톤(빨간 박스는 "내 잘못"으로 읽힌다) */}
       {errorMsg && (
         <div
           style={{
             padding: '8px',
             borderRadius: 6,
-            background: 'var(--bad-bg)',
+            background: isPendingInfo ? 'var(--panel-2)' : 'var(--bad-bg)',
             marginBottom: 12,
             fontSize: 11,
-            color: 'var(--bad)',
+            color: isPendingInfo ? 'var(--text-sub)' : 'var(--bad)',
             lineHeight: 1.4,
           }}
         >
