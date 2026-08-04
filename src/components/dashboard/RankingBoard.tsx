@@ -111,7 +111,7 @@ export default function RankingBoard() {
   return (
     <section className="card">
       <div className="card-h">
-        <h3 className="text-title">실시간 랭킹</h3>
+        <span className="t">실시간 랭킹</span>
         <span className="tag" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand)', boxShadow: '0 0 4px var(--brand)', opacity: 0.7 }} />
           15초 갱신

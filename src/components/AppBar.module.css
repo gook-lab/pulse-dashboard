@@ -9,7 +9,7 @@
 .left { display: flex; align-items: center; gap: 18px; }
 .logo {
   width: 30px; height: 30px; border-radius: 8px;
-  background: linear-gradient(150deg, var(--brand), #5a49d8);
+  background: linear-gradient(150deg, var(--brand), var(--brand-deep));
   display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 16px;
 }
 .brand { font-size: 16px; font-weight: 800; letter-spacing: .02em; }
@@ -27,13 +27,13 @@
 .city { font-size: 10px; color: var(--text-mut); }
 .ws { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-sub); }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-.dotConnected { background: #16c784; box-shadow: 0 0 0 0 rgba(22,199,132,0.55); animation: wsPulse 1.8s infinite; }
-.dotConnecting { background: #e0a838; }
-.dotDisconnected { background: #ea3943; }
+.dotConnected { background: var(--status-live); box-shadow: 0 0 0 0 rgba(var(--status-live-rgb), 0.55); animation: wsPulse 1.8s infinite; }
+.dotConnecting { background: var(--status-hold); }
+.dotDisconnected { background: var(--status-down); }
 @keyframes wsPulse {
-  0% { box-shadow: 0 0 0 0 rgba(22,199,132,0.5); }
-  70% { box-shadow: 0 0 0 6px rgba(22,199,132,0); }
-  100% { box-shadow: 0 0 0 0 rgba(22,199,132,0); }
+  0% { box-shadow: 0 0 0 0 rgba(var(--status-live-rgb), 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(var(--status-live-rgb), 0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--status-live-rgb), 0); }
 }
 @media (prefers-reduced-motion: reduce) { .dotConnected { animation: none; } }
 

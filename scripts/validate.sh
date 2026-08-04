@@ -24,6 +24,9 @@ if pnpm exec vitest run --silent 2>&1 | tail -5; then ok "vitest"; else bad "테
 step "색 하드코딩"
 HEX=$(grep -rn "#[0-9a-fA-F]\{6\}" \
   src/components/realestate/ \
+  src/components/home/ \
+  src/components/AppBar.module.css \
+  src/components/detail/StockDetail.module.css \
   src/components/common/PriceChart.tsx \
   src/components/common/Button.tsx \
   src/lib/iso.ts 2>/dev/null || true)
