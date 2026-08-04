@@ -53,17 +53,28 @@ export default function Heatmap() {
   const [cursor, setCursor] = useState({ x: 0, y: 0 });
   const [quotes, setQuotes] = useState<Record<string, { price: number; changePct: number }>>({});
   const [failed, setFailed] = useState(false); // 실시세 연결 실패 → 색 죽이고 "-"
+  /** 실시세를 실제로 받은 심볼. null = 아직 첫 응답 전(로딩).
+   *  응답이 와도 여기 없는 심볼은 목 등락이 남은 타일이다 — 색·%를 그리면 실데이터로 오독된다
+   *  (실측: KIS 스로틀 순간 삼성전자 실제 -3.44%가 목 -6.7%로 표시). RADIO #2. */
+  const [liveSyms, setLiveSyms] = useState<Set<string> | null>(null);
   /** 실 시가총액(블록 크기). 전량 확보했을 때만 쓴다 — 일부만 실값이면 목 가중과 스케일이 섞여
    *  트리맵이 통째로 뒤틀린다. 단위는 시장 안에서만 일관되면 되므로(상대 비율) 환산하지 않는다. */
   const [weights, setWeights] = useState<Record<string, number> | null>(null);
 
   // 실시세 병합 — 미국은 Finnhub, KOSPI는 KIS(이름→코드).
   useEffect(() => {
-    setQuotes({}); setFailed(false);
+    setQuotes({}); setFailed(false); setLiveSyms(null);
     const marketNodes = heatmap.filter((n) => n.market === market);
     if (!marketNodes.length) return;
     let alive = true;
     const ok = (r: Response) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); };
+    // 응답이 성공(200)이어도 스로틀 순간엔 값이 전부/일부 null이다. 받은 심볼만 live로 올리고,
+    // 하나도 못 받았으면 실패와 동일하게 처리한다(빈 성공을 정상으로 취급하면 목이 화면에 남는다).
+    const apply = (byName: Record<string, { price: number; changePct: number }>) => {
+      const syms = Object.keys(byName);
+      if (!syms.length) { setFailed(true); return; }
+      setQuotes(byName); setLiveSyms(new Set(syms)); setFailed(false);
+    };
     const load = () => {
       if (market === 'KOSPI') {
         const codes = marketNodes.map((n) => KOSPI_CODES[n.symbol]).filter(Boolean);
@@ -71,12 +82,12 @@ export default function Heatmap() {
           if (!alive) return;
           const byName: Record<string, { price: number; changePct: number }> = {};
           marketNodes.forEach((n) => { const c = KOSPI_CODES[n.symbol]; if (c && q[c]) byName[n.symbol] = { price: q[c]!.price, changePct: q[c]!.changePct }; });
-          setQuotes(byName); setFailed(false);
+          apply(byName);
         }).catch(() => { if (alive) setFailed(true); });
       } else {
         const syms = [...new Set(marketNodes.map((n) => n.symbol))];
         fetch(`/api/heatmap/quotes?symbols=${syms.join(',')}`).then(ok)
-          .then((q) => { if (alive) { setQuotes(q || {}); setFailed(false); } }).catch(() => { if (alive) setFailed(true); });
+          .then((q) => { if (alive) apply(q || {}); }).catch(() => { if (alive) setFailed(true); });
       }
     };
     load();
@@ -151,9 +162,13 @@ export default function Heatmap() {
   }, [nodes]);
 
   const peers = useMemo(
-    () => (hover ? nodes.filter((n) => n.sector === hover.sector && n.industry === hover.industry).sort((a, b) => b.weight - a.weight) : []),
-    [hover, nodes],
+    // 툴팁 동종 목록도 실시세 확보 종목만 — 목 숫자가 실값 옆에 나란히 서면 구별이 안 된다.
+    () => (hover ? nodes.filter((n) => n.sector === hover.sector && n.industry === hover.industry && (!liveSyms || liveSyms.has(n.symbol))).sort((a, b) => b.weight - a.weight) : []),
+    [hover, nodes, liveSyms],
   );
+
+  /** 이 타일에 색·등락을 그려도 되나 — 실시세를 받은 심볼만 true. 로딩(null)·미수신은 회색 "-". */
+  const isLive = (sym: string) => !failed && liveSyms != null && liveSyms.has(sym);
 
   const pct = (v: number, base: number) => `${(v / base) * 100}%`;
 
@@ -186,13 +201,14 @@ export default function Heatmap() {
           const showSym = r.h > 20 && r.w > 34;
           const showPct = r.h > 34 && r.w > 46;
           const fontSym = Math.max(7, Math.min(15, ms * 0.24));
+          const live = isLive(node.symbol);
           return (
             <div key={node.symbol} className={s.tmapTile}
-              style={{ left: pct(r.x + GAP / 2, W), top: pct(r.y + GAP / 2, H), width: pct(Math.max(0, r.w - GAP), W), height: pct(Math.max(0, r.h - GAP), H), background: failed ? 'var(--panel-2)' : heatColor(node.changePct, mode) }}
-              onMouseEnter={() => !failed && setHover(node)}>
-              {showSym && <span className={s.tmapSym} style={{ fontSize: `${fontSym}px`, color: failed ? 'var(--text-mut)' : undefined }}>{node.symbol}</span>}
-              {showPct && !failed && <span className={s.tmapPct} style={{ fontSize: `${Math.max(7, fontSym * 0.72)}px` }}>{node.changePct >= 0 ? '+' : ''}{node.changePct.toFixed(1)}%</span>}
-              {showPct && failed && <span className={s.tmapPct} style={{ fontSize: `${Math.max(7, fontSym * 0.72)}px`, color: 'var(--text-mut)' }}>-</span>}
+              style={{ left: pct(r.x + GAP / 2, W), top: pct(r.y + GAP / 2, H), width: pct(Math.max(0, r.w - GAP), W), height: pct(Math.max(0, r.h - GAP), H), background: live ? heatColor(node.changePct, mode) : 'var(--panel-2)' }}
+              onMouseEnter={() => live && setHover(node)}>
+              {showSym && <span className={s.tmapSym} style={{ fontSize: `${fontSym}px`, color: live ? undefined : 'var(--text-mut)' }}>{node.symbol}</span>}
+              {showPct && live && <span className={s.tmapPct} style={{ fontSize: `${Math.max(7, fontSym * 0.72)}px` }}>{node.changePct >= 0 ? '+' : ''}{node.changePct.toFixed(1)}%</span>}
+              {showPct && !live && <span className={s.tmapPct} style={{ fontSize: `${Math.max(7, fontSym * 0.72)}px`, color: 'var(--text-mut)' }}>-</span>}
             </div>
           );
         })}
