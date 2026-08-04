@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from '../../store/useStore';
-import { signColor, fmt, STATUS_LIVE, type ColorMode } from '../../lib/colors';
+import { signColor, fmt, STATUS_LIVE, DONUT_COLORS, CASH_COLOR, type ColorMode } from '../../lib/colors';
 import { Skeleton, SkeletonRows, ErrorState, Badge, EmptyState } from '@/components/common';
 import MarketChip from '@/components/common/MarketChip';
 import { useKisTrade } from '../../lib/kisSocket';
@@ -8,9 +8,6 @@ import type { Holding, PaperOrder } from '../../data/types';
 import ReturnChart from './ReturnChart';
 import ManualAssets from './ManualAssets';
 import s from './Portfolio.module.css';
-
-const DONUT_COLORS = ['#7c6cff', '#16c784', '#ea3943', '#e0a838', '#4c82fb', '#4bd0d0'];
-const CASH_COLOR = '#5b667a'; // 예수금(현금) 슬라이스 — 중립 슬레이트
 
 export default function Portfolio() {
   const pf = useStore((st) => st.portfolio);
@@ -26,7 +23,7 @@ export default function Portfolio() {
 
   if (!pf) return <PortfolioSkeleton />;
   // 실데이터 연결 실패 → 목 대신 "-" (모든 페이지 동일 룰)
-  if (pf.unavailable) return <PortfolioUnavailable onRetry={reloadPortfolio} />;
+  if (pf.unavailable) return <PortfolioUnavailable mode={mode} onRetry={reloadPortfolio} />;
 
   const won = (n: number) => `₩${fmt(Math.round(n), 0)}`;
   const toKrw = (h: Holding, p: number) => (h.market === 'US' ? p * pf.fxUsdKrw : p);
@@ -197,7 +194,7 @@ function HoldingRow({ h, fx, mode, won, weightOf, color }: {
 }
 
 // 실데이터 연결 실패 — 값은 "-", 재시도 제공(목 데이터 노출 금지).
-function PortfolioUnavailable({ onRetry }: { onRetry: () => void }) {
+function PortfolioUnavailable({ mode, onRetry }: { mode: ColorMode; onRetry: () => void }) {
   return (
     <div className={s.wrap}>
       <div className={s.summary}>
@@ -210,7 +207,7 @@ function PortfolioUnavailable({ onRetry }: { onRetry: () => void }) {
         ))}
       </div>
       <div className="card">
-        <div className="card-h"><span className="t">보유 종목</span><span className="tag mono" style={{ color: '#ea3943' }}>● 연결 끊김</span></div>
+        <div className="card-h"><span className="t">보유 종목</span><span className="tag mono" style={{ color: signColor(-1, mode) }}>● 연결 끊김</span></div>
         <ErrorState title="포트폴리오를 불러올 수 없습니다" desc="실시간 데이터에 연결되어 있지 않습니다. 백엔드 연결을 확인한 뒤 다시 시도하세요." onRetry={onRetry} />
       </div>
     </div>

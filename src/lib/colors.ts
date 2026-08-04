@@ -52,6 +52,19 @@ export const HOLD = '#E0A838';
 export const STATUS_LIVE = '#16C784';
 export const STATUS_DOWN = '#EA3943';
 
+/** 자산 배분 도넛 차트 색상 배열 — 보유 종목 + 카테고리별 팔레트. */
+export const DONUT_COLORS = [
+  '#7c6cff',  // brand
+  STATUS_LIVE, // up
+  STATUS_DOWN, // down
+  HOLD,       // hold
+  '#4c82fb',  // secondary blue
+  '#4bd0d0',  // tertiary cyan
+];
+
+/** 예수금(현금) 슬라이스 색 — 중립 슬레이트. */
+export const CASH_COLOR = '#5b667a';
+
 /** 데이터 부족(계산 불가)·저거래 단지. 지도에서 회색 마커. */
 export const MUTED = '#2c3444';
 /** 경고(배치 신선도 등). 등락과 무관해 colorMode 영향 없음. */

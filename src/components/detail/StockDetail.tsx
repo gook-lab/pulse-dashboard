@@ -240,7 +240,7 @@ export default function StockDetail() {
             : top[listTab] === undefined
               ? <SkeletonRows rows={8} />
               : top[listTab]!.length === 0
-                ? <div style={{ padding: '20px 8px', textAlign: 'center', color: 'var(--text-mut)', fontSize: 12 }}>순위를 불러오지 못했습니다</div>
+                ? <EmptyState title="순위를 불러오지 못했습니다" />
                 : top[listTab]!.map((t) => (
                   <button
                     key={t.code}

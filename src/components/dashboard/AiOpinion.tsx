@@ -1,4 +1,5 @@
 import { useStore } from '../../store/useStore';
+import { signColor } from '../../lib/colors';
 import { ReasonList } from '@/components/common';
 import s from './Dashboard.module.css';
 
@@ -8,7 +9,7 @@ export default function AiOpinion() {
   if (!ai) return null;
   if (ai.unavailable) return (
     <section className="card">
-      <div className="card-h"><span className="t">AI 종합 투자의견</span><span className="tag mono" style={{ color: '#ea3943' }}>● 연결 끊김</span></div>
+      <div className="card-h"><span className="t">AI 종합 투자의견</span><span className="tag mono" style={{ color: signColor(-1, mode) }}>● 연결 끊김</span></div>
       <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-mut)', fontSize: 13 }}>
         <div className="mono" style={{ fontSize: 36, lineHeight: 1 }}>-</div>
         <div style={{ marginTop: 8 }}>실시간 데이터 연결 안됨</div>

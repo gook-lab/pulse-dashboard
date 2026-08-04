@@ -1,5 +1,5 @@
 import { useStore } from '../../store/useStore';
-import { Badge } from '@/components/common';
+import { Badge, EmptyState } from '@/components/common';
 import { signColor } from '../../lib/colors';
 import s from './Dashboard.module.css';
 
@@ -23,7 +23,7 @@ export default function NewsFeed() {
     <section className="card">
       <div className="card-h"><span className="t">뉴스 헤드라인</span><span className="tag">최신</span></div>
       <div className={s.news}>
-        {news.length === 0 && <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-mut)', fontSize: 12 }}>뉴스 데이터를 불러오지 못했습니다</div>}
+        {news.length === 0 && <EmptyState title="뉴스 데이터를 불러오지 못했습니다" />}
         {news.slice(0, 4).map((n) => {
           const sent = SENT[n.sentiment] ?? SENT.neutral;
           return (

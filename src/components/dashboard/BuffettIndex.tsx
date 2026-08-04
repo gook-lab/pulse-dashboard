@@ -66,7 +66,7 @@ function MarketRow({ m }: { m: BuffettMarket }) {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 2, fontSize: 11, color: 'var(--text-sub)' }}>
         <span className="mono">{fmtTril(m.cap, m.currency)} ÷ {fmtTril(m.gdp, m.currency)}</span>
-        {pct && <span style={{ color: hot ? 'var(--warn)' : 'var(--text-mut)' }}>{pct}</span>}
+        {pct && <span style={{ color: hot ? 'var(--warn)' : 'var(--text-sub)' }}>{pct}</span>}
       </div>
 
       {geo && (
@@ -90,7 +90,7 @@ function MarketRow({ m }: { m: BuffettMarket }) {
               }}
             />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--text-mut)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--text-sub)' }}>
             <span className="mono">{m.min?.toFixed(0)}%</span>
             <span>중앙 {m.median?.toFixed(0)}% · {fmtAsOf(m)}</span>
             <span className="mono">{m.max?.toFixed(0)}%</span>
@@ -98,7 +98,7 @@ function MarketRow({ m }: { m: BuffettMarket }) {
         </div>
       )}
 
-      <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-mut)', lineHeight: 1.4 }}>{m.note}</div>
+      <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-sub)', lineHeight: 1.4 }}>{m.note}</div>
     </div>
   );
 }

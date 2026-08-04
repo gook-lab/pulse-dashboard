@@ -88,7 +88,7 @@ export default function RankingBoard() {
     return (
       <section className="card">
         <div className="card-h">
-          <h3 className="text-title">실시간 랭킹</h3>
+          <span className="t">실시간 랭킹</span>
         </div>
         <SkeletonRows rows={10} />
       </section>
@@ -99,7 +99,7 @@ export default function RankingBoard() {
     return (
       <section className="card">
         <div className="card-h">
-          <h3 className="text-title">실시간 랭킹</h3>
+          <span className="t">실시간 랭킹</span>
         </div>
         <ErrorState desc="순위 데이터를 불러올 수 없습니다." onRetry={() => setState({ items: null, loading: true, error: false })} />
       </section>

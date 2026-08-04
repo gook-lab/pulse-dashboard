@@ -72,7 +72,7 @@ export default function SeoulRentMap() {
 
   if (seoul?.unavailable) return (
     <section className="card">
-      <div className="card-h"><span className="t">서울 아파트 전세 데이터센터</span><span className="tag mono" style={{ color: '#ea3943' }}>● 연결 끊김</span></div>
+      <div className="card-h"><span className="t">서울 아파트 전세 데이터센터</span><span className="tag mono" style={{ color: signColor(-1, mode) }}>● 연결 끊김</span></div>
       <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-mut)', fontSize: 13 }}>
         <div className="mono" style={{ fontSize: 40, lineHeight: 1 }}>-</div>
         <div style={{ marginTop: 10 }}>실시간 데이터 연결 안됨</div>

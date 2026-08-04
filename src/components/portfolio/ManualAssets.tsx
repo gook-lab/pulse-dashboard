@@ -54,7 +54,7 @@ export default function ManualAssets() {
   return (
     <section className="card">
       <div className="card-h">
-        <b>수동 자산</b>
+        <span className="t">수동 자산</span>
         <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {total > 0 && <span className="tag mono">합계 {won(total)}</span>}
           <Button size="sm" variant="subtle" onClick={() => setDraft(EMPTY)}>+ 자산 추가</Button>

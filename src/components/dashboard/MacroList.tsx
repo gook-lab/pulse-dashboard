@@ -14,9 +14,9 @@ export default function MacroList() {
           <div key={m.key} className={s.mrow}>
             <span className={s.mname}>{m.name}</span>
             <span className={s.mval}>
-              <span className="mono" style={m.unavailable ? { color: 'var(--text-mut)' } : undefined}>{m.value}</span>
+              <span className="mono" style={m.unavailable ? { color: 'var(--text-sub)' } : undefined}>{m.value}</span>
               {!m.flat && !m.unavailable && (
-                <span className="mono" style={{ color: m.changePct === 0 ? 'var(--text-mut)' : signColor(m.changePct, mode), fontSize: 12 }}>
+                <span className="mono" style={{ color: m.changePct === 0 ? 'var(--text-sub)' : signColor(m.changePct, mode), fontSize: 12 }}>
                   {m.changePct > 0 ? '+' : ''}{m.changePct.toFixed(1)}%
                 </span>
               )}

@@ -1,5 +1,5 @@
 import { useStore } from '../../store/useStore';
-import { signColor } from '../../lib/colors';
+import { signColor, STATUS_DOWN, STATUS_LIVE } from '../../lib/colors';
 import s from './Dashboard.module.css';
 
 function minutesAgo(iso: string): string {
@@ -17,7 +17,7 @@ export default function FearGreedGauge() {
   if (!fg) return null;
   if (fg.unavailable) return (
     <section className="card">
-      <div className="card-h"><span className="t">Fear &amp; Greed</span><span className="tag mono" style={{ color: '#ea3943' }}>● 연결 끊김</span></div>
+      <div className="card-h"><span className="t">Fear &amp; Greed</span><span className="tag mono" style={{ color: signColor(-1, mode) }}>● 연결 끊김</span></div>
       <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-mut)', fontSize: 13 }}>
         <div className="mono" style={{ fontSize: 40, lineHeight: 1 }}>-</div>
         <div style={{ marginTop: 10 }}>실시간 데이터 연결 안됨</div>
@@ -38,9 +38,9 @@ export default function FearGreedGauge() {
           <svg viewBox="0 0 320 190" aria-label={`Fear and Greed ${fg.value} ${fg.label}`}>
             <defs>
               <linearGradient id="fgGrad" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stopColor="#ea3943" />
+                <stop offset="0" stopColor={STATUS_DOWN} />
                 <stop offset="0.5" stopColor="#e0a838" />
-                <stop offset="1" stopColor="#16c784" />
+                <stop offset="1" stopColor={STATUS_LIVE} />
               </linearGradient>
             </defs>
             <path d="M 30 165 A 130 130 0 0 1 290 165" fill="none" stroke="var(--border)" strokeWidth="20" strokeLinecap="round" />
