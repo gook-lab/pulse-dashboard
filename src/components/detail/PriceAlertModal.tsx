@@ -9,21 +9,25 @@ interface Props {
   code: string;
   name: string;
   market: 'KR' | 'US';
-  high52?: number;  // 52주 최고가 — detail.high52
+  high52?: number;  // 52주 최고가 — 실 월/일봉에서 산출된 값
+  /**
+   * 현재가(실데이터). 0이면 모름 → "-".
+   * ⚠️ 목 `detail.price`를 쓰면 안 된다 — 알림 엔진은 `/api/kr/quotes` 실가로 비교하는데
+   * 화면 안내가 목가(삼성전자 78,400 vs 실 246,750)면 사용자가 잡은 목표가가 즉시 오발화한다.
+   */
+  currentPrice?: number;
 }
 
-export default function PriceAlertModal({ open, onOpenChange, code, name, market, high52 }: Props) {
+export default function PriceAlertModal({ open, onOpenChange, code, name, market, high52, currentPrice = 0 }: Props) {
   const alerts = useStore((s) => s.alerts);
   const addAlert = useStore((s) => s.addAlert);
   const removeAlert = useStore((s) => s.removeAlert);
-  const detail = useStore((s) => s.detail);
 
   const [kind, setKind] = useState<'target-above' | 'target-below' | 'move-pct' | 'high52'>('target-above');
   const [targetPrice, setTargetPrice] = useState('');
   const [movePct, setMovePct] = useState('');
 
   const codeAlerts = alerts.filter((a) => a.code === code);
-  const currentPrice = detail?.price ?? 0;
 
   // 조건별 유효성 검사
   const isValidTargetPrice = targetPrice && !isNaN(Number(targetPrice)) && Number(targetPrice) > 0;
@@ -40,7 +44,8 @@ export default function PriceAlertModal({ open, onOpenChange, code, name, market
       const value = Number(movePct);
       addAlert({ code, name, market, kind, value });
     } else if (kind === 'high52') {
-      const baseline = high52 || detail?.high52 || 0;
+      // 목 detail.high52(삼성전자 97,216)를 기준으로 잡으면 실가 246,750이 이미 초과라 즉시 오발화한다.
+      const baseline = high52 || 0;
       if (!baseline) {
         toast.error({ message: '52주 최고가 정보가 없습니다.' });
         return;
@@ -89,7 +94,7 @@ export default function PriceAlertModal({ open, onOpenChange, code, name, market
                 step={1}
                 value={targetPrice}
                 onChange={(e) => setTargetPrice(e.target.value)}
-                placeholder={`현재: ${currentPrice.toLocaleString()}`}
+                placeholder={currentPrice > 0 ? `현재: ${currentPrice.toLocaleString()}` : '현재가 조회 중'}
                 className="flex-1 rounded-lg border border-line bg-panel px-3 py-2 text-fg focus:border-brand focus:outline-none"
               />
               <span className="text-sm text-sub">₩</span>
@@ -128,10 +133,8 @@ export default function PriceAlertModal({ open, onOpenChange, code, name, market
           <div className="p-3 rounded-lg bg-panel2 border border-line">
             <p className="text-sm text-sub">
               52주 최고가{' '}
-              {high52 || detail?.high52 ? (
-                <span className="text-fg font-semibold">
-                  ₩{(high52 || detail?.high52 || 0).toLocaleString()}
-                </span>
+              {high52 ? (
+                <span className="text-fg font-semibold">₩{high52.toLocaleString()}</span>
               ) : (
                 <span className="text-red-400">정보 없음</span>
               )}{' '}

@@ -416,7 +416,8 @@ export default function PriceChart({
           <div className="flex items-end gap-3">
             <span className="font-mono text-[34px] font-extrabold leading-[.92] tracking-tight text-fg">{money(cur$)}</span>
             <span className="mb-[3px] font-mono text-sm font-bold" style={{ color: headColor }}>
-              {headChg >= 0 ? '▲' : '▼'} {Math.abs(Math.round(headChg)).toLocaleString()} ({headPct >= 0 ? '+' : ''}{headPct.toFixed(2)}%)
+              {/* 소수 종목(dec>0)은 반올림하면 $5.96 이 "6"이 된다 — 표시 자릿수를 통화에 맞춘다. */}
+              {headChg >= 0 ? '▲' : '▼'} {Math.abs(headChg).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })} ({headPct >= 0 ? '+' : ''}{headPct.toFixed(2)}%)
             </span>
           </div>
           <div className="mt-[7px] text-[11.5px] text-mut">

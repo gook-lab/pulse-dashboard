@@ -87,7 +87,12 @@ export default function StockDetail() {
   //  KR: 1일=마지막 일봉을 장중 합성, 1주~3개월=일봉 슬라이스, 1년·5년=월봉. densify로 Toss식 촘촘.
   //  US: KIS 데이터 없어 mock 워크(≈50 정규화)를 실가격 스케일로 변환.
   //  소켓 불안정(체결 없음) 시엔 마지막 실제 종가로 폴백(목 금지).
-  const live = rt.trade?.price ?? (isKR ? lastClose : undefined) ?? detail?.price ?? 0;
+  // 현재가 단일 소스 — 실데이터만. 목 `detail.price`로 폴백하면 삼성전자 78,400 · SK하이닉스
+  // 198,500 처럼 실가의 1/3~1/8 값이 "현재가"로 찍힌다(RADIO #2: 없으면 목이 아니라 "-").
+  // 관심종목 행은 KIS(국내)·Finnhub(미국) 실시세라 US의 유일한 실가 소스이기도 하다.
+  const wl = watchlist.find((w) => w.code === selectedCode);
+  const wlLive = wl && !wl.unavailable && wl.price > 0 ? wl.price : undefined;
+  const live = rt.trade?.price ?? (isKR ? lastClose : undefined) ?? wlLive ?? 0;
   // 전일 종가 — 1일 등락의 기준. 실일봉에서만 뽑는다.
   // 마지막 봉이 오늘이면 그 앞이 전일이고, 장 시작 전이면 마지막 봉이 곧 전일이다.
   const prevClose = (() => {
@@ -100,12 +105,12 @@ export default function StockDetail() {
   })();
   // 전일 대비 — 실일봉 기준을 우선한다. 목 `detail.changePct`는 실시세와 스케일이 달라
   // SK하이닉스가 실제 +25%인데 화면에 +0.00%로 찍히던 원인이었다.
-  const wl = watchlist.find((w) => w.code === selectedCode);
   const wlPct = wl && !wl.unavailable ? wl.changePct : undefined;   // 실패한 행의 목값은 쓰지 않는다
   const realDay = isKR && prevClose > 0 && live > 0
     ? { chg: live - prevClose, pct: ((live - prevClose) / prevClose) * 100 }
     : null;
-  const dayPct = realDay ? +realDay.pct.toFixed(2) : (wlPct ?? detail?.changePct ?? 0);
+  // 목 `detail.changePct`는 실시세와 무관한 고정값이라 쓰지 않는다 — 실등락이 없으면 0(등락 미표시).
+  const dayPct = realDay ? +realDay.pct.toFixed(2) : (wlPct ?? 0);
   const dayChg = realDay ? realDay.chg : live * dayPct / (100 + dayPct || 1);
   // 소켓 실시간 데이터 유무(KR) — 없으면 호가/체결을 "-"로.
   const krHasOb = isKR && rt.connected && !!rt.orderbook && (rt.orderbook.asks.some((a) => a.price > 0) || rt.orderbook.bids.some((b) => b.price > 0));
@@ -114,8 +119,9 @@ export default function StockDetail() {
   // 실시간가와 스케일이 달라 도트가 항상 끝에 클램프되는 시각적 거짓말이 됨.
   const finOhlc = (a: Candle[]) => a.filter((c) => Number.isFinite(c.h) && Number.isFinite(c.l));
   const rangeSrc = isKR ? (finOhlc(chartAll.monthly.slice(-12)).length ? finOhlc(chartAll.monthly.slice(-12)) : finOhlc(chartAll.daily)) : [];
-  const low52 = rangeSrc.length ? Math.min(...rangeSrc.map((c) => c.l)) : detail?.low52 ?? 0;
-  const high52 = rangeSrc.length ? Math.max(...rangeSrc.map((c) => c.h)) : detail?.high52 ?? 0;
+  // 목 low52/high52(삼성전자 ₩56,448~97,216)는 실가와 스케일이 어긋난다 — 없으면 0 → 화면은 "-".
+  const low52 = rangeSrc.length ? Math.min(...rangeSrc.map((c) => c.l)) : 0;
+  const high52 = rangeSrc.length ? Math.max(...rangeSrc.map((c) => c.h)) : 0;
   // 기술적 목표가(볼린저 상단 20D+2σ, 60일 고가 클램프) — server/index.mjs '/api/kr/targets'와 동일 공식 유지.
   // 목 고정 목표가는 실시세와 스케일이 어긋나므로 실데이터 없으면 '-' (동일룰).
   const techTarget = (() => {
@@ -132,11 +138,11 @@ export default function StockDetail() {
   const techUpside = techTarget && live > 0 ? +(((techTarget - live) / live) * 100).toFixed(1) : null;
   const pc = useMemo(() => {
     if (!detail) return null;
-    const { dec, price } = detail;
+    const { dec } = detail;   // 목 detail.price 는 더 이상 쓰지 않는다(실가는 safeLive)
     const fin = (arr: Candle[]) => arr.filter((c) => [c.o, c.h, c.l, c.c].every((n) => Number.isFinite(n)));
     const daily = isKR ? fin(chartAll.daily) : [];
     const monthly = isKR ? fin(chartAll.monthly) : [];
-    const safeLive = Number.isFinite(live) && live > 0 ? live : (lastClose || detail.price || 0);
+    const safeLive = Number.isFinite(live) && live > 0 ? live : (lastClose || 0);   // 목 폴백 금지
     // 끝점 절벽 방지(handoff 함정 #1): 라인 마지막 값과 실시간가 갭이 3%를 넘으면
     // (스테일/목 라인에 실가 강제 캡 = 수직 스파이크) 덮지 않고 라인 그대로 둔다.
     const nearLive = (last: number) => last > 0 && Math.abs(safeLive - last) / last <= 0.03;
@@ -173,12 +179,16 @@ export default function StockDetail() {
     // 삼성전자에 ₩85,636 같은 값이 찍히고 X축은 인덱스가 된다 — 실패를 실패로 표시한다.
     if (isKR) return { unavailable: true as const };
 
-    // US: mock 스케일(끝점=현재가 — 단 갭 3% 이내일 때만, 절벽 방지)
+    // US: 실 캔들 소스가 없어 목 워크를 **실시세 기준**으로 스케일한다(모양만 합성, 수준은 실가).
+    // 목 price로 스케일하면 Apple이 $227(목) 대에 그려진다 — 실제 $309와 다른 종목처럼 보인다.
+    if (!(safeLive > 0)) return { unavailable: true as const };   // 실가조차 없으면 그리지 않는다
+    // 워크의 **끝점을 실시세에 고정**한다(비율 스케일). 고정 기준선(50)으로 스케일하면 끝점이
+    // 실가와 어긋나 헤더 가격이 그 값을 따라간다(실측: Apple 실 $309.38 → 화면 $356.57).
     const scale = (arr: number[]) => {
       if (!arr?.length) return [] as number[];
-      const out = arr.map((v) => +(price * (1 + (v - 50) / 100)).toFixed(dec));
-      if (nearLive(out[out.length - 1])) out[out.length - 1] = safeLive;
-      return out;
+      const last = arr[arr.length - 1];
+      if (!(last > 0)) return [] as number[];
+      return arr.map((v) => +(safeLive * (v / last)).toFixed(dec));
     };
     return {
       series: { '1일': scale(detail.chart['1D']), '1주': scale(detail.chart['1W']), '1개월': scale(detail.chart['1M']), '1년': scale(detail.chart['1Y']) },
@@ -298,7 +308,7 @@ export default function StockDetail() {
                 <span className="t">52주 범위</span>
                 {isKR && <span className="tag">{rt.connected ? '실시간 연결' : '연결 대기'}</span>}
               </div>
-              <Band52 low={low52} high={high52} price={live || detail.price} cur={detail.cur} dec={detail.dec} mode={mode} />
+              <Band52 low={low52} high={high52} price={live} cur={detail.cur} dec={detail.dec} mode={mode} />
             </section>
 
             <div className={s.obTrades}>
@@ -354,13 +364,14 @@ export default function StockDetail() {
               name={detail.name}
               market={detail.market}
               high52={high52}
+              currentPrice={live}
             />
 
             <OrderTicket
               code={detail.code}
               name={detail.name}
               market={detail.market}
-              price={live || detail.price}
+              price={live}
               orderbook={isKR ? rt.orderbook || undefined : undefined}
               lastTradePrice={lastClose || 0}
               portfolio={portfolio}
@@ -417,12 +428,14 @@ export default function StockDetail() {
               {/* 국내는 KIS 실값만 쓴다. 없으면 "-" — 목 DETAIL_META(시총 468조·PER 12.8)를
                   실제(1,552조·40.45)처럼 보여주던 자리다. 배당은 KIS가 안 줘서 항상 "-". */}
               <div className={s.info}>
-                <Info k="시가총액" v={isKR ? fmtMarketCapEok(info?.marketCapEok) : detail.info.marketCap} />
-                <Info k="PER" v={isKR ? num1(info?.per) : detail.info.per.toFixed(1)} />
-                <Info k="PBR" v={isKR ? num2(info?.pbr) : detail.info.pbr.toFixed(2)} />
-                <Info k="EPS" v={isKR ? (info?.eps != null ? fmt(info.eps, 0) : '-') : fmt(detail.info.eps, 0)} />
-                <Info k="배당" v={isKR ? '-' : detail.info.div} />
-                <Info k="거래량" v={isKR ? (info?.volume != null ? fmtVol(info.volume) : '-') : detail.info.volume} />
+                {/* 미국은 무료 펀더멘털 소스가 없다 — 목 `detail.info`(시총 3.4조·PER 등 고정값)를
+                    그리면 리서치 탭("-")과 같은 종목이 화면마다 다른 값으로 보인다. 전부 "-". */}
+                <Info k="시가총액" v={isKR ? fmtMarketCapEok(info?.marketCapEok) : '-'} />
+                <Info k="PER" v={isKR ? num1(info?.per) : '-'} />
+                <Info k="PBR" v={isKR ? num2(info?.pbr) : '-'} />
+                <Info k="EPS" v={isKR ? (info?.eps != null ? fmt(info.eps, 0) : '-') : '-'} />
+                <Info k="배당" v="-" />
+                <Info k="거래량" v={isKR ? (info?.volume != null ? fmtVol(info.volume) : '-') : '-'} />
               </div>
             </section>
           </>
@@ -440,6 +453,10 @@ function Info({ k, v }: { k: string; v: string }) {
 }
 
 function Band52({ low, high, price, cur, dec, mode }: { low: number; high: number; price: number; cur: string; dec: number; mode: ColorMode }) {
+  // 실 범위가 없으면(목 폴백 제거) 밴드를 그리지 않는다 — 0 으로 그리면 도트가 NaN% 로 사라진다.
+  if (!(low > 0) || !(high > low)) {
+    return <div className={s.band}><span className={`${s.bandV} mono`}>-</span></div>;
+  }
   const pos = Math.max(0, Math.min(100, ((price - low) / (high - low)) * 100));
   // 저가(왼쪽)=하락색 → 고가(오른쪽)=상승색, colorMode 반영.
   const grad = `linear-gradient(90deg, ${signColor(-1, mode)}33, ${signColor(1, mode)}33)`;
