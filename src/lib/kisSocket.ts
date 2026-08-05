@@ -100,7 +100,10 @@ export function useKrChart(code: string | null, period: 'D' | 'W' | 'M') {
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
-    if (!code) { setCandles([]); return; }
+    // 종목·주기 전환 시 이전 데이터 즉시 제거 — 새 조회가 KIS 게이트 큐에서 수 초 걸리는 동안
+    // 이전 종목 캔들이 새 종목 이름 아래 그대로 렌더된다(실측: SK하이닉스에 삼성전자 차트·가격).
+    setCandles([]);
+    if (!code) return;
     let alive = true;
     setLoading(true);
     fetch(`/api/kr/chart?code=${code}&period=${period}`)
@@ -120,7 +123,10 @@ export function useKrChartAll(code: string | null) {
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
   useEffect(() => {
-    if (!code) { setData({ daily: [], weekly: [], monthly: [] }); return; }
+    // 종목 전환 시 이전 종목 일/주/월봉 즉시 제거(위 useKrChart와 같은 이유) —
+    // lastClose 파생값이 이전 종목 종가로 남아 헤더 가격까지 오염시킨다.
+    setData({ daily: [], weekly: [], monthly: [] });
+    if (!code) return;
     let alive = true;
     setLoading(true);
     fetch(`/api/kr/chart-all?code=${code}`)
@@ -139,7 +145,8 @@ export function useKrIntraday(code: string | null) {
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
-    if (!code) { setCandles([]); return; }
+    setCandles([]);   // 종목 전환 시 이전 종목 분봉 즉시 제거(useKrChart와 같은 이유)
+    if (!code) return;
     let alive = true;
     setLoading(true);
     const load = () => fetch(`/api/kr/intraday?code=${code}`)
