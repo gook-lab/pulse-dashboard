@@ -8,7 +8,9 @@ import type { Candle } from '../data/types';
 export interface Trade { code: string; time: string; price: number; changePct: number; volume: number; side: '매수' | '매도'; }
 export interface Level { price: number; qty: number; }
 export interface Orderbook { code: string; asks: Level[]; bids: Level[]; }
-export type KisState = 'connected' | 'connecting' | 'disconnected';
+/** idle = 이 화면에 실시간 구독 코드가 없어 스트림을 열지 않은 상태 — 장애(disconnected)가 아니다.
+ *  홈·뉴스 등 비구독 탭에서 '연결 끊김' 빨간 도트로 오독되던 것을 분리(실측 문의 2026-08-05). */
+export type KisState = 'connected' | 'connecting' | 'disconnected' | 'idle';
 
 const isKrCode = (c: string) => /^\d{6}$/.test(c);
 
@@ -20,7 +22,7 @@ class SseClient {
   private stateCbs = new Set<(s: KisState) => void>();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private clientId: string | null = null;                  // 서버가 hello로 부여 — pagehide 비컨용
-  state: KisState = 'disconnected';
+  state: KisState = 'idle';
 
   constructor() {
     // 페이지 이탈 시 sendBeacon — TCP close 감지를 기다리지 않고 서버가 KIS 구독 키를 즉시 회수.
@@ -44,7 +46,7 @@ class SseClient {
     const old = this.es;
     let oldClosed = false;
     const closeOld = () => { if (!oldClosed) { oldClosed = true; try { old?.close(); } catch { /* noop */ } } };
-    if (!codes.length) { closeOld(); this.es = null; this.setState('disconnected'); return; }
+    if (!codes.length) { closeOld(); this.es = null; this.setState('idle'); return; }
     const es = new EventSource(`/api/stream?codes=${codes.join(',')}`);
     this.es = es;
     setTimeout(closeOld, 5000); // 새 스트림이 영영 못 열려도 이전 연결이 누수되지 않게
@@ -159,9 +161,9 @@ export function useKisConnected() {
   return c;
 }
 
-/** KIS 소켓 3-state(connected/connecting/disconnected) — AppBar 배지용. */
+/** KIS 소켓 상태(connected/connecting/disconnected/idle) — AppBar 배지용. */
 export function useKisState(): KisState {
-  const [st, setSt] = useState<KisState>('disconnected');
+  const [st, setSt] = useState<KisState>('idle');
   useEffect(() => getSse().onState(setSt), []);
   return st;
 }

@@ -21,6 +21,8 @@ const WS_META: Record<string, { cls: string; label: string }> = {
   connected: { cls: s.dotConnected, label: '실시간 연결' },
   connecting: { cls: s.dotConnecting, label: '연결 중' },
   disconnected: { cls: s.dotDisconnected, label: '연결 끊김' },
+  // 구독 코드가 없는 탭(홈·뉴스 등) — 장애가 아니라 대기다. 빨간 도트로 오독되던 상태.
+  idle: { cls: s.dotIdle, label: '실시간 대기' },
 };
 
 const COLOR_OPTS: { value: ColorMode; label: string }[] = [
