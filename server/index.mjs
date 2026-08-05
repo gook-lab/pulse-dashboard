@@ -1212,9 +1212,12 @@ const kisGateway = (() => {
   let ws = null, connecting = false, backoff = 1000, state = 'disconnected', approval = '';
   let stableTimer = null, stable = false;   // 3초 이상 유지돼야 '연결됨'으로 승격(플랩 필터)
   const STABLE_MS = 3000;
-  // 무수신 워치독: KIS는 유휴 시에도 PINGPONG을 보내므로, 45초간 아무 프레임도 없으면
-  // half-open(TCP는 살았는데 데이터가 죽은 상태)으로 보고 강제 재접속한다.
-  const IDLE_MS = 45_000;
+  // 무수신 워치독: 장중에는 PINGPONG·체결이 계속 오므로 45초 무수신 = half-open 의심.
+  // ⚠️ 장외에는 KIS가 유휴 프레임을 안 보낸다(실측: 밤새 45초마다 재접속 루프 발생).
+  // half-open과 "정당한 유휴"를 서버가 구별할 수 없으므로, 무수신 재접속이 반복되면
+  // 임계를 지수로 벌리고(45s→90→…→10분) 프레임이 오는 순간 되돌린다 — 접속 폭주 방지.
+  const IDLE_MS = 45_000, IDLE_MAX = 10 * 60_000;
+  let idleMs = IDLE_MS;
   let lastMsgAt = 0, idleTimer = null;
   const codes = new Map();     // code -> refcount
   const clients = new Set();   // SSE res 객체
@@ -1255,6 +1258,7 @@ const kisGateway = (() => {
     };
     sock.onmessage = (e) => {
       lastMsgAt = Date.now();
+      idleMs = IDLE_MS;   // 프레임이 흐르기 시작하면 유휴 임계 원복(장 재개 감지)
       if (!stable) { stable = true; setState('connected'); }
       onUpstream(typeof e.data === 'string' ? e.data : String(e.data));
     };
@@ -1271,8 +1275,9 @@ const kisGateway = (() => {
     lastMsgAt = Date.now();
     if (idleTimer) clearInterval(idleTimer);
     idleTimer = setInterval(() => {
-      if (ws === sock && Date.now() - lastMsgAt > IDLE_MS) {
-        console.warn('[kisGateway] 무수신 %ds — half-open 의심, 재접속', IDLE_MS / 1000);
+      if (ws === sock && Date.now() - lastMsgAt > idleMs) {
+        console.warn('[kisGateway] 무수신 %ds — half-open 의심, 재접속(다음 임계 %ds)', Math.round(idleMs / 1000), Math.round(Math.min(IDLE_MAX, idleMs * 2) / 1000));
+        idleMs = Math.min(IDLE_MAX, idleMs * 2);   // 장외 정당한 유휴면 점점 덜 건드린다
         try { sock.close(); } catch { /* onclose가 재접속 처리 */ }
       }
     }, 10_000);
