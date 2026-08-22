@@ -12,7 +12,7 @@ execution: code
 
 ## Goal Capsule
 
-- **목표:** `refactor/handoff/FEATURE-PROMPTS.md` 22건 중 우선순위 5건 — S1 모의 주문 티켓, D1 실시간 랭킹, P1 수익률 vs 벤치마크, S4 가격 알림 + C1 알림 센터(묶음), B1 단지 상세 시트 — 를 `refactor/FeatureExpansion.dc.html` 시안 기준으로 구현한다.
+- **목표:** `handoff/FEATURE-PROMPTS.md` 22건 중 우선순위 5건 — S1 모의 주문 티켓, D1 실시간 랭킹, P1 수익률 vs 벤치마크, S4 가격 알림 + C1 알림 센터(묶음), B1 단지 상세 시트 — 를 `refactor/FeatureExpansion.dc.html` 시안 기준으로 구현한다.
 - **작업 순서:** U1(공통 기반) → S1 → D1 → P1 → S4+C1 → B1. 사용자 지정 순서.
 - **권위 순서:** 이 플랜 > FeatureExpansion 시안 > FEATURE-PROMPTS.md 프롬프트 원문. 단, `CLAUDE.md` 컨벤션(등락색 signColor 주입 · 실패 시 목 폴백 금지 → unavailable · 공통 컴포넌트 우선)은 항상 최우선.
 - **중단 조건:** KIS 모의계좌 rate limit로 신규 폴링이 기존 화면을 깨뜨릴 때, `pnpm collect` 배치 스키마 변경이 기존 스크리너를 깨뜨릴 때 — 진행을 멈추고 보고한다.
@@ -377,7 +377,7 @@ U1 → (U2→U3) → U4 → (U5→U6) → (U7→U8) → (U9→U10). 각 괄호 �
 
 ## Sources & Research
 
-- 시안: `refactor/FeatureExpansion.dc.html`(S1·D1·P1·B1·C1 탭, 정책 상수 포함 — 수수료 0.015%, 대출 3.8%/30년 예시), 프롬프트: `refactor/handoff/FEATURE-PROMPTS.md`.
+- 시안: `refactor/FeatureExpansion.dc.html`(S1·D1·P1·B1·C1 탭, 정책 상수 포함 — 수수료 0.015%, 대출 3.8%/30년 예시), 프롬프트: `handoff/FEATURE-PROMPTS.md`.
 - 기존 자산: `/api/kr/rank`(server/index.mjs — by=up|down|volume|amount, 30초 캐시), `cached()` stale-while-revalidate(src/data/httpApi.ts), localStorage 패턴(src/store/useStore.ts의 readJson/writeJson), SSE 게이트웨이(src/lib/kisSocket.ts).
 - 데이터 제약 실측: `server/cache/apt-signals.json` — 단지 8,095개, 월 17개, recent 10건 캡, 매매 거래 0건(전월세만) → KTD9의 근거.
 - 프로젝트 학습: KIS 순위 API 30건 하드캡·모의계좌 rate limit, 차트 끝점 캡 절벽(±3% 갭 시 캡 생략), 빈 결과 캐시 금지(throw로 회피) — 구현 시 준수.
