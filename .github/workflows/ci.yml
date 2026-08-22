@@ -1,0 +1,37 @@
+# stock-analysis — CI
+#
+# 커밋 전에 통과해야 하는 것들을 CI 가 다시 확인한다. 로컬에서 깜빡해도
+# 여기서 걸린다 — 게이트가 없으면 부채는 반드시 쌓인다.
+#
+# 파이프 뒤에서 종료코드를 읽지 않는다. `cmd | tail` 은 $? 가 tail 의 코드라
+# 실패가 0 으로 보인다.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: 유닛 테스트
+        run: pnpm test
+
+      - name: 빌드
+        run: pnpm build
