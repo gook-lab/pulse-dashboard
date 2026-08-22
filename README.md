@@ -165,3 +165,12 @@ Requirements → Architecture → Data model → Interface → Optimization/Obse
 개인 학습용 토이 프로젝트다. **투자 조언이 아니다.**
 KIS 연동은 검증 전까지 **모의(mock) 계좌만** 사용한다.
 `server/data/`(개인 금융 데이터)와 `server/.env`(키)는 `.gitignore`에 있다 — 커밋 금지.
+
+---
+
+## 라이선스
+
+**Source-available — 오픈소스가 아닙니다.** 코드를 읽을 수 있게 공개했을 뿐,
+사용 권한을 준 것은 아닙니다. 다른 프로젝트에 가져다 쓰거나 재배포·상업적 이용을
+하려면 사전 서면 허락이 필요합니다. 전문은 [LICENSE](LICENSE) 참조.
+
