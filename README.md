@@ -1,6 +1,6 @@
 # PULSE — 시황 통합 대시보드
 
-**한국어** · [English](README.en.md)
+**한국어** | [English](README.en.md)
 
 > **About (EN)** — A dark trading-terminal dashboard that fuses Korean and US
 > market data into one screen: live KIS tick/orderbook over SSE, index cards,

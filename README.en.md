@@ -1,6 +1,6 @@
 # PULSE — Market Overview Dashboard
 
-[한국어](README.md) · **English**
+[한국어](README.md) | **English**
 
 It's a dark trading-terminal style market dashboard. I've combined indices, heatmaps, sentiment-scored news, real-time Korean orderbooks/ticks, rankings, a paper-trading portfolio (KIS mock account), AI opinions, and technical price targets—all on one screen. Plus, a Korean real estate module with live transaction data and a 3D apartment complex site map.
 

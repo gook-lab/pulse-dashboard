@@ -3,4 +3,4 @@ flowchart TD
   GATE -->|"재시도 없음 — 중복 주문 방지"| PROXY["Node 프록시 — 토큰 · TR 라우팅"]
   PROXY --> KIS["KIS OpenAPI — REST · WebSocket"]
   KIS -.->|"실시간 체결 · 호가"| WSGW["서버 WS 게이트웨이 1개 — 브라우저는 KIS 직결 안 함"]
-  WSGW -.->|"SSE 팬아웃"| STORE[("Zustand 스토어 — 실데이터 없으면 목 대신 '-'")]
+  WSGW -.->|"SSE 팬아웃"| STORE["Zustand 스토어 — 실데이터 없으면 '-' 표시"]
