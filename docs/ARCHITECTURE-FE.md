@@ -1,7 +1,7 @@
 # PULSE FE 아키텍처 — RADIO
 
 > R(Requirements) → A(Architecture) → D(Data model) → I(Interface) → O(Optimization & Observability).
-> 원칙: "사용자가 어떤 결과물을 기대하는지 / 그 품질 기준은 무엇인지 / 품질을 보장하려면 어떤 구조가 필요한지"를 진행하는 거예요.
+> 원칙: "사용자가 어떤 결과물을 기대하는지 / 그 품질 기준은 무엇인지 / 품질을 보장하려면 어떤 구조가 필요한지"를 진행합니다.
 
 ---
 
@@ -9,7 +9,7 @@
 
 **기능**: 시황 통합 터미널 — 지수·히트맵·뉴스(감성)·KR 실시간 체결/호가·순위(TOP100)·포트폴리오(KIS 모의계좌)·AI 종합의견·기술적 목표가.
 
-**품질 기준 (도메인 지표 — "빠르다"를 수치로 표현했어요)**
+**품질 기준 (도메인 지표 — "빠르다"를 수치로 표현합니다)**
 
 | 지표 | 목표 | 현재 달성 수단 |
 |---|---|---|
@@ -23,10 +23,10 @@
 | 연결 이상 인지 | ≤ 12s | 연결 토스트 → 12s 무응답 시 새로고침 유도 |
 
 **Core Web Vitals 목표(p75)**: LCP < 2.5s · INP < 200ms · CLS < 0.1.
-현재 CLS 방어는 카드별 스켈레톤(레이아웃 점프 0) · rAF 마퀴(transform-only) · SVG 차트 고정 높이로 하고 있어요.
-⚠️ **갭**: 실측 장치가 없어요 — O장 관측성 로드맵 참조.
+현재 CLS 방어는 카드별 스켈레톤(레이아웃 점프 0) · rAF 마퀴(transform-only) · SVG 차트 고정 높이로 하고 있습니다.
+⚠️ **갭**: 실측 장치가 없습니다 — O장 관측성 로드맵 참조.
 
-**실패 시 UX 계약(전면 동일룰)**: 실데이터 없으면 목이 아니라 **"-"** · 상태 배지("● 연결 끊김") · 재시도 버튼 · stale-while-error(서버 캐시가 직전 값 서빙)로 처리해요.
+**실패 시 UX 계약(전면 동일룰)**: 실데이터 없으면 목이 아니라 **"-"** · 상태 배지("● 연결 끊김") · 재시도 버튼 · stale-while-error(서버 캐시가 직전 값 서빙)로 처리합니다.
 
 ---
 
@@ -72,53 +72,53 @@ sequenceDiagram
   B->>S: pagehide → sendBeacon bye{id} (즉시 구독 회수 — KIS 41키 예산 보호)
 ```
 
-**상태 5분류 매핑** (아키텍처 = 상태의 주소를 결정해요)
+**상태 5분류 매핑** (아키텍처 = 상태의 주소를 결정합니다)
 
 | 분류 | PULSE 실체 | 보관 위치 |
 |---|---|---|
 | server state | 지수·히트맵·뉴스·AI·포트폴리오·리서치·전세 / SSE 체결·호가 | zustand / hook state(SSE) |
 | local state | 탭, 기간·마켓·정렬 토글, 차트 줌·스크럽, 검색어 | 컴포넌트 useState |
-| **URL state** | **없음 — 갭이에요.** selectedCode·tab이 URL에 없어서 새로고침/공유 시 대시보드로 리셋돼요 | 개선 후보: `?tab=detail&code=005930` |
+| **URL state** | **없음 — 갭입니다.** selectedCode·tab이 URL에 없어서 새로고침/공유 시 대시보드로 리셋됩니다 | 개선 후보: `?tab=detail&code=005930` |
 | optimistic | 없음(주문 기능 부재 — 해당 없음) | — |
 | derived | densify 차트 시리즈, 기술적 목표가(볼린저), 52주 범위, 도넛 비중, AI 종합점수(서버 파생) | useMemo / 서버 |
 
 ---
 
-위 구조에서 **KIS 경계**만 떼어 이벤트 플로우로 그리면 이래요 — REST는
-`kisFetch` 게이트 하나로, 실시간은 서버 WS 게이트웨이 하나로 수렴해요:
+위 구조에서 **KIS 경계**만 떼어 이벤트 플로우로 그리면 이렇습니다 — REST는
+`kisFetch` 게이트 하나로, 실시간은 서버 WS 게이트웨이 하나로 수렴합니다:
 
 <img src="diagrams/kis-data-flow.png" width="480" alt="KIS 데이터 플로우 — REST는 kisFetch 직렬 큐로, 실시간은 WS 게이트웨이 1개에서 SSE 팬아웃으로">
 
 > 이 다이어그램은 [pig-ma](https://github.com/gook-lab/pig-ma)의 Mermaid
-> import로 그렸어요. 원본 정의는
+> import로 그렸습니다. 원본 정의는
 > [`diagrams/kis-data-flow.mmd`](diagrams/kis-data-flow.mmd).
 
 ## D — Data Model (전송·표현 비용까지 설계)
 
-**단일 계약**: `src/data/types.ts`의 `MarketApi` — mock/http 구현이 같은 계약을 만족해요(strangler). 화면은 타입에만 의존하고 있어요.
+**단일 계약**: `src/data/types.ts`의 `MarketApi` — mock/http 구현이 같은 계약을 만족합니다(strangler). 화면은 타입에만 의존합니다.
 
-**O(1) 표현 원칙 적용 사례** (likedUsers→viewerState 교훈에서 배웠어요):
+**O(1) 표현 원칙 적용 사례** (likedUsers→viewerState 교훈에서 배웠습니다):
 - 뉴스 감성: 원문 대신 서버가 `sentiment: good|bad|neutral` **라벨 1개**로 축약 (AV 라벨 + 키워드 분류기)
 - 포트폴리오: 보유 N건을 클라가 합산하지 않도록 서버가 `summary{totalValue,pnl,…}` **집계 전송**
 - 순위: 서버 정렬 완료본(rank 포함) — 클라 정렬 O(0)
 - AI 종합: 뉴스 60건·지수·F&G를 서버가 `score+markets[]`로 파생
 
-**컬럼형 시계열 저장**(`server/realestate/index.mjs`): 월별 시계열을 중첩 배열 `[[가격, 건수], …]`로 두면 8,748단지 × 17개월 × 2종 = **297,432개의 작은 배열**이 각각 헤더를 달고 힙에 남더라고요(실측 21.6MB). 로드 시 `columnize()`가 `Float64Array`(가격) + `Uint16Array`(건수) 두 덩어리로 접어요 — 파일은 그대로 JSON이라 배치·캐시 형식은 그대로예요.
-- 접근자: `seriesRows(store, c, kind)`(응답용 복원) · `seriesValueAt(store, c, kind, idx)`(거래 없는 달은 직전 유효값). `NaN` = 거래 없음(0과 구분돼요).
-- **Float32는 안 돼요** — 유효숫자 7자리라 순위 행 평당가가 3,189 → 3,190으로 밀려요(실측). 정렬 기준값은 Float64예요.
-- 상세에서만 쓰는 `recent`(최근 거래 10건)는 상주시키지 않고 요청 시 거래 샤드에서 만들어요.
+**컬럼형 시계열 저장**(`server/realestate/index.mjs`): 월별 시계열을 중첩 배열 `[[가격, 건수], …]`로 두면 8,748단지 × 17개월 × 2종 = **297,432개의 작은 배열**이 각각 헤더를 달고 힙에 남았습니다(실측 21.6MB). 로드 시 `columnize()`가 `Float64Array`(가격) + `Uint16Array`(건수) 두 덩어리로 접습니다 — 파일은 그대로 JSON이라 배치·캐시 형식은 그대로입니다.
+- 접근자: `seriesRows(store, c, kind)`(응답용 복원) · `seriesValueAt(store, c, kind, idx)`(거래 없는 달은 직전 유효값). `NaN` = 거래 없음(0과 구분됩니다).
+- **Float32는 안 됩니다** — 유효숫자 7자리라 순위 행 평당가가 3,189 → 3,190으로 밀립니다(실측). 정렬 기준값은 Float64입니다.
+- 상세에서만 쓰는 `recent`(최근 거래 10건)는 상주시키지 않고 요청 시 거래 샤드에서 만듭니다.
 - 효과: heap 82.0 → 51.4MB, 서버 RSS 143.8 → 48.6MB.
 
-**정직성 필드 패턴**: `unavailable?: boolean`(실패≠0), `targetReal?: boolean`(실산출 목표가만 표시), `source: 'kis-mock'|'kis-real'`(출처 명시), `DetailHint`(임의 종목 코드-이름 불일치 방지)를 써요.
+**정직성 필드 패턴**: `unavailable?: boolean`(실패≠0), `targetReal?: boolean`(실산출 목표가만 표시), `source: 'kis-mock'|'kis-real'`(출처 명시), `DetailHint`(임의 종목 코드-이름 불일치 방지)를 씁니다.
 
 ---
 
 ## I — Interface (컴포넌트 · 서버 API · 이벤트 · 관측)
 
 **컴포넌트 계약** (`components/common` 배럴):
-- 색 주입 규칙: 등락색은 컴포넌트가 정하면 안 돼요 — `signColor(pct, mode)`·`HOLD`·`STATUS_*` 주입하세요 (하드코딩 금지)
-- `PriceChart{series,candles,volumes,labels,mode,dayChange…}` — 데이터만 받고 상호작용(스크럽·줌·미니맵)은 내부 소유로 가고 있어요
-- `Badge{color}` / `Segmented{options,value,onChange}` / `ReasonList{sign,mode}` / `MarketChip{market}`을 쓰세요
+- 색 주입 규칙: 등락색은 컴포넌트가 정하면 안 됩니다 — `signColor(pct, mode)`·`HOLD`·`STATUS_*` 주입합니다 (하드코딩 금지)
+- `PriceChart{series,candles,volumes,labels,mode,dayChange…}` — 데이터만 받고 상호작용(스크럽·줌·미니맵)은 내부 소유로 갑니다
+- `Badge{color}` / `Segmented{options,value,onChange}` / `ReasonList{sign,mode}` / `MarketChip{market}`을 씁니다
 
 **서버 API** (전체 cached TTL + in-flight dedup + stale-on-error):
 
@@ -136,9 +136,9 @@ sequenceDiagram
 
 **SSE 이벤트**: `hello{id}` · `state{connected|connecting|disconnected}` · `trade` · `orderbook` (파서 필드 인덱스는 골든 픽스처 테스트로 잠금).
 
-**브라우저 이벤트**: ⌘K 검색 · `pagehide→sendBeacon`(이탈 보장 전송) · `document.hidden` 게이트(모든 폴링 차단) · 휠/핀치/드래그(차트)로 상호작용해요.
+**브라우저 이벤트**: ⌘K 검색 · `pagehide→sendBeacon`(이탈 보장 전송) · `document.hidden` 게이트(모든 폴링 차단) · 휠/핀치/드래그(차트)로 상호작용합니다.
 
-**관측 인터페이스**: ⚠️ **갭** — 텔레메트리가 없어요. O장 로드맵 참조.
+**관측 인터페이스**: ⚠️ **갭** — 텔레메트리가 없습니다. O장 로드맵 참조.
 
 ---
 
@@ -153,18 +153,18 @@ sequenceDiagram
 | 차트 | 264pt여도 **path 1개**(SVG polyline) | DOM 폭발 없음 |
 | 체결 내역 | slice(0,30) 캡 | 무한 성장 방지 |
 
-**적용된 최적화**: rAF 마퀴(transform-only, 환경설정 면역) · densify 결정적 시드(리렌더 안정) · SSE reopen 100ms 디바운스 · 서버 in-flight dedup(StrictMode 이중호출 흡수) · 빈 결과 캐시 금지(스로틀 박제 방지) · 가격 변경 플래시(GPU backgroundColor) · 폴링 visibility 게이트로 처리했어요.
+**적용된 최적화**: rAF 마퀴(transform-only, 환경설정 면역) · densify 결정적 시드(리렌더 안정) · SSE reopen 100ms 디바운스 · 서버 in-flight dedup(StrictMode 이중호출 흡수) · 빈 결과 캐시 금지(스로틀 박제 방지) · 가격 변경 플래시(GPU backgroundColor) · 폴링 visibility 게이트로 처리했습니다.
 
 **관측성 로드맵 (아직 구현 전 — 다음 스텝)**:
-1. `web-vitals` 라이브러리로 LCP/INP/CLS p75 수집 → **이번에 깐 sendBeacon 채널 재활용해요** (`/api/telemetry` 비컨)
+1. `web-vitals` 라이브러리로 LCP/INP/CLS p75 수집 → **이번에 깐 sendBeacon 채널 재활용합니다** (`/api/telemetry` 비컨)
 2. 도메인 지표: time-to-first-tick, SSE 재접속 횟수/세션, "-" 노출 비율(데이터 가용성 SLI) 수집
-3. 에러: window.onerror + unhandledrejection → 비컨으로 보낼 예정이에요
+3. 에러: window.onerror + unhandledrejection → 비컨으로 보낼 예정입니다
 
 ---
 
 ## 부록 — 이 구조가 지키는 불변식
-1. 브라우저는 KIS에 직결하지 않아요(키·연결수·재접속은 서버 책임)
-2. 실데이터가 없으면 목이 아니라 "-"예요
-3. 등락색은 주입돼요(colorMode 반전 일관성 유지)
-4. 파서 계약은 골든 테스트로 잠가요(실계좌 전환 시 픽스처 갱신)
-5. 캐시는 빈 성공을 저장하면 안 돼요
+1. 브라우저는 KIS에 직결하지 않습니다(키·연결수·재접속은 서버 책임)
+2. 실데이터가 없으면 목이 아니라 "-"입니다
+3. 등락색은 주입됩니다(colorMode 반전 일관성 유지)
+4. 파서 계약은 골든 테스트로 잠급니다(실계좌 전환 시 픽스처 갱신)
+5. 캐시는 빈 성공을 저장하면 안 됩니다
