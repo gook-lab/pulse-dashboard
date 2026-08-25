@@ -110,7 +110,7 @@ All polling respects `document.hidden` gating.
 
 ---
 
-## Lessons from External APIs
+## External API Integration Notes
 
 The hard part of this project wasn't the UI—it was **tolerating other people's APIs**.
 

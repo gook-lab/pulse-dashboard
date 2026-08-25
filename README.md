@@ -119,7 +119,7 @@ Requirements → Architecture → Data model → Interface → Optimization/Obse
 
 ---
 
-## 외부 API에서 배운 것
+## 외부 API 연동 노트
 
 이 프로젝트의 실질적 난이도는 UI가 아니라 **남의 API를 견디는 일**이었습니다.
 
