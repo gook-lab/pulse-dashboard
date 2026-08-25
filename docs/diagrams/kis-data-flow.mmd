@@ -2,5 +2,14 @@ flowchart TD
   VIEW["React 뷰 — 지수 · 호가 · 포트폴리오"] -->|REST 요청| GATE["kisFetch — 전역 직렬 큐 · 적응형 간격 ×1.6 / −15ms"]
   GATE -->|"재시도 없음 — 중복 주문 방지"| PROXY["Node 프록시 — 토큰 · TR 라우팅"]
   PROXY --> KIS["KIS OpenAPI — REST · WebSocket"]
-  KIS -.->|"실시간 체결 · 호가"| WSGW["서버 WS 게이트웨이 1개 — 브라우저는 KIS 직결 안 함"]
-  WSGW -.->|"SSE 팬아웃"| STORE["Zustand 스토어 — 실데이터 없으면 '-' 표시"]
+  KIS -->|"실시간 체결 · 호가"| WSGW["서버 WS 게이트웨이 1개 — 브라우저는 KIS 직결 안 함"]
+  WSGW -->|"SSE 팬아웃"| STORE[("Zustand 스토어 — 실데이터 없으면 '-' 표시")]
+
+  classDef core fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b,stroke-width:3
+  classDef view fill:#ffffff,stroke:#475569,color:#0f172a
+  classDef store fill:#dcfce7,stroke:#16a34a,color:#052e16
+  classDef external fill:#fef3c7,stroke:#d97706,color:#451a03
+  class GATE,WSGW core
+  class VIEW,PROXY view
+  class KIS external
+  class STORE store
