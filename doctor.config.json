@@ -1,0 +1,6 @@
+{
+  "$schema": "https://unpkg.com/react-doctor/schema.json",
+  "ignore": {
+    "files": ["refactor/**", "dist/**", "build/**"]
+  }
+}

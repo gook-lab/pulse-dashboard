@@ -292,7 +292,11 @@ const kisFetch = (() => {
       const wait = lastAt + gap - Date.now();
       if (wait > 0) await nap(wait);
       lastAt = Date.now();
-      const res = await fetch(url, init);
+      // 리다이렉트를 따라가지 않는다. 따라가면 authorization/appkey/appsecret
+      // 헤더가 원래 호스트가 아닌 곳으로 그대로 전송된다(SSRF 리다이렉트 우회).
+      // KIS 엔드포인트는 리다이렉트하지 않으므로 3xx 는 이상 신호다 —
+      // res.ok 가 false 라 호출부의 기존 에러 경로로 그대로 흘러간다.
+      const res = await fetch(url, { ...init, redirect: 'manual' });
       // 스로틀은 5xx/429로 온다 → 간격을 벌리고, 성공이 이어지면 천천히 좁힌다.
       // ⚠️ 여기서 자동 재시도하지 않는다 — 주문(kisPost)까지 재시도하면 중복 주문이 된다.
       if (res.status >= 500 || res.status === 429) gap = Math.min(MAX, Math.round(gap * 1.6));

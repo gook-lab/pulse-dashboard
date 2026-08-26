@@ -1,0 +1,8 @@
+# 공급망 하드닝 — react-doctor/require-pnpm-hardening
+#
+# minimumReleaseAge: 갓 올라온 버전은 설치하지 않는다. 침해된 패키지는 보통
+#   몇 시간~하루 안에 발각돼 unpublish 되므로, 7일을 기다리면 그 창을 피한다.
+# trustPolicy: 업데이트하면서 provenance/서명 같은 신뢰 신호가 **약해지는**
+#   버전을 조용히 받아들이지 않는다.
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
