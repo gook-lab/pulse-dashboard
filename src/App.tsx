@@ -35,6 +35,9 @@ function useConnectionToast() {
       clear();
     }
     prev.current = state;
+    // 언마운트 시 대기 중인 타이머를 끊는다 — 없으면 12초 뒤 사라진 화면을
+    // 향해 "새로고침" 토스트가 뜬다.
+    return clear;
   }, [state]);
 }
 

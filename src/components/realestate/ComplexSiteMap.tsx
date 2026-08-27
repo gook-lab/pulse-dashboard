@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { EmptyState, ErrorState, Loading, Segmented, Spinner } from '@/components/common';
 import { solarPosition, shadowVector, convexHull, SUN_PRESETS, kstDate, type SunPresetKey } from '@/lib/sun';
 import {
@@ -506,7 +506,11 @@ export default function ComplexSiteMap({ aptSeq, fallbackFloors, large = false }
   const svgRef = useRef<SVGSVGElement>(null);
   /** 최신 기하를 참조만 한다 — zoomAt 을 geom 의존으로 두면 회전할 때마다 새로 만들어진다. */
   const geomRef = useRef<typeof geom>(null);
-  geomRef.current = geom;
+  // 렌더 중이 아니라 커밋 뒤에 쓴다 — 버려진 렌더의 기하가 남으면 확대 기준점이
+  // 화면에 없는 상태를 가리킨다.
+  useLayoutEffect(() => {
+    geomRef.current = geom;
+  }, [geom]);
 
   /**
    * 커서(또는 화면 중앙) 아래 지점을 붙잡은 채 확대한다.
@@ -516,13 +520,16 @@ export default function ComplexSiteMap({ aptSeq, fallbackFloors, large = false }
    */
   const zoomAt = useCallback((factor: number, clientX?: number, clientY?: number) => {
     const el = svgRef.current;
+    // 업데이터 밖에서 읽는다. React 는 업데이터를 두 번 이상 실행할 수 있어서
+    // 안에서 ref 를 읽으면 실행 시점마다 다른 값을 볼 수 있다.
+    const g = geomRef.current;
+    // DOM 측정도 업데이터 밖에서 한 번만 한다 (같은 이유 + 레이아웃 강제 1회)
+    const rect = el?.getBoundingClientRect();
     setCam((c) => {
       const next = clampZoom(c.zoom * factor);
-      const g = geomRef.current;
-      if (!g || next === c.zoom || !el || clientX == null || clientY == null) {
+      if (!g || next === c.zoom || !rect || clientX == null || clientY == null) {
         return { ...c, zoom: next };
       }
-      const rect = el.getBoundingClientRect();
       if (!rect.width || !rect.height) return { ...c, zoom: next };
 
       const { frame } = g;
