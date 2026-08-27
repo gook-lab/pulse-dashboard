@@ -80,15 +80,26 @@ function MarketRow({ m }: { m: BuffettMarket }) {
                 style={{ position: 'absolute', left: `${geo.median}%`, top: -2, width: 1, height: 10, background: 'var(--text-mut)' }}
               />
             )}
+            {/* left 를 애니메이션하면 매 프레임 레이아웃이 다시 계산된다.
+                트랙 너비와 같은 래퍼를 두고 transform(x) 으로 옮긴다 —
+                x 의 % 는 자기 자신의 너비 기준이라 left % 와 같은 위치가 된다.
+                합성만 일어나므로 리플로우가 없다. */}
             <motion.div
               initial={{ opacity: 0 }}
-              animate={{ opacity: 1, left: `${geo.current}%` }}
+              animate={{ opacity: 1, x: `${geo.current}%` }}
               transition={{ duration: 0.4 }}
               style={{
-                position: 'absolute', top: -2, width: 10, height: 10, marginLeft: -5,
-                borderRadius: '50%', background: accent, boxShadow: `0 0 6px ${accent}`,
+                position: 'absolute', left: 0, top: -2, width: '100%', height: 10,
+                pointerEvents: 'none',
               }}
-            />
+            >
+              <div
+                style={{
+                  position: 'absolute', left: 0, top: 0, width: 10, height: 10, marginLeft: -5,
+                  borderRadius: '50%', background: accent, boxShadow: `0 0 6px ${accent}`,
+                }}
+              />
+            </motion.div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--text-sub)' }}>
             <span className="mono">{m.min?.toFixed(0)}%</span>

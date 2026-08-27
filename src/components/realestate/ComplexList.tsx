@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '@/store/useStore';
 import { Badge, Bar, Button, EmptyState, SkeletonRows } from '@/components/common';
 import { fmt, scaleColor, signColor, SIGNAL_DOMAIN, WARN } from '@/lib/colors';
@@ -228,20 +228,29 @@ export default function ComplexList() {
     setActiveKey(refKey);
   }, []);
 
+  const visibleRanks = areaRanked.slice(0, visible);
+
+  // ↑↓ 이동 순서 = 이번 렌더에 실제로 그려지는 행 순서.
+  // 렌더 중에 ref 로 쓰지 않는다 — React 가 렌더를 버리면 커밋되지 않은 순서가
+  // ref 에 남는다. 렌더에서는 순수한 값을 쓰고, 핸들러용 ref 는 커밋 뒤에 맞춘다.
+  // ⚠️ 훅이라 조기 return 보다 위에 있어야 한다.
+  const order = screen
+    ? [
+        ...watchlist.map((id) => `w:${id}`),
+        ...visibleRanks.map((r) => `r:${r.id}`),
+      ]
+    : [];
+  useLayoutEffect(() => {
+    orderRef.current = order;
+  });
+
   if (!screen) return <div className={s.container}><SkeletonRows rows={12} /></div>;
 
   const { signal } = screen;
   const domain = SIGNAL_DOMAIN[signal];
-  const visibleRanks = areaRanked.slice(0, visible);
 
-  // ↑↓ 이동 순서 = 이번 렌더에 실제로 그려지는 행 순서
-  orderRef.current = [
-    ...watchlist.map((id) => `w:${id}`),
-    ...visibleRanks.map((r) => `r:${r.id}`),
-  ];
-
-  // 유효 키: orderRef.current 에 있는 key 만 tabbable. 필터 변경으로 사라지면 첫 행.
-  const validKey = activeKey && orderRef.current.includes(activeKey) ? activeKey : orderRef.current[0] ?? null;
+  // 유효 키: order 에 있는 key 만 tabbable. 필터 변경으로 사라지면 첫 행.
+  const validKey = activeKey && order.includes(activeKey) ? activeKey : order[0] ?? null;
 
   // 지난 갱신 대비 — 같은 시그널·거래유형의 스냅샷 쌍이 있을 때만 (다른 시그널 값끼리 Δ 금지)
   const canDelta = snapshot.cur && snapshot.prev
