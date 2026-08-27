@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { Suspense, lazy, useEffect, useRef } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { useStore } from './store/useStore';
 import { useKisState } from './lib/kisSocket';
@@ -6,13 +6,17 @@ import { useAlertEngine } from './lib/useAlertEngine';
 import toast from './lib/toast';
 import AppBar from './components/AppBar';
 import TickerTape from './components/TickerTape';
-import Home from './components/home/Home';
-import Dashboard from './components/dashboard/Dashboard';
-import StockDetail from './components/detail/StockDetail';
-import News from './components/news/News';
-import Portfolio from './components/portfolio/Portfolio';
-import Research from './components/research/Research';
-import RealEstate from './components/realestate/RealEstate';
+
+// 탭은 한 번에 하나만 보이는데 7개를 전부 초기 번들에 넣고 있었다.
+// 지연 로딩하면 처음 여는 탭만 받는다 (realestate 3.7k줄, dashboard 1.5k줄,
+// detail 1.4k줄 — 대부분이 첫 화면과 무관하다).
+const Home = lazy(() => import('./components/home/Home'));
+const Dashboard = lazy(() => import('./components/dashboard/Dashboard'));
+const StockDetail = lazy(() => import('./components/detail/StockDetail'));
+const News = lazy(() => import('./components/news/News'));
+const Portfolio = lazy(() => import('./components/portfolio/Portfolio'));
+const Research = lazy(() => import('./components/research/Research'));
+const RealEstate = lazy(() => import('./components/realestate/RealEstate'));
 
 // 실시간 소켓 연결 상태 토스트: 연결 중 → 연결됨, 응답 지연 시 새로고침 유도.
 function useConnectionToast() {
@@ -61,13 +65,17 @@ export default function App() {
       <TickerTape />
       <div className="main">
         <div className="wrap">
-          {tab === 'home' && <Home />}
-          {tab === 'dashboard' && <Dashboard />}
-          {tab === 'detail' && <StockDetail />}
-          {tab === 'news' && <News />}
-          {tab === 'portfolio' && <Portfolio />}
-          {tab === 'research' && <Research />}
-          {tab === 'realestate' && <RealEstate />}
+          {/* 탭 청크를 받는 동안 기존 레이아웃을 유지한다 — 스피너를 넣으면
+              탭을 옮길 때마다 화면이 깜빡인다. */}
+          <Suspense fallback={null}>
+            {tab === 'home' && <Home />}
+            {tab === 'dashboard' && <Dashboard />}
+            {tab === 'detail' && <StockDetail />}
+            {tab === 'news' && <News />}
+            {tab === 'portfolio' && <Portfolio />}
+            {tab === 'research' && <Research />}
+            {tab === 'realestate' && <RealEstate />}
+          </Suspense>
         </div>
       </div>
       <Toaster position="bottom-right" gutter={10} />
